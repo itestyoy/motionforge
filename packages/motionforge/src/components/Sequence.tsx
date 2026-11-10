@@ -347,7 +347,10 @@ export const Loop = Object.assign(LoopRoot, { useLoop });
 
 // Freeze: shows its children one frame, as in Remotion.
 interface FreezeProps {
-  /** The frame the children see while frozen (an integer). */
+  /**
+   * The frame the children see while frozen. Sub-frames (fractions) are
+   * allowed, as in Remotion: motion blur renders its samples between frames.
+   */
   frame: number;
   /**
    * Whether to freeze: a boolean, or a function of the current frame (default
@@ -363,8 +366,8 @@ export const Freeze: React.FC<FreezeProps> = ({
   children,
 }) => {
   const currentFrame = useCurrentFrame();
-  if (!Number.isInteger(frozenFrame)) {
-    throw new Error(`Freeze: frame must be an integer, got ${frozenFrame}`);
+  if (typeof frozenFrame !== 'number' || !Number.isFinite(frozenFrame)) {
+    throw new Error(`Freeze: frame must be a finite number, got ${frozenFrame}`);
   }
   if (typeof active !== 'boolean' && typeof active !== 'function') {
     throw new Error(`Freeze: active must be a boolean or a function of the frame, got ${active}`);

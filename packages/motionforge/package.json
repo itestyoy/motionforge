@@ -38,6 +38,46 @@
         "types": "./dist/lottie/index.d.cts",
         "default": "./dist/lottie/index.cjs"
       }
+    },
+    "./motion-blur": {
+      "import": {
+        "types": "./dist/motion-blur/index.d.ts",
+        "default": "./dist/motion-blur/index.js"
+      },
+      "require": {
+        "types": "./dist/motion-blur/index.d.cts",
+        "default": "./dist/motion-blur/index.cjs"
+      }
+    },
+    "./layout-utils": {
+      "import": {
+        "types": "./dist/layout-utils/index.d.ts",
+        "default": "./dist/layout-utils/index.js"
+      },
+      "require": {
+        "types": "./dist/layout-utils/index.d.cts",
+        "default": "./dist/layout-utils/index.cjs"
+      }
+    },
+    "./gif": {
+      "import": {
+        "types": "./dist/gif/index.d.ts",
+        "default": "./dist/gif/index.js"
+      },
+      "require": {
+        "types": "./dist/gif/index.d.cts",
+        "default": "./dist/gif/index.cjs"
+      }
+    },
+    "./media-utils": {
+      "import": {
+        "types": "./dist/media-utils/index.d.ts",
+        "default": "./dist/media-utils/index.js"
+      },
+      "require": {
+        "types": "./dist/media-utils/index.d.cts",
+        "default": "./dist/media-utils/index.cjs"
+      }
     }
   },
   "files": [
@@ -87,7 +127,8 @@
   },
   "dependencies": {
     "lottie-web": "^5.13.0",
-    "simplex-noise": "4.0.1"
+    "simplex-noise": "4.0.1",
+    "omggif": "1.0.10"
   },
   "devDependencies": {
     "@react-three/drei": "^10.7.7",
@@ -95,6 +136,7 @@
     "@types/node": "26.6.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/omggif": "1.0.5",
     "@types/three": "^0.184.1",
     "happy-dom": "^21.0.4",
     "react": "^19.0.0",

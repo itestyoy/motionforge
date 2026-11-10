@@ -339,50 +339,6 @@ export const Glitch: React.FC<GlitchProps> = ({
   );
 };
 
-// Trail effect component
-interface TrailProps {
-  children: React.ReactNode;
-  trailLength?: number;
-  opacityDecay?: number;
-  style?: React.CSSProperties;
-}
-
-export const Trail: React.FC<TrailProps> = ({
-  children,
-  trailLength = 5,
-  opacityDecay = 0.2,
-  style,
-}) => {
-  const frame = useCurrentFrame();
-
-  return (
-    <div style={{ position: 'relative', ...style }}>
-      {Array.from({ length: trailLength }, (_, i) => {
-        const trailFrame = frame - i * 2;
-        if (trailFrame < 0) return null;
-
-        return (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              opacity: 1 - i * opacityDecay,
-              pointerEvents: 'none',
-            }}
-          >
-            {children}
-          </div>
-        );
-      })}
-      <div style={{ position: 'relative' }}>
-        {children}
-      </div>
-    </div>
-  );
-};
-
 // Shake effect wrapper
 interface ShakeEffectProps {
   children: React.ReactNode;
