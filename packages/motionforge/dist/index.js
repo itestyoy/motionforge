@@ -1,8 +1,163 @@
-'use client';import { useVideoConfig, FrameProvider, useCurrentFrame, FrameContext } from './chunk-UU3G2NRN.js';
-export { FrameProvider, useCurrentFrame, useVideoConfig } from './chunk-UU3G2NRN.js';
-import React5, { createContext, useContext, useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { jsx, jsxs } from 'react/jsx-runtime';
+'use client';import { useDelayRender } from './chunk-ULT45LAD.js';
+export { useDelayRender } from './chunk-ULT45LAD.js';
+import { useCurrentFrame, FrameContext, GateContext, getGateInternals, useVideoConfig, FrameProvider } from './chunk-SKDHOWVF.js';
+export { FrameProvider, createRenderGate, useCurrentFrame, useVideoConfig } from './chunk-SKDHOWVF.js';
+import React2, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { jsx, Fragment, jsxs } from 'react/jsx-runtime';
 
+var requireDom = (fn) => {
+  if (typeof document === "undefined") {
+    throw new Error(`${fn} needs a browser DOM (document is not defined)`);
+  }
+};
+var checkSrc = (fn, src) => {
+  if (typeof src !== "string" || src === "") {
+    throw new Error(`${fn}: src must be a non-empty string, got ${JSON.stringify(src)}`);
+  }
+};
+var preloadImage = (src) => {
+  checkSrc("preloadImage", src);
+  requireDom("preloadImage");
+  const image = new Image();
+  image.src = src;
+  return image.decode().then(
+    () => image,
+    () => {
+      throw new Error(`preloadImage: could not load or decode ${src}`);
+    }
+  );
+};
+var preloadMedia = (fn, element, src) => {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      element.removeEventListener("loadeddata", onLoaded);
+      element.removeEventListener("error", onError);
+    };
+    const onLoaded = () => {
+      cleanup();
+      resolve(element);
+    };
+    const onError = () => {
+      cleanup();
+      const detail = element.error ? `: ${element.error.message || `media error code ${element.error.code}`}` : "";
+      reject(new Error(`${fn}: could not load ${src}${detail}`));
+    };
+    element.addEventListener("loadeddata", onLoaded);
+    element.addEventListener("error", onError);
+    element.preload = "auto";
+    element.src = src;
+    element.load();
+  });
+};
+var preloadVideo = (src) => {
+  checkSrc("preloadVideo", src);
+  requireDom("preloadVideo");
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  return preloadMedia("preloadVideo", video, src);
+};
+var preloadAudio = (src) => {
+  checkSrc("preloadAudio", src);
+  requireDom("preloadAudio");
+  return preloadMedia("preloadAudio", document.createElement("audio"), src);
+};
+var preloadFont = (family, options = {}) => {
+  if (typeof family !== "string" || family.trim() === "") {
+    throw new Error(`preloadFont: family must be a non-empty string, got ${JSON.stringify(family)}`);
+  }
+  requireDom("preloadFont");
+  if (!document.fonts) {
+    throw new Error("preloadFont needs the CSS Font Loading API (document.fonts)");
+  }
+  const weight = String(options.weight ?? 400);
+  const style = options.style ?? "normal";
+  const describe = `${family} ${weight} ${style}`;
+  if (options.source !== void 0) {
+    checkSrc("preloadFont", options.source);
+    const face = new FontFace(family, `url(${JSON.stringify(options.source)})`, { weight, style });
+    return face.load().then(
+      (loaded) => {
+        document.fonts.add(loaded);
+      },
+      () => {
+        throw new Error(`preloadFont: could not load ${describe} from ${options.source}`);
+      }
+    );
+  }
+  return document.fonts.load(`${style} ${weight} 16px ${JSON.stringify(family)}`).then(
+    (faces) => {
+      if (faces.length === 0) {
+        throw new Error(`preloadFont: no font face matches ${describe}; declare it with @font-face or pass source`);
+      }
+    },
+    () => {
+      throw new Error(`preloadFont: could not load ${describe}`);
+    }
+  );
+};
+var preloadAsset = (asset) => {
+  switch (asset.type) {
+    case "image":
+      return preloadImage(asset.src);
+    case "video":
+      return preloadVideo(asset.src);
+    case "audio":
+      return preloadAudio(asset.src);
+    case "font": {
+      const { family, ...options } = asset;
+      return preloadFont(family, options);
+    }
+  }
+};
+var ASSET_TYPES = ["image", "video", "audio", "font"];
+var checkAssets = (assets) => {
+  if (!Array.isArray(assets)) {
+    throw new Error("usePreloadAssets: assets must be an array");
+  }
+  assets.forEach((asset, i) => {
+    if (typeof asset !== "object" || asset === null || !ASSET_TYPES.includes(asset.type)) {
+      throw new Error(
+        `usePreloadAssets: assets[${i}] must be { type: 'image' | 'video' | 'audio' | 'font', ... }, got ${JSON.stringify(asset)}`
+      );
+    }
+  });
+};
+var usePreloadAssets = (assets) => {
+  checkAssets(assets);
+  const key = JSON.stringify(assets);
+  const { delayRender, continueRender, cancelRender } = useDelayRender();
+  const [loadedKey, setLoadedKey] = useState(null);
+  const handle = useRef(null);
+  useEffect(() => {
+    const list = JSON.parse(key);
+    const current = delayRender(`usePreloadAssets ${list.map((a) => a.type === "font" ? a.family : a.src).join(", ")}`);
+    handle.current = current;
+    let active = true;
+    Promise.resolve().then(() => Promise.all(list.map(preloadAsset))).then(
+      () => {
+        if (active) setLoadedKey(key);
+      },
+      (error) => {
+        if (!active) return;
+        cancelRender(error);
+        continueRender(current);
+      }
+    );
+    return () => {
+      active = false;
+      continueRender(current);
+      handle.current = null;
+    };
+  }, [key, delayRender, continueRender, cancelRender]);
+  useEffect(() => {
+    if (loadedKey === key && handle.current !== null) {
+      continueRender(handle.current);
+      handle.current = null;
+    }
+  }, [loadedKey, key, continueRender]);
+  return loadedKey === key;
+};
 var CompositionContext = createContext(null);
 var useComposition = () => {
   const context = useContext(CompositionContext);
@@ -20,7 +175,8 @@ var Composition = ({
   height = 1080,
   fps = 30,
   durationInFrames,
-  defaultProps = {}
+  defaultProps = {},
+  gate
 }) => {
   return /* @__PURE__ */ jsx(
     CompositionContext.Provider,
@@ -37,6 +193,7 @@ var Composition = ({
           durationInFrames,
           width,
           height,
+          gate,
           children: /* @__PURE__ */ jsx(Component, { ...defaultProps })
         }
       )
@@ -46,6 +203,7 @@ var Composition = ({
 var SequenceContext = createContext({
   relativeFrom: 0,
   isActive: true,
+  isPremounted: false,
   startFrame: 0,
   endFrame: Infinity
 });
@@ -56,26 +214,57 @@ var Sequence = ({
   offset = 0,
   name,
   children,
-  layout = "absolute-fill"
+  layout = "absolute-fill",
+  premountFor = 0
 }) => {
   const currentFrame = useCurrentFrame();
   const parent = useContext(FrameContext);
+  const parentGate = useContext(GateContext);
+  if (!Number.isInteger(from)) {
+    throw new Error(`Sequence: from must be an integer, got ${from}`);
+  }
+  if (!Number.isInteger(offset)) {
+    throw new Error(`Sequence: offset must be an integer, got ${offset}`);
+  }
+  if (durationInFrames !== void 0 && (!Number.isInteger(durationInFrames) || durationInFrames <= 0)) {
+    throw new Error(
+      `Sequence: durationInFrames must be a positive integer (leave it out to run to the end), got ${durationInFrames}`
+    );
+  }
+  if (!Number.isInteger(premountFor) || premountFor < 0) {
+    throw new Error(`Sequence: premountFor must be a non-negative integer, got ${premountFor}`);
+  }
+  if (premountFor > 0 && layout === "none") {
+    throw new Error('Sequence: premountFor needs layout="absolute-fill" (the wrapper hides the premounted content)');
+  }
   const startFrame = from + offset;
   const endFrame = durationInFrames !== void 0 ? startFrame + durationInFrames : Infinity;
-  const relativeFrame = currentFrame - startFrame;
   const isActive = currentFrame >= startFrame && currentFrame < endFrame;
+  const isPremounted = !isActive && currentFrame >= startFrame - premountFor && currentFrame < startFrame;
+  const relativeFrame = isPremounted ? 0 : currentFrame - startFrame;
+  const [scope] = useState(() => ({ visible: !isPremounted, parent: parentGate?.scope ?? null }));
+  useEffect(() => {
+    if (!parentGate || scope.visible === !isPremounted) return;
+    scope.visible = !isPremounted;
+    getGateInternals(parentGate.gate).changed();
+  }, [isPremounted, parentGate, scope]);
+  const gateValue = useMemo(
+    () => parentGate && premountFor > 0 ? { gate: parentGate.gate, scope } : parentGate,
+    [parentGate, premountFor, scope]
+  );
   const contextValue = {
     relativeFrom: startFrame,
     durationInFrames,
     isActive,
+    isPremounted,
     startFrame,
     endFrame
   };
-  if (!isActive) {
+  if (!isActive && !isPremounted) {
     return null;
   }
   const localDuration = durationInFrames ?? (parent ? parent.durationInFrames - startFrame : void 0);
-  const content = /* @__PURE__ */ jsx(SequenceFrameProvider, { relativeFrame, durationInFrames: localDuration, children });
+  const content = /* @__PURE__ */ jsx(GateContext.Provider, { value: gateValue, children: /* @__PURE__ */ jsx(SequenceFrameProvider, { relativeFrame, durationInFrames: localDuration, children }) });
   if (layout === "none") {
     return /* @__PURE__ */ jsx(SequenceContext.Provider, { value: contextValue, children: content });
   }
@@ -92,7 +281,8 @@ var Sequence = ({
         right: 0,
         bottom: 0,
         display: "flex",
-        flexDirection: "column"
+        flexDirection: "column",
+        ...isPremounted ? { opacity: 0, pointerEvents: "none" } : null
       },
       children: content
     }
@@ -116,13 +306,24 @@ var SequenceFrameProvider = ({
 };
 var RelativeFrameContext = createContext(null);
 var useRelativeCurrentFrame = () => useContext(RelativeFrameContext);
+var checkFrameNotNegative = (component, frame) => {
+  if (frame < 0) {
+    throw new Error(`${component}: the current frame must be >= 0, got ${frame} (a parent shifted it below 0)`);
+  }
+};
 var Loop = ({
   durationInFrames,
   times = Infinity,
-  children,
-  name
+  children
 }) => {
   const currentFrame = useCurrentFrame();
+  if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
+    throw new Error(`Loop: durationInFrames must be a positive integer, got ${durationInFrames}`);
+  }
+  if (times !== Infinity && (!Number.isInteger(times) || times <= 0)) {
+    throw new Error(`Loop: times must be a positive integer or Infinity, got ${times}`);
+  }
+  checkFrameNotNegative("Loop", currentFrame);
   const totalFrames = times === Infinity ? durationInFrames : durationInFrames * times;
   const loopedFrame = currentFrame % durationInFrames;
   const currentLoop = Math.floor(currentFrame / durationInFrames);
@@ -138,13 +339,22 @@ var LoopContext = createContext({
 });
 var useLoopInfo = () => useContext(LoopContext);
 var Freeze = ({
-  frame: freezeFrame,
-  durationInFrames,
+  frame: frozenFrame,
+  active = true,
   children
 }) => {
   const currentFrame = useCurrentFrame();
-  const displayFrame = currentFrame < durationInFrames ? freezeFrame : currentFrame - durationInFrames + freezeFrame + 1;
-  return /* @__PURE__ */ jsx(SequenceFrameProvider, { relativeFrame: displayFrame, children });
+  if (!Number.isInteger(frozenFrame)) {
+    throw new Error(`Freeze: frame must be an integer, got ${frozenFrame}`);
+  }
+  if (typeof active !== "boolean" && typeof active !== "function") {
+    throw new Error(`Freeze: active must be a boolean or a function of the frame, got ${active}`);
+  }
+  const isActive = typeof active === "function" ? active(currentFrame) : active;
+  if (typeof isActive !== "boolean") {
+    throw new Error(`Freeze: active(${currentFrame}) must return a boolean, got ${isActive}`);
+  }
+  return /* @__PURE__ */ jsx(SequenceFrameProvider, { relativeFrame: isActive ? frozenFrame : currentFrame, children });
 };
 var checkRate = (rate, frame) => {
   if (typeof rate !== "number" || !Number.isFinite(rate)) {
@@ -184,35 +394,66 @@ var Reverse = ({
   durationInFrames
 }) => {
   const currentFrame = useCurrentFrame();
+  if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
+    throw new Error(`Reverse: durationInFrames must be a positive integer, got ${durationInFrames}`);
+  }
+  checkFrameNotNegative("Reverse", currentFrame);
   const reversedFrame = durationInFrames - 1 - currentFrame % durationInFrames;
-  return /* @__PURE__ */ jsx(SequenceFrameProvider, { relativeFrame: reversedFrame, children });
+  return /* @__PURE__ */ jsx(SequenceFrameProvider, { relativeFrame: reversedFrame, durationInFrames, children });
 };
-var Series = ({ children }) => {
-  const currentFrame = useCurrentFrame();
-  let accumulatedFrames = 0;
-  let activeChildIndex = -1;
-  let activeDuration = 0;
-  let relativeFrame = currentFrame;
-  const childArray = React5.Children.toArray(children);
-  for (let i = 0; i < childArray.length; i++) {
-    const child = childArray[i];
-    if (React5.isValidElement(child) && child.props.durationInFrames) {
-      const childDuration = child.props.durationInFrames;
-      if (currentFrame >= accumulatedFrames && currentFrame < accumulatedFrames + childDuration) {
-        activeChildIndex = i;
-        activeDuration = childDuration;
-        relativeFrame = currentFrame - accumulatedFrames;
-        break;
-      }
-      accumulatedFrames += childDuration;
+var SeriesSequence = () => {
+  throw new Error("<Series.Sequence> must be a direct child of <Series>");
+};
+var describeChild = (child) => {
+  if (typeof child === "string") return `the string ${JSON.stringify(child)}`;
+  if (React2.isValidElement(child)) {
+    const type = child.type;
+    const name = typeof type === "string" ? type : type.displayName ?? type.name ?? "Component";
+    return `<${name}>`;
+  }
+  return String(child);
+};
+var flattenChildren = (children, prefix = "") => React2.Children.toArray(children).flatMap((child, index) => {
+  const key = `${prefix}${React2.isValidElement(child) && child.key !== null ? child.key : index}`;
+  if (React2.isValidElement(child) && child.type === React2.Fragment) {
+    return flattenChildren(child.props.children, `${key}/`);
+  }
+  return [{ key, child }];
+});
+var SeriesRoot = ({ children }) => {
+  let start = 0;
+  const sequences = flattenChildren(children).map(({ key, child }, index) => {
+    if (typeof child === "string" && child.trim() === "") return null;
+    if (!React2.isValidElement(child) || child.type !== SeriesSequence) {
+      throw new Error(`Series: children must be <Series.Sequence> elements, got ${describeChild(child)} at index ${index}`);
     }
-  }
-  if (activeChildIndex === -1) {
-    return null;
-  }
-  const activeChild = childArray[activeChildIndex];
-  return /* @__PURE__ */ jsx(SequenceFrameProvider, { relativeFrame, durationInFrames: activeDuration, children: activeChild });
+    const { durationInFrames, offset = 0, name, layout, premountFor, children: content } = child.props;
+    if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
+      throw new Error(
+        `Series.Sequence: durationInFrames must be a positive integer, got ${durationInFrames} at index ${index}`
+      );
+    }
+    if (!Number.isInteger(offset)) {
+      throw new Error(`Series.Sequence: offset must be an integer, got ${offset} at index ${index}`);
+    }
+    const from = start + offset;
+    start = from + durationInFrames;
+    return /* @__PURE__ */ jsx(
+      Sequence,
+      {
+        from,
+        durationInFrames,
+        name,
+        layout,
+        premountFor,
+        children: content
+      },
+      key
+    );
+  });
+  return /* @__PURE__ */ jsx(Fragment, { children: sequences });
 };
+var Series = Object.assign(SeriesRoot, { Sequence: SeriesSequence });
 var AbsoluteFill = ({
   children,
   style,
@@ -238,6 +479,18 @@ var AbsoluteFill = ({
     }
   );
 };
+var useElementRef = (callerRef) => {
+  const ref = useRef(null);
+  const setRef = useCallback(
+    (element) => {
+      ref.current = element;
+      if (typeof callerRef === "function") callerRef(element);
+      else if (callerRef && typeof callerRef === "object") callerRef.current = element;
+    },
+    [callerRef]
+  );
+  return [ref, setRef];
+};
 var getMediaTime = (frame, fps, startFrom, playbackRate) => (startFrom + frame * playbackRate) / fps;
 var needsSeek = (currentTime, targetTime, fps) => Math.abs(currentTime - targetTime) > 0.5 / fps;
 var Video = ({
@@ -249,21 +502,62 @@ var Video = ({
   muted = true,
   style,
   pauseOnFrame = true,
-  onLoadedData,
   ...props
 }) => {
-  const videoRef = useRef(null);
+  const [videoRef, setVideoRef] = useElementRef(props.ref);
   const currentFrame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const [loaded, setLoaded] = useState(false);
+  const { delayRender, continueRender, cancelRender } = useDelayRender();
   useEffect(() => {
-    if (videoRef.current && loaded) {
+    const video = videoRef.current;
+    if (!video) return;
+    const handle = delayRender(`<Video> ${src} at frame ${currentFrame}`);
+    let settled = false;
+    const removeListeners = () => {
+      video.removeEventListener("loadeddata", sync);
+      video.removeEventListener("seeked", done);
+      video.removeEventListener("error", fail);
+    };
+    function done() {
+      if (settled) return;
+      settled = true;
+      removeListeners();
+      continueRender(handle);
+    }
+    function fail() {
+      if (settled) return;
+      settled = true;
+      removeListeners();
+      const detail = video.error ? `: ${video.error.message || `media error code ${video.error.code}`}` : "";
+      cancelRender(new Error(`<Video> could not load ${src}${detail}`));
+      continueRender(handle);
+    }
+    function sync() {
+      video.removeEventListener("loadeddata", sync);
       const time = getMediaTime(currentFrame, fps, startFrom, playbackRate);
-      if (needsSeek(videoRef.current.currentTime, time, fps)) {
-        videoRef.current.currentTime = time;
+      if (needsSeek(video.currentTime, time, fps)) {
+        video.addEventListener("seeked", done);
+        video.currentTime = time;
+      } else {
+        done();
       }
     }
-  }, [currentFrame, fps, startFrom, playbackRate, loaded]);
+    video.addEventListener("error", fail);
+    if (video.error) {
+      fail();
+    } else if (video.readyState >= 2) {
+      sync();
+    } else {
+      video.addEventListener("loadeddata", sync);
+    }
+    return () => {
+      removeListeners();
+      if (!settled) {
+        settled = true;
+        continueRender(handle);
+      }
+    };
+  }, [currentFrame, fps, startFrom, playbackRate, src, delayRender, continueRender, cancelRender]);
   useEffect(() => {
     if (videoRef.current) {
       const vol = typeof volume === "function" ? volume(currentFrame) : volume;
@@ -275,14 +569,9 @@ var Video = ({
       videoRef.current.playbackRate = playbackRate;
     }
   }, [playbackRate]);
-  const handleLoadedData = (event) => {
-    setLoaded(true);
-    onLoadedData?.(event);
-  };
   return /* @__PURE__ */ jsx(
     "video",
     {
-      ref: videoRef,
       src,
       muted,
       playsInline: true,
@@ -293,7 +582,7 @@ var Video = ({
         ...style
       },
       ...props,
-      onLoadedData: handleLoadedData
+      ref: setVideoRef
     }
   );
 };
@@ -353,10 +642,31 @@ var Img = ({
   ...props
 }) => {
   const currentFrame = useCurrentFrame();
-  if (startFrom !== void 0 && currentFrame < startFrom) {
-    return null;
-  }
-  if (endAt !== void 0 && currentFrame > endAt) {
+  const [imageRef, setImageRef] = useElementRef(props.ref);
+  const { delayRender, continueRender, cancelRender } = useDelayRender();
+  const shown = !(startFrom !== void 0 && currentFrame < startFrom) && !(endAt !== void 0 && currentFrame > endAt);
+  useEffect(() => {
+    const image = imageRef.current;
+    if (!shown || !image) return;
+    const handle = delayRender(`<Img> ${src}`);
+    let active = true;
+    const settle = (error) => {
+      if (!active) return;
+      active = false;
+      if (error) cancelRender(error);
+      continueRender(handle);
+    };
+    if (typeof image.decode !== "function") {
+      settle(new Error("<Img> needs HTMLImageElement.decode() to know when the image is ready"));
+    } else {
+      image.decode().then(
+        () => settle(),
+        () => settle(new Error(`<Img> could not load or decode ${src}`))
+      );
+    }
+    return () => settle();
+  }, [src, shown, delayRender, continueRender, cancelRender]);
+  if (!shown) {
     return null;
   }
   return /* @__PURE__ */ jsx(
@@ -370,7 +680,8 @@ var Img = ({
         objectFit: "cover",
         ...style
       },
-      ...props
+      ...props,
+      ref: setImageRef
     }
   );
 };
@@ -604,8 +915,67 @@ var HyperFrame = ({
 };
 
 // src/utils/animation.ts
-var Easing = {
-  linear: (t) => t,
+var pinned = (fn) => (t) => t === 0 ? 0 : t === 1 ? 1 : fn(t);
+var clampUnit = (t) => Math.min(1, Math.max(0, t));
+var easeOutBounce = (t) => {
+  const n1 = 7.5625;
+  const d1 = 2.75;
+  if (t < 1 / d1) {
+    return n1 * t * t;
+  } else if (t < 2 / d1) {
+    return n1 * (t -= 1.5 / d1) * t + 0.75;
+  } else if (t < 2.5 / d1) {
+    return n1 * (t -= 2.25 / d1) * t + 0.9375;
+  } else {
+    return n1 * (t -= 2.625 / d1) * t + 0.984375;
+  }
+};
+var cubicBezier = (x1, y1, x2, y2) => {
+  if (![x1, y1, x2, y2].every(Number.isFinite) || x1 < 0 || x1 > 1 || x2 < 0 || x2 > 1) {
+    throw new Error(
+      `Easing.bezier: control points must be finite and x1, x2 must be in [0, 1], got (${x1}, ${y1}, ${x2}, ${y2})`
+    );
+  }
+  if (x1 === y1 && x2 === y2) return (t) => t;
+  const coefficients = (p1, p2) => [1 - 3 * p2 + 3 * p1, 3 * p2 - 6 * p1, 3 * p1];
+  const [ax, bx, cx] = coefficients(x1, x2);
+  const [ay, by, cy] = coefficients(y1, y2);
+  const curveX = (t) => ((ax * t + bx) * t + cx) * t;
+  const curveY = (t) => ((ay * t + by) * t + cy) * t;
+  const slopeX = (t) => (3 * ax * t + 2 * bx) * t + cx;
+  const samples = 11;
+  const step = 1 / (samples - 1);
+  const table = Array.from({ length: samples }, (_, i) => curveX(i * step));
+  const solveT = (x) => {
+    let i = 0;
+    while (i < samples - 2 && table[i + 1] <= x) i++;
+    const lo = i * step;
+    const hi = lo + step;
+    const span = table[i + 1] - table[i];
+    let t = span > 0 ? lo + (x - table[i]) / span * step : lo;
+    for (let k = 0; k < 8; k++) {
+      const error = curveX(t) - x;
+      if (Math.abs(error) < 1e-12) return t;
+      const slope = slopeX(t);
+      if (Math.abs(slope) < 1e-9) break;
+      t -= error / slope;
+    }
+    if (x < 0 || x > 1) return t;
+    if (t >= lo && t <= hi && Math.abs(curveX(t) - x) < 1e-12) return t;
+    let a = lo;
+    let b = hi;
+    for (let k = 0; k < 60; k++) {
+      t = (a + b) / 2;
+      if (curveX(t) < x) a = t;
+      else b = t;
+      if (b - a < 1e-12) break;
+    }
+    return (a + b) / 2;
+  };
+  return (x) => x === 0 ? 0 : x === 1 ? 1 : curveY(solveT(x));
+};
+var pinAll = (fns) => Object.fromEntries(Object.entries(fns).map(([name, fn]) => [name, pinned(fn)]));
+var namedEasings = pinAll({
   easeInQuad: (t) => t * t,
   easeOutQuad: (t) => t * (2 - t),
   easeInOutQuad: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
@@ -662,67 +1032,65 @@ var Easing = {
     if (t < 0.5) return -(Math.pow(2, 20 * t - 10) * Math.sin((20 * t - 11.125) * c5)) / 2;
     return Math.pow(2, -20 * t + 10) * Math.sin((20 * t - 11.125) * c5) / 2 + 1;
   },
-  easeInBounce: (t) => 1 - Easing.easeOutBounce(1 - t),
-  easeOutBounce: (t) => {
-    const n1 = 7.5625;
-    const d1 = 2.75;
-    if (t < 1 / d1) {
-      return n1 * t * t;
-    } else if (t < 2 / d1) {
-      return n1 * (t -= 1.5 / d1) * t + 0.75;
-    } else if (t < 2.5 / d1) {
-      return n1 * (t -= 2.25 / d1) * t + 0.9375;
-    } else {
-      return n1 * (t -= 2.625 / d1) * t + 0.984375;
-    }
+  easeInBounce: (t) => 1 - easeOutBounce(1 - t),
+  easeOutBounce,
+  easeInOutBounce: (t) => t < 0.5 ? (1 - easeOutBounce(1 - 2 * t)) / 2 : (1 + easeOutBounce(2 * t - 1)) / 2
+});
+var checkEasing = (name, easing) => {
+  if (typeof easing !== "function") {
+    throw new Error(`Easing.${name}: expects an easing function, got ${easing}`);
+  }
+  return easing;
+};
+var checkNumber = (name, value, min = -Infinity) => {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < min) {
+    throw new Error(`Easing.${name}: expects a finite number${min > -Infinity ? ` >= ${min}` : ""}, got ${value}`);
+  }
+  return value;
+};
+var easeCurve = cubicBezier(0.42, 0, 1, 1);
+var Easing = {
+  ...namedEasings,
+  linear: (t) => t,
+  /** Remotion's `ease`: bezier(0.42, 0, 1, 1). */
+  ease: easeCurve,
+  quad: pinned((t) => t * t),
+  cubic: pinned((t) => t * t * t),
+  /** t to the power n (n > 0). */
+  poly: (n) => {
+    const power = checkNumber("poly", n);
+    if (power <= 0) throw new Error(`Easing.poly: expects n > 0, got ${n}`);
+    return pinned((t) => t ** power);
   },
-  easeInOutBounce: (t) => t < 0.5 ? (1 - Easing.easeOutBounce(1 - 2 * t)) / 2 : (1 + Easing.easeOutBounce(2 * t - 1)) / 2,
-  // Cubic bezier easing, like CSS cubic-bezier(x1, y1, x2, y2). The curve's x
-  // is solved for t with Newton's method from a sampled guess, falling back to
-  // bisection where Newton does not converge (steep or flat parts).
-  bezier: (x1, y1, x2, y2) => {
-    if (![x1, y1, x2, y2].every(Number.isFinite) || x1 < 0 || x1 > 1 || x2 < 0 || x2 > 1) {
-      throw new Error(
-        `Easing.bezier: control points must be finite and x1, x2 must be in [0, 1], got (${x1}, ${y1}, ${x2}, ${y2})`
-      );
-    }
-    if (x1 === y1 && x2 === y2) return (t) => t;
-    const coefficients = (p1, p2) => [1 - 3 * p2 + 3 * p1, 3 * p2 - 6 * p1, 3 * p1];
-    const [ax, bx, cx] = coefficients(x1, x2);
-    const [ay, by, cy] = coefficients(y1, y2);
-    const curveX = (t) => ((ax * t + bx) * t + cx) * t;
-    const curveY = (t) => ((ay * t + by) * t + cy) * t;
-    const slopeX = (t) => (3 * ax * t + 2 * bx) * t + cx;
-    const samples = 11;
-    const step = 1 / (samples - 1);
-    const table = Array.from({ length: samples }, (_, i) => curveX(i * step));
-    const solveT = (x) => {
-      let i = 0;
-      while (i < samples - 2 && table[i + 1] <= x) i++;
-      const lo = i * step;
-      const hi = lo + step;
-      const span = table[i + 1] - table[i];
-      let t = span > 0 ? lo + (x - table[i]) / span * step : lo;
-      for (let k = 0; k < 8; k++) {
-        const error = curveX(t) - x;
-        if (Math.abs(error) < 1e-12) return t;
-        const slope = slopeX(t);
-        if (Math.abs(slope) < 1e-9) break;
-        t -= error / slope;
-      }
-      if (x < 0 || x > 1) return t;
-      if (t >= lo && t <= hi && Math.abs(curveX(t) - x) < 1e-12) return t;
-      let a = lo;
-      let b = hi;
-      for (let k = 0; k < 60; k++) {
-        t = (a + b) / 2;
-        if (curveX(t) < x) a = t;
-        else b = t;
-        if (b - a < 1e-12) break;
-      }
-      return (a + b) / 2;
-    };
-    return (x) => x === 0 ? 0 : x === 1 ? 1 : curveY(solveT(x));
+  sin: pinned((t) => 1 - Math.cos(t * Math.PI / 2)),
+  circle: pinned((t) => {
+    const u = clampUnit(t);
+    return 1 - Math.sqrt(1 - u * u);
+  }),
+  exp: pinned((t) => 2 ** (10 * (t - 1))),
+  /** Springy overshoot; `bounciness` (default 1) sets how many times it goes back and forth. */
+  elastic: (bounciness = 1) => {
+    const p = checkNumber("elastic", bounciness, 0) * Math.PI;
+    return pinned((t) => 1 - Math.cos(t * Math.PI / 2) ** 3 * Math.cos(t * p));
+  },
+  /** Pulls back before moving; `s` (default 1.70158) sets how far. */
+  back: (s = 1.70158) => {
+    const overshoot = checkNumber("back", s);
+    return pinned((t) => t * t * ((overshoot + 1) * t - overshoot));
+  },
+  bounce: pinned((t) => easeOutBounce(clampUnit(t))),
+  bezier: cubicBezier,
+  /** Runs the easing forwards (returns it as is). */
+  in: (easing) => pinned(checkEasing("in", easing)),
+  /** Runs the easing backwards: out(f)(t) = 1 - f(1 - t). */
+  out: (easing) => {
+    const fn = checkEasing("out", easing);
+    return pinned((t) => 1 - fn(1 - t));
+  },
+  /** Symmetric: the easing for the first half, mirrored for the second. */
+  inOut: (easing) => {
+    const fn = checkEasing("inOut", easing);
+    return pinned((t) => t < 0.5 ? fn(t * 2) / 2 : 1 - fn((1 - t) * 2) / 2);
   }
 };
 var isPositive = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
@@ -783,7 +1151,9 @@ var spring = ({
   from = 0,
   to = 1,
   durationInFrames,
-  durationRestThreshold = 5e-3
+  durationRestThreshold = 5e-3,
+  delay = 0,
+  reverse = false
 }) => {
   if (!isPositive(fps)) {
     throw new Error(`spring: fps must be a positive number (use useVideoConfig().fps), got ${fps}`);
@@ -797,13 +1167,22 @@ var spring = ({
   if (durationInFrames !== void 0 && !isPositive(durationInFrames)) {
     throw new Error(`spring: durationInFrames must be a positive number, got ${durationInFrames}`);
   }
+  if (typeof delay !== "number" || !Number.isFinite(delay)) {
+    throw new Error(`spring: delay must be a finite number of frames, got ${delay}`);
+  }
+  if (typeof reverse !== "boolean") {
+    throw new Error(`spring: reverse must be a boolean, got ${reverse}`);
+  }
   const { omega, zeta, overshootClamping } = resolveSpringConfig("spring", config);
-  if (frame <= 0) return from;
-  let time = frame / fps;
+  const naturalDuration = reverse || durationInFrames !== void 0 ? measureSpring({ fps, config, threshold: durationRestThreshold }) : 0;
+  const elapsed = frame - delay;
+  const local = reverse ? (durationInFrames ?? naturalDuration) - elapsed : elapsed;
+  if (local <= 0) return from;
+  if (reverse && local >= (durationInFrames ?? naturalDuration)) return to;
+  let time = local / fps;
   if (durationInFrames !== void 0) {
-    if (frame >= durationInFrames) return to;
-    const naturalDuration = measureSpring({ fps, config, threshold: durationRestThreshold });
-    time = frame * naturalDuration / durationInFrames / fps;
+    if (local >= durationInFrames) return to;
+    time = local * naturalDuration / durationInFrames / fps;
   }
   let value = springStep(time, omega, zeta);
   if (overshootClamping) {
@@ -837,6 +1216,7 @@ var checkRanges = (fn, input, inputRange, outputLength) => {
   }
 };
 var segmentProgress = (input, start, end) => end === start ? input >= end ? 1 : 0 : (input - start) / (end - start);
+var EXTRAPOLATE = ["clamp", "extend", "identity", "wrap"];
 var interpolate = (input, inputRange, outputRange, options = {}) => {
   const {
     extrapolateLeft = "clamp",
@@ -849,14 +1229,41 @@ var interpolate = (input, inputRange, outputRange, options = {}) => {
       throw new Error(`interpolate: outputRange must contain numbers, got [${outputRange.join(", ")}]`);
     }
   });
-  if (input < inputRange[0]) {
+  for (const [name, value] of [["extrapolateLeft", extrapolateLeft], ["extrapolateRight", extrapolateRight]]) {
+    if (!EXTRAPOLATE.includes(value)) {
+      throw new Error(`interpolate: ${name} must be one of ${EXTRAPOLATE.join(", ")}, got ${JSON.stringify(value)}`);
+    }
+  }
+  const segments = inputRange.length - 1;
+  if (Array.isArray(easing)) {
+    if (easing.length !== segments) {
+      throw new Error(
+        `interpolate: an easing array needs one easing per segment (inputRange.length - 1 = ${segments}), got ${easing.length}`
+      );
+    }
+    easing.forEach((fn, i) => {
+      if (typeof fn !== "function") throw new Error(`interpolate: easing[${i}] must be a function, got ${fn}`);
+    });
+  } else if (easing !== void 0 && typeof easing !== "function") {
+    throw new Error(`interpolate: easing must be a function or an array of functions, got ${easing}`);
+  }
+  const first = inputRange[0];
+  const last = inputRange[inputRange.length - 1];
+  if (input < first && extrapolateLeft === "wrap" || input > last && extrapolateRight === "wrap") {
+    const span = last - first;
+    if (span === 0) {
+      throw new Error(`interpolate: extrapolate 'wrap' needs an inputRange that spans more than one value, got [${inputRange.join(", ")}]`);
+    }
+    input = ((input - first) % span + span) % span + first;
+  }
+  if (input < first) {
     if (extrapolateLeft === "clamp") {
       return outputRange[0];
     } else if (extrapolateLeft === "identity") {
       return input;
     }
   }
-  if (input > inputRange[inputRange.length - 1]) {
+  if (input > last) {
     if (extrapolateRight === "clamp") {
       return outputRange[outputRange.length - 1];
     } else if (extrapolateRight === "identity") {
@@ -872,8 +1279,9 @@ var interpolate = (input, inputRange, outputRange, options = {}) => {
     return segmentProgress(input, inputStart, inputEnd) === 1 ? outputEnd : outputStart;
   }
   let progress = segmentProgress(input, inputStart, inputEnd);
-  if (easing) {
-    progress = easing(progress);
+  const segmentEasing = Array.isArray(easing) ? easing[segmentIndex] : easing;
+  if (segmentEasing) {
+    progress = segmentEasing(progress);
   }
   return outputStart + progress * (outputEnd - outputStart);
 };
@@ -1018,6 +1426,171 @@ var noise2D = (x, y) => {
   return top + (bottom - top) * v;
 };
 
+// src/utils/particles.ts
+var finite = (value) => typeof value === "number" && Number.isFinite(value);
+var checkRange = (name, range2, values) => {
+  const list = Array.isArray(range2) ? range2 : [range2];
+  const valid = (v) => finite(v) && (values === "positive" ? v > 0 : values === "non-negative" ? v >= 0 : true);
+  const ok = (typeof range2 === "number" || Array.isArray(range2) && range2.length === 2) && list.every(valid) && (list.length === 1 || list[0] <= list[1]);
+  if (!ok) {
+    throw new Error(
+      `getParticles: ${name} must be a ${values} number or [min, max] of them with min <= max, got ${JSON.stringify(range2)}`
+    );
+  }
+};
+var pick = (range2, key) => typeof range2 === "number" ? range2 : range2[0] + random(key) * (range2[1] - range2[0]);
+var checkOptions = (options) => {
+  const { seed, origin, area, startFrame = 0, count, emitDuration = 0, lifetime, speed, angle = -90, spread = 360 } = options;
+  const { gravity = 0, drag = 0, size, colors = ["#ffffff"], rotation = 0, spin = 0, fadeOut = true, frame, fps } = options;
+  if (!finite(frame)) throw new Error(`getParticles: frame must be a finite number, got ${frame}`);
+  if (!finite(fps) || fps <= 0) throw new Error(`getParticles: fps must be a positive number, got ${fps}`);
+  if (typeof seed !== "string" && !finite(seed)) {
+    throw new Error(`getParticles: seed must be a string or a finite number, got ${JSON.stringify(seed)}`);
+  }
+  if (typeof origin !== "function" && (typeof origin !== "object" || origin === null || !finite(origin.x) || !finite(origin.y))) {
+    throw new Error(`getParticles: origin must be { x, y } or a function of the frame, got ${JSON.stringify(origin)}`);
+  }
+  if (area !== void 0 && (typeof area !== "object" || !finite(area.width) || !finite(area.height) || area.width < 0 || area.height < 0)) {
+    throw new Error(`getParticles: area must be { width, height } with numbers >= 0, got ${JSON.stringify(area)}`);
+  }
+  if (!finite(startFrame)) throw new Error(`getParticles: startFrame must be a finite number, got ${startFrame}`);
+  if (!Number.isInteger(count) || count < 0) {
+    throw new Error(`getParticles: count must be a non-negative integer, got ${count}`);
+  }
+  if (!finite(emitDuration) || emitDuration < 0) {
+    throw new Error(`getParticles: emitDuration must be a number of seconds >= 0, got ${emitDuration}`);
+  }
+  checkRange("lifetime", lifetime, "positive");
+  checkRange("speed", speed, "non-negative");
+  checkRange("size", size, "non-negative");
+  checkRange("rotation", rotation, "finite");
+  checkRange("spin", spin, "finite");
+  if (!finite(angle)) throw new Error(`getParticles: angle must be a finite number of degrees, got ${angle}`);
+  if (!finite(spread) || spread < 0 || spread > 360) {
+    throw new Error(`getParticles: spread must be between 0 and 360 degrees, got ${spread}`);
+  }
+  if (!finite(gravity)) throw new Error(`getParticles: gravity must be a finite number, got ${gravity}`);
+  if (!finite(drag) || drag < 0) throw new Error(`getParticles: drag must be a number >= 0, got ${drag}`);
+  if (!Array.isArray(colors) || colors.length === 0 || colors.some((c) => typeof c !== "string")) {
+    throw new Error(`getParticles: colors must be a non-empty array of strings, got ${JSON.stringify(colors)}`);
+  }
+  if (typeof fadeOut !== "boolean") throw new Error(`getParticles: fadeOut must be a boolean, got ${fadeOut}`);
+};
+var getParticles = (options) => {
+  checkOptions(options);
+  const {
+    seed,
+    origin,
+    area = { width: 0, height: 0 },
+    startFrame = 0,
+    count,
+    emitDuration = 0,
+    lifetime,
+    speed,
+    angle = -90,
+    spread = 360,
+    gravity = 0,
+    drag = 0,
+    size,
+    colors = ["#ffffff"],
+    rotation = 0,
+    spin = 0,
+    fadeOut = true,
+    frame,
+    fps
+  } = options;
+  const now = (frame - startFrame) / fps;
+  const particles = [];
+  for (let i = 0; i < count; i++) {
+    const key = (name) => `${seed}:${i}:${name}`;
+    const birth = emitDuration * i / count;
+    const age = now - birth;
+    if (age < 0) continue;
+    const life = pick(lifetime, key("lifetime"));
+    if (age >= life) continue;
+    const birthOrigin = typeof origin === "function" ? origin(startFrame + birth * fps) : origin;
+    if (typeof birthOrigin !== "object" || birthOrigin === null || !finite(birthOrigin.x) || !finite(birthOrigin.y)) {
+      throw new Error(`getParticles: origin(${startFrame + birth * fps}) must return { x, y } with finite numbers, got ${JSON.stringify(birthOrigin)}`);
+    }
+    const x0 = birthOrigin.x + (random(key("x")) - 0.5) * area.width;
+    const y0 = birthOrigin.y + (random(key("y")) - 0.5) * area.height;
+    const direction = (angle + (random(key("angle")) - 0.5) * spread) * Math.PI / 180;
+    const v0 = pick(speed, key("speed"));
+    const vx0 = Math.cos(direction) * v0;
+    const vy0 = Math.sin(direction) * v0;
+    let x;
+    let y;
+    let vx;
+    let vy;
+    if (drag === 0) {
+      x = x0 + vx0 * age;
+      y = y0 + vy0 * age + gravity * age * age / 2;
+      vx = vx0;
+      vy = vy0 + gravity * age;
+    } else {
+      const decay = Math.exp(-drag * age);
+      const terminal = gravity / drag;
+      x = x0 + vx0 * (1 - decay) / drag;
+      y = y0 + terminal * age + (vy0 - terminal) * (1 - decay) / drag;
+      vx = vx0 * decay;
+      vy = terminal + (vy0 - terminal) * decay;
+    }
+    const progress = age / life;
+    particles.push({
+      index: i,
+      x,
+      y,
+      vx,
+      vy,
+      size: pick(size, key("size")),
+      rotation: pick(rotation, key("rotation")) + pick(spin, key("spin")) * age,
+      color: colors[Math.min(colors.length - 1, Math.floor(random(key("color")) * colors.length))],
+      opacity: fadeOut ? 1 - progress : 1,
+      age,
+      lifetime: life,
+      progress
+    });
+  }
+  return particles;
+};
+var SHAPES = {
+  circle: void 0,
+  square: void 0,
+  triangle: "polygon(50% 0%, 100% 100%, 0% 100%)",
+  star: "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)"
+};
+var Particles = ({ shape = "circle", render, style, className, ...options }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  if (!(shape in SHAPES)) {
+    throw new Error(`Particles: shape must be one of ${Object.keys(SHAPES).join(", ")}, got ${JSON.stringify(shape)}`);
+  }
+  if (render !== void 0 && typeof render !== "function") {
+    throw new Error("Particles: render must be a function of the particle");
+  }
+  const particles = getParticles({ ...options, frame, fps });
+  return /* @__PURE__ */ jsx("div", { className, style: { position: "absolute", inset: 0, pointerEvents: "none", ...style }, children: particles.map(
+    (particle) => render ? /* @__PURE__ */ jsx(React2.Fragment, { children: render(particle) }, particle.index) : /* @__PURE__ */ jsx(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          left: particle.x,
+          top: particle.y,
+          width: particle.size,
+          height: particle.size,
+          backgroundColor: particle.color,
+          borderRadius: shape === "circle" ? "50%" : void 0,
+          clipPath: SHAPES[shape],
+          opacity: particle.opacity,
+          transform: `translate(-50%, -50%) rotate(${particle.rotation}deg)`
+        }
+      },
+      particle.index
+    )
+  ) });
+};
+
 // src/utils/text.ts
 var segmenter;
 var splitGraphemes = (text) => {
@@ -1143,10 +1716,10 @@ var Counter = ({
   easing = Easing.easeOutCubic,
   style,
   locale = "en-US",
-  format
+  format: format2
 }) => {
   const frame = useCurrentFrame();
-  const numberFormat = React5.useMemo(
+  const numberFormat = React2.useMemo(
     () => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }),
     [locale]
   );
@@ -1156,7 +1729,7 @@ var Counter = ({
     [from, to],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing }
   );
-  return /* @__PURE__ */ jsx("span", { style, children: format ? format(value) : numberFormat.format(Math.round(value) + 0) });
+  return /* @__PURE__ */ jsx("span", { style, children: format2 ? format2(value) : numberFormat.format(Math.round(value) + 0) });
 };
 var ProgressBar = ({
   progress,
@@ -1510,6 +2083,7 @@ var Cube3D = ({
     }
   ) });
 };
+var PARTICLE_DIRECTIONS = ["random", "up", "down", "left", "right"];
 var ParticleSystem = ({
   count = 50,
   colors = ["#10b981", "#34d399", "#6ee7b7", "#059669", "#047857"],
@@ -1523,7 +2097,12 @@ var ParticleSystem = ({
 }) => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
-  const particles = React5.useMemo(() => {
+  if (!PARTICLE_DIRECTIONS.includes(direction)) {
+    throw new Error(
+      `ParticleSystem: direction must be one of ${PARTICLE_DIRECTIONS.join(", ")}, got ${JSON.stringify(direction)} (for bursts use <Particles>)`
+    );
+  }
+  const particles = React2.useMemo(() => {
     const seed = (n) => {
       const x = Math.sin(n * 9999) * 1e4;
       return x - Math.floor(x);
@@ -1552,12 +2131,6 @@ var ParticleSystem = ({
         case "right":
           vx = rand2 * speed * 2 + speed;
           vy = (rand3 - 0.5) * speed;
-          break;
-        case "explode":
-          const angle = rand2 * Math.PI * 2;
-          const mag = rand3 * speed * 3 + speed;
-          vx = Math.cos(angle) * mag;
-          vy = Math.sin(angle) * mag;
           break;
         default:
           vx = (rand2 - 0.5) * speed * 2;
@@ -1866,7 +2439,7 @@ var Confetti = ({
 }) => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
-  const confettiPieces = React5.useMemo(() => {
+  const confettiPieces = React2.useMemo(() => {
     const seed = (n) => {
       const x = Math.sin(n * 9999) * 1e4;
       return x - Math.floor(x);
@@ -2033,8 +2606,8 @@ var LiquidText = ({
   style
 }) => {
   const frame = useCurrentFrame();
-  const id = React5.useId().replace(/:/g, "");
-  const wavePath = React5.useMemo(() => {
+  const id = React2.useId().replace(/:/g, "");
+  const wavePath = React2.useMemo(() => {
     let path = `M 0 ${height}`;
     for (let x = 0; x <= width; x += 10) {
       const y = Math.sin(frame * speed + x * 0.02) * amplitude + amplitude;
@@ -2338,7 +2911,7 @@ var CardExpansionMask = ({
   style
 }) => {
   const frame = useCurrentFrame();
-  React5.useId().replace(/:/g, "");
+  React2.useId().replace(/:/g, "");
   const progress = interpolate(
     frame - startFrame,
     [0, durationInFrames],
@@ -2360,6 +2933,451 @@ var CardExpansionMask = ({
       children
     }
   );
+};
+
+// src/utils/path.ts
+var GAUSS_ORDER = 12;
+var [GAUSS_X, GAUSS_W] = (() => {
+  const xs = [];
+  const ws = [];
+  for (let i = 1; i <= GAUSS_ORDER; i++) {
+    let x = Math.cos(Math.PI * (i - 0.25) / (GAUSS_ORDER + 0.5));
+    let derivative = 0;
+    for (let iteration = 0; iteration < 100; iteration++) {
+      let p0 = 1;
+      let p1 = x;
+      for (let k = 2; k <= GAUSS_ORDER; k++) {
+        const p2 = ((2 * k - 1) * x * p1 - (k - 1) * p0) / k;
+        p0 = p1;
+        p1 = p2;
+      }
+      derivative = GAUSS_ORDER * (x * p1 - p0) / (x * x - 1);
+      const step = p1 / derivative;
+      x -= step;
+      if (Math.abs(step) < 1e-16) break;
+    }
+    xs.push(x);
+    ws.push(2 / ((1 - x * x) * derivative * derivative));
+  }
+  return [xs, ws];
+})();
+var integrate = (speed, a, b) => {
+  const half = (b - a) / 2;
+  const mid = (a + b) / 2;
+  let sum = 0;
+  for (let i = 0; i < GAUSS_ORDER; i++) sum += GAUSS_W[i] * speed(mid + half * GAUSS_X[i]);
+  return sum * half;
+};
+var PIECES = 16;
+var curveSegment = (point, derivative) => {
+  const speed = (t) => {
+    const d = derivative(t);
+    return Math.hypot(d.x, d.y);
+  };
+  const cumulative = [0];
+  for (let k = 0; k < PIECES; k++) {
+    cumulative.push(cumulative[k] + integrate(speed, k / PIECES, (k + 1) / PIECES));
+  }
+  const length = cumulative[PIECES];
+  return {
+    length,
+    point,
+    derivative,
+    tAtLength(s) {
+      if (s <= 0) return 0;
+      if (s >= length) return 1;
+      let k = 0;
+      while (k < PIECES - 1 && cumulative[k + 1] < s) k++;
+      const a = k / PIECES;
+      const target = s - cumulative[k];
+      const pieceLength = cumulative[k + 1] - cumulative[k];
+      let lo = a;
+      let hi = (k + 1) / PIECES;
+      let t = pieceLength > 0 ? a + target / pieceLength * (hi - lo) : a;
+      for (let iteration = 0; iteration < 60; iteration++) {
+        const error = integrate(speed, a, t) - target;
+        if (Math.abs(error) <= 1e-12 * Math.max(1, length)) break;
+        if (error > 0) hi = t;
+        else lo = t;
+        const v = speed(t);
+        const next = v > 0 ? t - error / v : NaN;
+        t = next > lo && next < hi ? next : (lo + hi) / 2;
+        if (hi - lo < 1e-15) break;
+      }
+      return t;
+    }
+  };
+};
+var lineSegment = (p0, p1) => {
+  const length = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+  return {
+    length,
+    point: (t) => ({ x: p0.x + (p1.x - p0.x) * t, y: p0.y + (p1.y - p0.y) * t }),
+    derivative: () => ({ x: p1.x - p0.x, y: p1.y - p0.y }),
+    tAtLength: (s) => length === 0 ? 0 : Math.max(0, Math.min(1, s / length))
+  };
+};
+var quadSegment = (p0, p1, p2) => curveSegment(
+  (t) => {
+    const u = 1 - t;
+    return {
+      x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x,
+      y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y
+    };
+  },
+  (t) => ({
+    x: 2 * (1 - t) * (p1.x - p0.x) + 2 * t * (p2.x - p1.x),
+    y: 2 * (1 - t) * (p1.y - p0.y) + 2 * t * (p2.y - p1.y)
+  })
+);
+var cubicSegment = (p0, p1, p2, p3) => curveSegment(
+  (t) => {
+    const u = 1 - t;
+    const a = u * u * u;
+    const b = 3 * u * u * t;
+    const c = 3 * u * t * t;
+    const d = t * t * t;
+    return {
+      x: a * p0.x + b * p1.x + c * p2.x + d * p3.x,
+      y: a * p0.y + b * p1.y + c * p2.y + d * p3.y
+    };
+  },
+  (t) => {
+    const u = 1 - t;
+    return {
+      x: 3 * u * u * (p1.x - p0.x) + 6 * u * t * (p2.x - p1.x) + 3 * t * t * (p3.x - p2.x),
+      y: 3 * u * u * (p1.y - p0.y) + 6 * u * t * (p2.y - p1.y) + 3 * t * t * (p3.y - p2.y)
+    };
+  }
+);
+var arcSegment = (p0, radiusX, radiusY, rotationDegrees, largeArc, sweep, p1) => {
+  if (p0.x === p1.x && p0.y === p1.y) return null;
+  let rx = Math.abs(radiusX);
+  let ry = Math.abs(radiusY);
+  if (rx === 0 || ry === 0) return lineSegment(p0, p1);
+  const phi = rotationDegrees * Math.PI / 180;
+  const cos = Math.cos(phi);
+  const sin = Math.sin(phi);
+  const dx = (p0.x - p1.x) / 2;
+  const dy = (p0.y - p1.y) / 2;
+  const x1 = cos * dx + sin * dy;
+  const y1 = -sin * dx + cos * dy;
+  const lambda = x1 * x1 / (rx * rx) + y1 * y1 / (ry * ry);
+  if (lambda > 1) {
+    rx *= Math.sqrt(lambda);
+    ry *= Math.sqrt(lambda);
+  }
+  const numerator = rx * rx * ry * ry - rx * rx * y1 * y1 - ry * ry * x1 * x1;
+  const denominator = rx * rx * y1 * y1 + ry * ry * x1 * x1;
+  const coefficient = (largeArc !== sweep ? 1 : -1) * Math.sqrt(Math.max(0, numerator / denominator));
+  const cxPrime = coefficient * rx * y1 / ry;
+  const cyPrime = -coefficient * ry * x1 / rx;
+  const cx = cos * cxPrime - sin * cyPrime + (p0.x + p1.x) / 2;
+  const cy = sin * cxPrime + cos * cyPrime + (p0.y + p1.y) / 2;
+  const angle = (ux2, uy2, vx2, vy2) => Math.atan2(ux2 * vy2 - uy2 * vx2, ux2 * vx2 + uy2 * vy2);
+  const ux = (x1 - cxPrime) / rx;
+  const uy = (y1 - cyPrime) / ry;
+  const vx = (-x1 - cxPrime) / rx;
+  const vy = (-y1 - cyPrime) / ry;
+  const theta1 = angle(1, 0, ux, uy);
+  let delta = angle(ux, uy, vx, vy);
+  if (!sweep && delta > 0) delta -= 2 * Math.PI;
+  if (sweep && delta < 0) delta += 2 * Math.PI;
+  return curveSegment(
+    (t) => {
+      if (t === 1) return { x: p1.x, y: p1.y };
+      const theta = theta1 + delta * t;
+      const c = Math.cos(theta);
+      const s = Math.sin(theta);
+      return { x: cx + rx * cos * c - ry * sin * s, y: cy + rx * sin * c + ry * cos * s };
+    },
+    (t) => {
+      const theta = theta1 + delta * t;
+      const c = Math.cos(theta);
+      const s = Math.sin(theta);
+      return { x: delta * (-rx * cos * s - ry * sin * c), y: delta * (-rx * sin * s + ry * cos * c) };
+    }
+  );
+};
+var COMMANDS = "MmLlHhVvCcSsQqTtAaZz";
+var NUMBER2 = /[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/y;
+var parsePath = (d) => {
+  if (typeof d !== "string") {
+    throw new Error(`path: d must be a string, got ${JSON.stringify(d)}`);
+  }
+  let i = 0;
+  const fail = (message) => {
+    throw new Error(`path: ${message} at position ${i} of "${d.length > 80 ? d.slice(0, 77) + "..." : d}"`);
+  };
+  const skipSeparators = () => {
+    while (i < d.length && (d[i] === "," || d[i] === " " || d[i] === "	" || d[i] === "\n" || d[i] === "\r" || d[i] === "\f")) i++;
+  };
+  const number = () => {
+    skipSeparators();
+    NUMBER2.lastIndex = i;
+    const match = NUMBER2.exec(d);
+    if (!match) return fail("expected a number");
+    i = NUMBER2.lastIndex;
+    return parseFloat(match[0]);
+  };
+  const flag = () => {
+    skipSeparators();
+    if (d[i] === "0" || d[i] === "1") return d[i++] === "1";
+    return fail("expected an arc flag (0 or 1)");
+  };
+  const numberAhead = () => {
+    skipSeparators();
+    return i < d.length && /[0-9.+-]/.test(d[i]);
+  };
+  const segments = [];
+  let start = null;
+  let current = { x: 0, y: 0 };
+  let subpathStart = { x: 0, y: 0 };
+  let lastCubicControl = null;
+  let lastQuadControl = null;
+  let command = null;
+  const add = (segment) => {
+    if (segment) segments.push(segment);
+  };
+  for (; ; ) {
+    skipSeparators();
+    if (i >= d.length) break;
+    const char = d[i];
+    if (COMMANDS.includes(char)) {
+      command = char;
+      i++;
+    } else if (command === null) {
+      fail("a path must start with M or m");
+    } else if (command === "Z" || command === "z") {
+      fail("expected a command after Z");
+    } else if (!/[0-9.+-]/.test(char)) {
+      fail(`unexpected "${char}"`);
+    }
+    if (start === null && command !== "M" && command !== "m") fail("a path must start with M or m");
+    const relative = command === command.toLowerCase();
+    const base = relative ? current : { x: 0, y: 0 };
+    const at = (x, y) => ({ x: base.x + x, y: base.y + y });
+    let cubicControl = null;
+    let quadControl = null;
+    switch (command.toUpperCase()) {
+      case "M": {
+        const p = at(number(), number());
+        current = p;
+        subpathStart = p;
+        if (start === null) start = p;
+        command = relative ? "l" : "L";
+        break;
+      }
+      case "L": {
+        const p = at(number(), number());
+        add(lineSegment(current, p));
+        current = p;
+        break;
+      }
+      case "H": {
+        const p = { x: base.x + number(), y: current.y };
+        add(lineSegment(current, p));
+        current = p;
+        break;
+      }
+      case "V": {
+        const p = { x: current.x, y: base.y + number() };
+        add(lineSegment(current, p));
+        current = p;
+        break;
+      }
+      case "C": {
+        const c1 = at(number(), number());
+        const c2 = at(number(), number());
+        const p = at(number(), number());
+        add(cubicSegment(current, c1, c2, p));
+        cubicControl = c2;
+        current = p;
+        break;
+      }
+      case "S": {
+        const c1 = lastCubicControl ? { x: 2 * current.x - lastCubicControl.x, y: 2 * current.y - lastCubicControl.y } : current;
+        const c2 = at(number(), number());
+        const p = at(number(), number());
+        add(cubicSegment(current, c1, c2, p));
+        cubicControl = c2;
+        current = p;
+        break;
+      }
+      case "Q": {
+        const c = at(number(), number());
+        const p = at(number(), number());
+        add(quadSegment(current, c, p));
+        quadControl = c;
+        current = p;
+        break;
+      }
+      case "T": {
+        const c = lastQuadControl ? { x: 2 * current.x - lastQuadControl.x, y: 2 * current.y - lastQuadControl.y } : current;
+        const p = at(number(), number());
+        add(quadSegment(current, c, p));
+        quadControl = c;
+        current = p;
+        break;
+      }
+      case "A": {
+        const rx = number();
+        const ry = number();
+        const rotation = number();
+        const largeArc = flag();
+        const sweep = flag();
+        const p = at(number(), number());
+        add(arcSegment(current, rx, ry, rotation, largeArc, sweep, p));
+        current = p;
+        break;
+      }
+      case "Z": {
+        add(lineSegment(current, subpathStart));
+        current = subpathStart;
+        break;
+      }
+    }
+    lastCubicControl = cubicControl;
+    lastQuadControl = quadControl;
+    if (command !== "Z" && command !== "z" && !numberAhead() && i < d.length && !COMMANDS.includes(d[i])) {
+      fail(`unexpected "${d[i]}"`);
+    }
+  }
+  if (start === null) {
+    throw new Error("path: d is empty; a path must start with M or m");
+  }
+  const cumulative = [0];
+  for (const segment of segments) {
+    if (!Number.isFinite(segment.length)) {
+      throw new Error(`path: "${d}" has a segment of non-finite length`);
+    }
+    cumulative.push(cumulative[cumulative.length - 1] + segment.length);
+  }
+  return { start, segments, cumulative };
+};
+var CACHE_SIZE = 64;
+var cache = /* @__PURE__ */ new Map();
+var getParsed = (d) => {
+  const cached = cache.get(d);
+  if (cached) {
+    cache.delete(d);
+    cache.set(d, cached);
+    return cached;
+  }
+  const parsed = parsePath(d);
+  cache.set(d, parsed);
+  if (cache.size > CACHE_SIZE) cache.delete(cache.keys().next().value);
+  return parsed;
+};
+var totalLength = (path) => path.cumulative[path.cumulative.length - 1];
+var locate = (fn, d, length) => {
+  if (typeof length !== "number" || !Number.isFinite(length)) {
+    throw new Error(`${fn}: length must be a finite number, got ${length}`);
+  }
+  const path = getParsed(d);
+  const total = totalLength(path);
+  const s = Math.max(0, Math.min(total, length));
+  let index = -1;
+  for (let k = 0; k < path.segments.length; k++) {
+    if (path.segments[k].length > 0) {
+      index = k;
+      if (s <= path.cumulative[k + 1]) break;
+    }
+  }
+  if (index === -1) return { path, segment: null, t: 0 };
+  const segment = path.segments[index];
+  return { path, segment, t: segment.tAtLength(s - path.cumulative[index]) };
+};
+var getLength = (d) => totalLength(getParsed(d));
+var getPointAtLength = (d, length) => {
+  const { path, segment, t } = locate("getPointAtLength", d, length);
+  if (!segment) return { x: path.start.x, y: path.start.y };
+  return segment.point(t);
+};
+var getTangentAtLength = (d, length) => {
+  const { segment, t } = locate("getTangentAtLength", d, length);
+  if (!segment) {
+    throw new Error(`getTangentAtLength: the path "${d}" has no length, so it has no direction`);
+  }
+  let v = segment.derivative(t);
+  for (let step = 1e-9; Math.hypot(v.x, v.y) < 1e-12 && step <= 1e-3; step *= 10) {
+    v = segment.derivative(t < 0.5 ? t + step : t - step);
+  }
+  const norm = Math.hypot(v.x, v.y);
+  return { x: v.x / norm, y: v.y / norm };
+};
+var evolvePath = (progress, d) => {
+  if (typeof progress !== "number" || !Number.isFinite(progress)) {
+    throw new Error(`evolvePath: progress must be a finite number, got ${progress}`);
+  }
+  const length = getLength(d);
+  return {
+    strokeDasharray: `${length} ${length}`,
+    strokeDashoffset: length - progress * length
+  };
+};
+var format = (n) => String(Math.abs(n) < 1e-12 ? 0 : n);
+var pair = (p) => `${format(p.x)} ${format(p.y)}`;
+var pathFromPoints = (points, options = {}) => {
+  const { cornerRadius = 0, closed = false } = options;
+  if (!Array.isArray(points) || points.length < 2) {
+    throw new Error(`pathFromPoints: needs at least 2 points, got ${Array.isArray(points) ? points.length : points}`);
+  }
+  points.forEach((p, k) => {
+    if (typeof p !== "object" || p === null || !Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+      throw new Error(`pathFromPoints: points[${k}] must be { x, y } with finite numbers, got ${JSON.stringify(p)}`);
+    }
+  });
+  if (typeof cornerRadius !== "number" || !Number.isFinite(cornerRadius) || cornerRadius < 0) {
+    throw new Error(`pathFromPoints: cornerRadius must be a finite number >= 0, got ${cornerRadius}`);
+  }
+  const n = points.length;
+  const corner = (k) => {
+    const prev = points[(k - 1 + n) % n];
+    const vertex = points[k];
+    const next = points[(k + 1) % n];
+    const inLength = Math.hypot(vertex.x - prev.x, vertex.y - prev.y);
+    const outLength = Math.hypot(next.x - vertex.x, next.y - vertex.y);
+    if (cornerRadius === 0 || inLength === 0 || outLength === 0) return null;
+    const u = { x: (prev.x - vertex.x) / inLength, y: (prev.y - vertex.y) / inLength };
+    const v = { x: (next.x - vertex.x) / outLength, y: (next.y - vertex.y) / outLength };
+    const cosine = Math.max(-1, Math.min(1, u.x * v.x + u.y * v.y));
+    const angle = Math.acos(cosine);
+    if (angle < 1e-9 || Math.PI - angle < 1e-9) return null;
+    const tanHalf = Math.tan(angle / 2);
+    const cut = Math.min(cornerRadius / tanHalf, inLength / 2, outLength / 2);
+    const cross = (vertex.x - prev.x) * (next.y - vertex.y) - (vertex.y - prev.y) * (next.x - vertex.x);
+    return {
+      enter: { x: vertex.x + u.x * cut, y: vertex.y + u.y * cut },
+      leave: { x: vertex.x + v.x * cut, y: vertex.y + v.y * cut },
+      radius: cut * tanHalf,
+      // With y pointing down, a positive cross product is a clockwise turn.
+      sweep: cross > 0 ? 1 : 0
+    };
+  };
+  const parts = [];
+  const visit = (k) => {
+    const c = corner(k);
+    if (!c) {
+      parts.push(`L ${pair(points[k])}`);
+      return;
+    }
+    parts.push(`L ${pair(c.enter)}`, `A ${format(c.radius)} ${format(c.radius)} 0 0 ${c.sweep} ${pair(c.leave)}`);
+  };
+  if (!closed) {
+    parts.push(`M ${pair(points[0])}`);
+    for (let k = 1; k < n - 1; k++) visit(k);
+    parts.push(`L ${pair(points[n - 1])}`);
+    return parts.join(" ");
+  }
+  const first = corner(0);
+  parts.push(`M ${pair(first ? first.leave : points[0])}`);
+  for (let k = 1; k < n; k++) visit(k);
+  if (first) {
+    parts.push(`L ${pair(first.enter)}`, `A ${format(first.radius)} ${format(first.radius)} 0 0 ${first.sweep} ${pair(first.leave)}`);
+  }
+  parts.push("Z");
+  return parts.join(" ");
 };
 
 // src/utils/transitions.ts
@@ -2728,11 +3746,11 @@ function usePrecomputeFrames(compute, lookahead = 10) {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   return useMemo(() => {
-    const cache = /* @__PURE__ */ new Map();
+    const cache2 = /* @__PURE__ */ new Map();
     for (let i = frame; i < Math.min(frame + lookahead, durationInFrames); i++) {
-      cache.set(i, compute(i));
+      cache2.set(i, compute(i));
     }
-    return cache;
+    return cache2;
   }, [frame, lookahead, durationInFrames, compute]);
 }
 function useOptimizedSpring(config, from = 0, to = 1) {
@@ -2760,6 +3778,6 @@ function useOptimizedInterpolate(inputRange, outputRange, options) {
  * @license MIT
  */
 
-export { AbsoluteFill, Audio, Blur, Bounce, CardExpansionMask, Circle, Composition, Confetti, Counter, Cube3D, AbsoluteFill as Div, Easing, Fade, Flip3D, FlipImageReveal, Freeze, G, Glitch, GradientText, Highlight, HyperFrame, Img, KineticTypography, LetterByLetter, LiquidText, Loop, MaskReveal, NeonGlow, ParticleSystem, Path, Perspective3D, ProgressBar, Pulse, RainbowText, Rect, Retiming, Reverse, Rotate, Rotate3D, SVG, Scale, Sequence, Series, ShakeEffect, Slide, StickyGridScroll, Swing, Text, TextStack3D, Trail, Typewriter, Video, WaveText, WordByWord, blur, bounce, combine, Easing as easing, fade, flash, flip, getFramesFromSeconds, getSecondsFromFrames, glitch, interpolate, interpolateColors, measureSpring, noise2D, pulse as pulseTransition, random, range, rotate as rotateTransition, scale as scaleTransition, shake as shakeTransition, slide, slideWithFade, spring, staticFile, transitions, useAnimation, useAnimationValue, useCachedFrame, useComposition, useVideoConfig2 as useConfig, useCycle, useDelay, useDurationInFrames, useFade, useFrameRange, useInterpolate, useKeyframeState, useKeyframes, useLoop, useLoopInfo, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePrecomputeFrames, useProgress, usePulse, useRelativeCurrentFrame, useSequence, useShake, useSlide, useSpring, useTimeline, useTransform, useWindowedFrame, wipe, zoom };
+export { AbsoluteFill, Audio, Blur, Bounce, CardExpansionMask, Circle, Composition, Confetti, Counter, Cube3D, AbsoluteFill as Div, Easing, Fade, Flip3D, FlipImageReveal, Freeze, G, Glitch, GradientText, Highlight, HyperFrame, Img, KineticTypography, LetterByLetter, LiquidText, Loop, MaskReveal, NeonGlow, ParticleSystem, Particles, Path, Perspective3D, ProgressBar, Pulse, RainbowText, Rect, Retiming, Reverse, Rotate, Rotate3D, SVG, Scale, Sequence, Series, ShakeEffect, Slide, StickyGridScroll, Swing, Text, TextStack3D, Trail, Typewriter, Video, WaveText, WordByWord, blur, bounce, combine, Easing as easing, evolvePath, fade, flash, flip, getFramesFromSeconds, getLength, getParticles, getPointAtLength, getSecondsFromFrames, getTangentAtLength, glitch, interpolate, interpolateColors, measureSpring, noise2D, pathFromPoints, preloadAudio, preloadFont, preloadImage, preloadVideo, pulse as pulseTransition, random, range, rotate as rotateTransition, scale as scaleTransition, shake as shakeTransition, slide, slideWithFade, spring, staticFile, transitions, useAnimation, useAnimationValue, useCachedFrame, useComposition, useVideoConfig2 as useConfig, useCycle, useDelay, useDurationInFrames, useFade, useFrameRange, useInterpolate, useKeyframeState, useKeyframes, useLoop, useLoopInfo, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePrecomputeFrames, usePreloadAssets, useProgress, usePulse, useRelativeCurrentFrame, useSequence, useShake, useSlide, useSpring, useTimeline, useTransform, useWindowedFrame, wipe, zoom };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

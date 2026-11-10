@@ -1,4 +1,4 @@
-'use client';import { useCurrentFrame } from '../chunk-UU3G2NRN.js';
+'use client';import { useCurrentFrame } from '../chunk-SKDHOWVF.js';
 import { Canvas } from '@react-three/fiber';
 import { Image, Text, useTexture } from '@react-three/drei';
 import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
