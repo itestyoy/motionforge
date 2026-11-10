@@ -120,7 +120,10 @@ const renderOffline = async ({ render, fps, durationInSeconds, sampleRate, chann
   context.emit = function seededEmit(this: typeof context, ...args: Parameters<typeof emit>) {
     return withRandom(random, () => emit.apply(this, args));
   };
-  const rendered = await context.render();
+  // render(false): the clock ticks in one synchronous run. By default Tone
+  // yields with setTimeout once per second of audio, and a hidden tab runs
+  // those timers about once a second, so the render took as long as the sound.
+  const rendered = await context.render(false);
   const buffer = rendered.get();
   if (!buffer) throw new Error('<ToneAudio>: the offline render returned no audio');
   return buffer;

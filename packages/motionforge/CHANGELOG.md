@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `<Sfx>`, `<ToneAudio>` and the sounds of `usePrepareAudio()` throw on a prop (key) they do not take, naming the one most likely meant (`params`, `sound`, `preset`, `parameters` → `zzfx`; `start`, `from`, `frame`, `delay` → `at`; `duration` → `durationInFrames`; `code`, `fn`, `synth` → `render`; case and typos) or what to use instead (`durationInFrames` on `<Sfx>`, `at` on `<ToneAudio>`, `src`, where-it-plays keys on a prepared sound), and listing the accepted ones with an example. `<Sfx>` ignored an unknown prop, so a wrong name for `zzfx` failed with "the ZzFX parameters must be an array of numbers, got undefined".
 - A missing `zzfx`, `durationInFrames` or `render` is named with an example of how to pass it: ``<Sfx>: pass the ZzFX parameters as `zzfx={[1, 0, 900, 0, 0.02, 0.04]}` (got no `zzfx`)``. A sound of `usePrepareAudio()` without a valid `type` says which one its keys suggest.
+- `<ToneAudio>` renders offline without yielding to the event loop (`context.render(false)`): Tone yielded with a timer once per second of audio, which a hidden tab runs about once a second, so 20 s of sound took about 20 s to render there. `Math.random` is still seeded per clock tick and restored after each.
 
 ## [4.0.0] - 2026-11-10
 

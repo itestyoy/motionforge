@@ -16,11 +16,11 @@ import { seededRandom } from '../src/components/audio/seeded-random';
 
 // A stand-in for Tone.js with the parts that matter here: one global
 // context, an offline context whose render ticks a clock (yielding to the
-// event loop between blocks, as Tone's does) and whose output is what the
+// event loop between blocks unless asked not to, as Tone's does) and whose output is what the
 // scene's code wrote, and Noise with Tone's page-wide noise buffers filled
 // from Math.random the first time noise plays.
 const fake = vi.hoisted(() => {
-  const state = { contexts: 0, renders: 0, noiseCache: {} as Record<string, number[]>, current: null as any };
+  const state = { contexts: 0, renders: 0, asynchronous: [] as boolean[], noiseCache: {} as Record<string, number[]>, current: null as any };
   class OfflineContext {
     written: number[] = [];
     listeners: Array<(block: number) => void> = [];
@@ -35,12 +35,13 @@ const fake = vi.hoisted(() => {
       this.listeners.forEach((callback) => callback(block));
       return this;
     }
-    async render() {
+    async render(asynchronous = true) {
       state.renders += 1;
+      state.asynchronous.push(asynchronous);
       const blocks = Math.ceil((this.duration * this.sampleRate) / 128);
       for (let block = 0; block < blocks; block++) {
         this.emit('tick', block);
-        if (block % 4 === 3) await new Promise((resolve) => setTimeout(resolve, 1));
+        if (asynchronous && block % 4 === 3) await new Promise((resolve) => setTimeout(resolve, 1));
       }
       const data = Float32Array.from(this.written);
       return {
@@ -172,6 +173,8 @@ describe('<ToneAudio>', () => {
     // deps the callback does not read: another cache key, so it renders again.
     const second = await renderTrack(<ToneAudio durationInFrames={30} render={noisyRender} deps={['again']} />);
     expect(fake.state.renders).toBe(2);
+    // The clock ticks without yielding: a hidden tab throttles the timers Tone would yield with.
+    expect(fake.state.asynchronous).toEqual([false, false]);
     expect(first.samples.length).toBeGreaterThan(20);
     expect(second.samples).toEqual(first.samples);
     const otherSeed = await renderTrack(<ToneAudio durationInFrames={30} render={noisyRender} seed={7} />);

@@ -215,7 +215,7 @@ var renderOffline = async ({ render, fps, durationInSeconds, sampleRate, channel
   context.emit = function seededEmit(...args) {
     return withRandom(random, () => emit.apply(this, args));
   };
-  const rendered = await context.render();
+  const rendered = await context.render(false);
   const buffer = rendered.get();
   if (!buffer) throw new Error("<ToneAudio>: the offline render returned no audio");
   return buffer;
