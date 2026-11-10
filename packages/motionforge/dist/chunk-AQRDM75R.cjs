@@ -1,3 +1,5 @@
+'use strict';
+
 // src/renderer/export.ts
 var CanvasRenderer = class {
   constructor(config) {
@@ -491,15 +493,15 @@ function checkEncodingSupport() {
 var videoExportManager = new VideoExportManager();
 var export_default = VideoExportManager;
 
-export {
-  CanvasRenderer,
-  WebCodecsEncoder,
-  WebMEncoder,
-  FrameSequenceEncoder,
-  VideoExportManager,
-  calculateProgress,
-  estimateFileSize,
-  checkEncodingSupport,
-  videoExportManager,
-  export_default
-};
+exports.CanvasRenderer = CanvasRenderer;
+exports.FrameSequenceEncoder = FrameSequenceEncoder;
+exports.VideoExportManager = VideoExportManager;
+exports.WebCodecsEncoder = WebCodecsEncoder;
+exports.WebMEncoder = WebMEncoder;
+exports.calculateProgress = calculateProgress;
+exports.checkEncodingSupport = checkEncodingSupport;
+exports.estimateFileSize = estimateFileSize;
+exports.export_default = export_default;
+exports.videoExportManager = videoExportManager;
+//# sourceMappingURL=chunk-AQRDM75R.cjs.map
+//# sourceMappingURL=chunk-AQRDM75R.cjs.map

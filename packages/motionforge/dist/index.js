@@ -1,717 +1,13 @@
-import React3, { createContext, useContext, useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
+export { Player } from './chunk-2CL3HJL7.js';
+export { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, BoxIcon, CalendarIcon, CameraIcon, CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, ClockIcon, CloseIcon, CommentIcon, CopyIcon, DeleteIcon, DownloadIcon, EditIcon, ErrorIcon, FastForwardIcon, FileIcon, FilmIcon, FolderIcon, FullscreenExitIcon, FullscreenIcon, HeartIcon, HeartOutlineIcon, icons_default as Icons, ImageIcon, InfoIcon, LayersIcon, LightningIcon, Loader2Icon, MagicWandIcon, MicIcon, MinusIcon, MusicIcon, PauseIcon, PlayIcon, PlusIcon, QuestionIcon, RefreshIcon, RepeatIcon, ReplayIcon, RewindIcon, SaveIcon, SearchIcon, SettingsIcon, ShareIcon, ShuffleIcon, SkipBackIcon, SkipForwardIcon, SparkleIcon, StarIcon, StarOutlineIcon, StopIcon, SuccessIcon, ThumbDownIcon, ThumbUpIcon, TimerIcon, TypeIcon, UploadIcon, VideoIcon, VolumeHighIcon, VolumeLowIcon, VolumeMediumIcon, VolumeMuteIcon, WarningIcon, ZapIcon } from './chunk-SQF3SIZE.js';
+import { MemoCache } from './chunk-NVLPO7LR.js';
+export { FrameCache, MemoCache, RenderJobManager, buildFFmpegCommand, calculateVideoSize, createDebouncedCache, createThrottledCache, downloadFrame, downloadVideo, estimateRenderTime, frameCache, frameToDataURL, generateFrames, renderCompositionToVideo, renderJobManager, renderVideo, validateRenderConfig } from './chunk-NVLPO7LR.js';
+import { useVideoConfig, FrameProvider, FrameContext, useCurrentFrame } from './chunk-CNOLXIYJ.js';
+export { CompositionManagerProvider, FrameProvider, PlayerProvider, useCurrentFrame, useTimelineState, useVideoConfig } from './chunk-CNOLXIYJ.js';
+export { CanvasRenderer, FrameSequenceEncoder, VideoExportManager, WebMEncoder, calculateProgress, checkEncodingSupport, estimateFileSize, videoExportManager } from './chunk-PWPXXYNF.js';
+import React2, { createContext, useContext, useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import { jsx, jsxs } from 'react/jsx-runtime';
 
-var __defProp = Object.defineProperty;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __esm = (fn, res) => function __init() {
-  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
-};
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-
-// src/renderer/export.ts
-var export_exports = {};
-__export(export_exports, {
-  CanvasRenderer: () => CanvasRenderer,
-  FrameSequenceEncoder: () => FrameSequenceEncoder,
-  VideoExportManager: () => VideoExportManager,
-  WebCodecsEncoder: () => WebCodecsEncoder,
-  WebMEncoder: () => WebMEncoder,
-  calculateProgress: () => calculateProgress,
-  checkEncodingSupport: () => checkEncodingSupport,
-  default: () => export_default,
-  estimateFileSize: () => estimateFileSize,
-  videoExportManager: () => videoExportManager
-});
-function calculateProgress(frame, totalFrames, startTime) {
-  const elapsedMs = Date.now() - startTime;
-  const percentage = frame / totalFrames * 100;
-  const framesPerSecond = frame > 0 ? frame / elapsedMs * 1e3 : 0;
-  const estimatedRemainingMs = framesPerSecond > 0 ? (totalFrames - frame) / framesPerSecond * 1e3 : 0;
-  return {
-    frame,
-    totalFrames,
-    percentage,
-    elapsedMs,
-    estimatedRemainingMs,
-    framesPerSecond
-  };
-}
-function estimateFileSize(config, bitrate = 5e6) {
-  const durationSeconds = config.durationInFrames / config.fps;
-  return Math.ceil(bitrate * durationSeconds / 8);
-}
-function checkEncodingSupport() {
-  const webm = MediaRecorder.isTypeSupported("video/webm");
-  const mp4 = MediaRecorder.isTypeSupported("video/mp4");
-  const codecs = [];
-  const testCodecs = [
-    "video/webm;codecs=vp9",
-    "video/webm;codecs=vp8",
-    "video/mp4;codecs=h264",
-    "video/mp4;codecs=avc1"
-  ];
-  for (const codec of testCodecs) {
-    if (MediaRecorder.isTypeSupported(codec)) {
-      codecs.push(codec);
-    }
-  }
-  return { webm, mp4, codecs };
-}
-var CanvasRenderer, WebCodecsEncoder, WebMEncoder, FrameSequenceEncoder, VideoExportManager, videoExportManager, export_default;
-var init_export = __esm({
-  "src/renderer/export.ts"() {
-    CanvasRenderer = class {
-      constructor(config) {
-        this.config = config;
-        this.canvas = document.createElement("canvas");
-        this.canvas.width = config.width;
-        this.canvas.height = config.height;
-        const ctx = this.canvas.getContext("2d", {
-          alpha: false,
-          willReadFrequently: true
-        });
-        if (!ctx) {
-          throw new Error("Failed to get 2D context");
-        }
-        this.ctx = ctx;
-      }
-      /**
-       * Capture a single frame from a DOM element
-       */
-      async captureFrame(element) {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        if (element instanceof HTMLCanvasElement) {
-          this.ctx.drawImage(element, 0, 0, this.canvas.width, this.canvas.height);
-        } else if (element instanceof HTMLImageElement) {
-          this.ctx.drawImage(element, 0, 0, this.canvas.width, this.canvas.height);
-        } else {
-          try {
-            const data = await this.domToDataUrl(element);
-            const img = await this.loadImage(data);
-            this.ctx.drawImage(img, 0, 0, this.canvas.width, this.canvas.height);
-          } catch (e) {
-            console.error("Failed to capture frame:", e);
-            this.ctx.fillStyle = "#0a0a0a";
-            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-          }
-        }
-        return this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
-      }
-      async domToDataUrl(element) {
-        const width = this.config.width;
-        const height = this.config.height;
-        const clone = element.cloneNode(true);
-        this.inlineStyles(element, clone);
-        const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-        <foreignObject width="100%" height="100%">
-          <div xmlns="http://www.w3.org/1999/xhtml">
-            ${new XMLSerializer().serializeToString(clone)}
-          </div>
-        </foreignObject>
-      </svg>
-    `;
-        return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-      }
-      inlineStyles(source, target) {
-        const computed = window.getComputedStyle(source);
-        for (const key of Array.from(computed)) {
-          target.style.setProperty(key, computed.getPropertyValue(key), computed.getPropertyPriority(key));
-        }
-        for (let i = 0; i < source.children.length; i++) {
-          this.inlineStyles(source.children[i], target.children[i]);
-        }
-      }
-      loadImage(src) {
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = reject;
-          img.src = src;
-        });
-      }
-      /**
-       * Convert ImageData to Blob
-       */
-      async imageDataToBlob(imageData, format = "image/png") {
-        this.canvas.width = imageData.width;
-        this.canvas.height = imageData.height;
-        this.ctx.putImageData(imageData, 0, 0);
-        return new Promise((resolve, reject) => {
-          this.canvas.toBlob((blob) => {
-            if (blob) {
-              resolve(blob);
-            } else {
-              reject(new Error("Failed to convert to blob"));
-            }
-          }, format);
-        });
-      }
-      /**
-       * Convert ImageData to data URL
-       */
-      imageDataToDataURL(imageData, format = "image/png") {
-        this.canvas.width = imageData.width;
-        this.canvas.height = imageData.height;
-        this.ctx.putImageData(imageData, 0, 0);
-        return this.canvas.toDataURL(format);
-      }
-      /**
-       * Get canvas element
-       */
-      getCanvas() {
-        return this.canvas;
-      }
-      /**
-       * Get context
-       */
-      getContext() {
-        return this.ctx;
-      }
-      /**
-       * Dispose renderer
-       */
-      dispose() {
-        this.canvas.remove();
-      }
-    };
-    WebCodecsEncoder = class {
-      constructor(config) {
-        this.encoder = null;
-        this.chunks = [];
-        this.frameCount = 0;
-        this.config = config;
-      }
-      async start(fps, bitrate = 5e6) {
-        if (typeof VideoEncoder === "undefined") {
-          throw new Error("WebCodecs is not supported in this browser");
-        }
-        this.chunks = [];
-        this.frameCount = 0;
-        const init = {
-          output: (chunk) => {
-            const data = new Uint8Array(chunk.byteLength);
-            chunk.copyTo(data);
-            this.chunks.push(new Blob([data], { type: "video/webm" }));
-          },
-          error: (e) => console.error(e)
-        };
-        this.encoder = new VideoEncoder(init);
-        const config = {
-          codec: "vp09.00.10.08",
-          width: this.config.width,
-          height: this.config.height,
-          bitrate,
-          framerate: fps
-        };
-        this.encoder.configure(config);
-      }
-      async addFrame(canvas) {
-        if (!this.encoder) return;
-        const frame = new VideoFrame(canvas, {
-          timestamp: this.frameCount * 1e6 / this.config.fps
-        });
-        this.encoder.encode(frame, { keyFrame: this.frameCount % 60 === 0 });
-        frame.close();
-        this.frameCount++;
-      }
-      async stop() {
-        if (!this.encoder) return new Blob();
-        await this.encoder.flush();
-        this.encoder.close();
-        this.encoder = null;
-        return new Blob(this.chunks, { type: "video/webm" });
-      }
-    };
-    WebMEncoder = class {
-      constructor(canvas) {
-        this.mediaRecorder = null;
-        this.chunks = [];
-        this.stream = null;
-        this.canvas = canvas;
-      }
-      /**
-       * Start recording
-       */
-      async start(fps, bitrate = 5e6) {
-        this.chunks = [];
-        this.stream = this.canvas.captureStream(fps);
-        const mimeTypes = [
-          "video/webm;codecs=vp9",
-          "video/webm;codecs=vp8",
-          "video/webm"
-        ];
-        let mimeType = "";
-        for (const type of mimeTypes) {
-          if (MediaRecorder.isTypeSupported(type)) {
-            mimeType = type;
-            break;
-          }
-        }
-        if (!mimeType) {
-          throw new Error("No supported WebM codec found");
-        }
-        this.mediaRecorder = new MediaRecorder(this.stream, {
-          mimeType,
-          videoBitsPerSecond: bitrate
-        });
-        return new Promise((resolve, reject) => {
-          if (!this.mediaRecorder) {
-            reject(new Error("Failed to create MediaRecorder"));
-            return;
-          }
-          this.mediaRecorder.ondataavailable = (e) => {
-            if (e.data.size > 0) {
-              this.chunks.push(e.data);
-            }
-          };
-          this.mediaRecorder.onstart = () => resolve();
-          this.mediaRecorder.onerror = (e) => reject(e);
-          this.mediaRecorder.start();
-        });
-      }
-      /**
-       * Stop recording and get result
-       */
-      async stop() {
-        return new Promise((resolve, reject) => {
-          if (!this.mediaRecorder) {
-            reject(new Error("MediaRecorder not started"));
-            return;
-          }
-          this.mediaRecorder.onstop = () => {
-            const blob = new Blob(this.chunks, { type: "video/webm" });
-            resolve(blob);
-          };
-          this.mediaRecorder.stop();
-          if (this.stream) {
-            this.stream.getTracks().forEach((track) => track.stop());
-          }
-        });
-      }
-      /**
-       * Check if recording
-       */
-      isRecording() {
-        return this.mediaRecorder?.state === "recording";
-      }
-    };
-    FrameSequenceEncoder = class {
-      constructor() {
-        this.frames = [];
-        this.delays = [];
-      }
-      /**
-       * Add a frame
-       */
-      addFrame(imageData, delay) {
-        this.frames.push(imageData);
-        this.delays.push(delay);
-      }
-      /**
-       * Get all frames
-       */
-      getFrames() {
-        return this.frames;
-      }
-      /**
-       * Clear frames
-       */
-      clear() {
-        this.frames = [];
-        this.delays = [];
-      }
-      /**
-       * Get frame count
-       */
-      getFrameCount() {
-        return this.frames.length;
-      }
-    };
-    VideoExportManager = class {
-      constructor() {
-        this.renderer = null;
-        this.encoder = null;
-        this.isRendering = false;
-        this.abortController = null;
-      }
-      /**
-       * Export video by driving frames manually (frame-by-frame)
-       * This is much more robust than real-time recording
-       */
-      async exportVideo(setFrame, element, options) {
-        const startTime = Date.now();
-        const { config, onProgress, signal } = options;
-        const useWebCodecs = typeof VideoEncoder !== "undefined";
-        try {
-          this.isRendering = true;
-          this.abortController = new AbortController();
-          const mergedSignal = this.mergeSignals(signal, this.abortController.signal);
-          this.renderer = new CanvasRenderer(config);
-          const canvas = this.renderer.getCanvas();
-          const bitrate = options.rendererConfig?.bitrate ?? 5e6;
-          let webCodecsEncoder = null;
-          if (useWebCodecs) {
-            webCodecsEncoder = new WebCodecsEncoder(config);
-            await webCodecsEncoder.start(config.fps, bitrate);
-          } else {
-            this.encoder = new WebMEncoder(canvas);
-            await this.encoder.start(config.fps, bitrate);
-          }
-          for (let frame = 0; frame < config.durationInFrames; frame++) {
-            if (mergedSignal.aborted) throw new Error("Render aborted");
-            setFrame(frame);
-            await new Promise((resolve) => requestAnimationFrame(resolve));
-            await new Promise((resolve) => setTimeout(resolve, 20));
-            await this.renderer.captureFrame(element);
-            if (useWebCodecs && webCodecsEncoder) {
-              await webCodecsEncoder.addFrame(canvas);
-            } else {
-              await new Promise((resolve) => setTimeout(resolve, 1e3 / config.fps));
-            }
-            if (onProgress) {
-              onProgress(calculateProgress(frame, config.durationInFrames, startTime));
-            }
-          }
-          const blob = useWebCodecs && webCodecsEncoder ? await webCodecsEncoder.stop() : await this.encoder.stop();
-          const url = URL.createObjectURL(blob);
-          return {
-            success: true,
-            blob,
-            url,
-            frameCount: config.durationInFrames,
-            duration: Date.now() - startTime
-          };
-        } catch (error) {
-          return {
-            success: false,
-            frameCount: 0,
-            duration: Date.now() - startTime,
-            error: error instanceof Error ? error.message : "Unknown error"
-          };
-        } finally {
-          this.isRendering = false;
-          this.encoder = null;
-          if (this.renderer) {
-            this.renderer.dispose();
-            this.renderer = null;
-          }
-        }
-      }
-      /**
-       * Export video from frames (LEGACY/REAL-TIME)
-       */
-      async exportFromCanvas(canvas, options) {
-        const startTime = Date.now();
-        const { config, signal } = options;
-        try {
-          this.isRendering = true;
-          this.abortController = new AbortController();
-          const mergedSignal = this.mergeSignals(signal, this.abortController.signal);
-          this.encoder = new WebMEncoder(canvas);
-          const bitrate = options.rendererConfig?.bitrate ?? 5e6;
-          await this.encoder.start(config.fps, bitrate);
-          const durationMs = config.durationInFrames / config.fps * 1e3;
-          await new Promise((resolve, reject) => {
-            const timeout = setTimeout(resolve, durationMs + 500);
-            const checkAbort = () => {
-              if (mergedSignal.aborted) {
-                clearTimeout(timeout);
-                reject(new Error("Render aborted"));
-              } else if (this.isRendering) {
-                requestAnimationFrame(checkAbort);
-              }
-            };
-            checkAbort();
-          });
-          const blob = await this.encoder.stop();
-          const url = URL.createObjectURL(blob);
-          return {
-            success: true,
-            blob,
-            url,
-            frameCount: config.durationInFrames,
-            duration: Date.now() - startTime
-          };
-        } catch (error) {
-          return {
-            success: false,
-            frameCount: 0,
-            duration: Date.now() - startTime,
-            error: error instanceof Error ? error.message : "Unknown error"
-          };
-        } finally {
-          this.isRendering = false;
-          this.encoder = null;
-        }
-      }
-      /**
-       * Export frame sequence as images
-       */
-      async exportFrames(frames, format = "png") {
-        const canvasRenderer = new CanvasRenderer({
-          width: frames[0]?.width ?? 1920,
-          height: frames[0]?.height ?? 1080,
-          fps: 30,
-          durationInFrames: frames.length
-        });
-        const blobs = [];
-        const mimeType = `image/${format === "jpeg" ? "jpeg" : format}`;
-        for (let i = 0; i < frames.length; i++) {
-          const blob = await canvasRenderer.imageDataToBlob(frames[i], mimeType);
-          blobs.push(blob);
-        }
-        canvasRenderer.dispose();
-        return blobs;
-      }
-      /**
-       * Create downloadable zip of frames
-       */
-      async createFrameZip(frames, compositionId) {
-        if (frames.length === 0) {
-          throw new Error("No frames to zip");
-        }
-        const canvasRenderer = new CanvasRenderer({
-          width: frames[0].width,
-          height: frames[0].height,
-          fps: 30,
-          durationInFrames: frames.length
-        });
-        const blobs = await this.exportFrames(frames, "png");
-        canvasRenderer.dispose();
-        return blobs[0];
-      }
-      /**
-       * Abort current render
-       */
-      abort() {
-        if (this.abortController) {
-          this.abortController.abort();
-        }
-        this.isRendering = false;
-        this.encoder = null;
-      }
-      /**
-       * Check if currently rendering
-       */
-      getIsRendering() {
-        return this.isRendering;
-      }
-      /**
-       * Merge multiple abort signals
-       */
-      mergeSignals(...signals) {
-        const controller = new AbortController();
-        for (const signal of signals) {
-          if (signal) {
-            if (signal.aborted) {
-              controller.abort();
-              break;
-            }
-            signal.addEventListener("abort", () => controller.abort());
-          }
-        }
-        return controller.signal;
-      }
-    };
-    videoExportManager = new VideoExportManager();
-    export_default = VideoExportManager;
-  }
-});
-var FrameContext = createContext(null);
-var useCurrentFrame = () => {
-  const context = useContext(FrameContext);
-  if (!context) {
-    throw new Error("useCurrentFrame must be used within a FrameContext.Provider");
-  }
-  return context.frame;
-};
-var useVideoConfig = () => {
-  const context = useContext(FrameContext);
-  if (!context) {
-    throw new Error("useVideoConfig must be used within a FrameContext.Provider");
-  }
-  return {
-    fps: context.fps,
-    durationInFrames: context.durationInFrames,
-    width: context.width,
-    height: context.height
-  };
-};
-var useTimelineState = () => {
-  const context = useContext(FrameContext);
-  if (!context) {
-    throw new Error("useTimelineState must be used within a FrameContext.Provider");
-  }
-  return {
-    frame: context.frame,
-    playing: context.playing,
-    playbackRate: context.playbackRate,
-    setFrame: context.setFrame,
-    setPlaying: context.setPlaying,
-    setPlaybackRate: context.setPlaybackRate
-  };
-};
-var CompositionManagerContext = createContext(null);
-var PlayerContext = createContext(null);
-var FrameProvider = ({
-  fps = 30,
-  durationInFrames,
-  width,
-  height,
-  children,
-  initialFrame = 0
-}) => {
-  const [frame, setFrameState] = useState(initialFrame);
-  const [playing, setPlaying] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
-  const animationRef = useRef(null);
-  const lastTimeRef = useRef(0);
-  const frameRef = useRef(initialFrame);
-  const setFrame = useCallback((newFrame) => {
-    const clampedFrame = Math.max(0, Math.min(newFrame, durationInFrames - 1));
-    setFrameState(clampedFrame);
-    frameRef.current = clampedFrame;
-  }, [durationInFrames]);
-  useEffect(() => {
-    if (playing) {
-      const frameDuration = 1e3 / (fps * playbackRate);
-      const animate = (currentTime) => {
-        if (currentTime - lastTimeRef.current >= frameDuration) {
-          frameRef.current += 1;
-          if (frameRef.current >= durationInFrames) {
-            frameRef.current = 0;
-            setFrameState(0);
-            lastTimeRef.current = currentTime;
-          } else {
-            setFrameState(frameRef.current);
-            lastTimeRef.current = currentTime;
-          }
-        }
-        animationRef.current = requestAnimationFrame(animate);
-      };
-      animationRef.current = requestAnimationFrame(animate);
-      return () => {
-        if (animationRef.current) {
-          cancelAnimationFrame(animationRef.current);
-        }
-      };
-    }
-  }, [playing, fps, playbackRate, durationInFrames]);
-  const value = {
-    frame,
-    fps,
-    durationInFrames,
-    width,
-    height,
-    playing,
-    playbackRate,
-    setFrame,
-    setPlaying,
-    setPlaybackRate
-  };
-  return /* @__PURE__ */ jsx(FrameContext.Provider, { value, children });
-};
-var CompositionManagerProvider = ({ children }) => {
-  const [compositions] = useState(() => /* @__PURE__ */ new Map());
-  const [currentCompositionId, setCurrentCompositionId] = useState(null);
-  const registerComposition = useCallback((composition) => {
-    compositions.set(composition.id, composition);
-  }, [compositions]);
-  const unregisterComposition = useCallback((id) => {
-    compositions.delete(id);
-  }, [compositions]);
-  const setCurrentComposition = useCallback((id) => {
-    if (compositions.has(id)) {
-      setCurrentCompositionId(id);
-    }
-  }, [compositions]);
-  const currentComposition = currentCompositionId ? compositions.get(currentCompositionId) || null : null;
-  return /* @__PURE__ */ jsx(
-    CompositionManagerContext.Provider,
-    {
-      value: {
-        compositions,
-        currentComposition,
-        registerComposition,
-        unregisterComposition,
-        setCurrentComposition
-      },
-      children
-    }
-  );
-};
-var PlayerProvider = ({
-  durationInFrames,
-  fps = 30,
-  children
-}) => {
-  const [frame, setFrameState] = useState(0);
-  const [playing, setPlayingState] = useState(false);
-  const [playbackRate, setPlaybackRateState] = useState(1);
-  const animationRef = useRef(null);
-  const lastTimeRef = useRef(0);
-  const frameRef = useRef(0);
-  const seek = useCallback((targetFrame) => {
-    const clampedFrame = Math.max(0, Math.min(targetFrame, durationInFrames - 1));
-    frameRef.current = clampedFrame;
-    setFrameState(clampedFrame);
-  }, [durationInFrames]);
-  const play = useCallback(() => setPlayingState(true), []);
-  const pause = useCallback(() => setPlayingState(false), []);
-  const toggle = useCallback(() => setPlayingState((p) => !p), []);
-  const restart = useCallback(() => {
-    frameRef.current = 0;
-    setFrameState(0);
-  }, []);
-  useEffect(() => {
-    if (playing) {
-      const frameDuration = 1e3 / (fps * playbackRate);
-      const animate = (currentTime) => {
-        if (currentTime - lastTimeRef.current >= frameDuration) {
-          frameRef.current += 1;
-          if (frameRef.current >= durationInFrames) {
-            frameRef.current = 0;
-            setFrameState(0);
-          } else {
-            setFrameState(frameRef.current);
-          }
-          lastTimeRef.current = currentTime;
-        }
-        animationRef.current = requestAnimationFrame(animate);
-      };
-      lastTimeRef.current = performance.now();
-      animationRef.current = requestAnimationFrame(animate);
-      return () => {
-        if (animationRef.current) {
-          cancelAnimationFrame(animationRef.current);
-        }
-      };
-    }
-  }, [playing, fps, playbackRate, durationInFrames]);
-  return /* @__PURE__ */ jsx(
-    PlayerContext.Provider,
-    {
-      value: {
-        frame,
-        playing,
-        playbackRate,
-        durationInFrames,
-        fps,
-        seek,
-        play,
-        pause,
-        toggle,
-        restart,
-        frameRef
-      },
-      children
-    }
-  );
-};
 var CompositionContext = createContext(null);
 var useComposition = () => {
   const context = useContext(CompositionContext);
@@ -865,9 +161,14 @@ var SequenceFrameProvider = ({
   relativeFrame,
   children
 }) => {
-  return /* @__PURE__ */ jsx(RelativeFrameContext.Provider, { value: relativeFrame, children });
+  const parent = useContext(FrameContext);
+  const frameValue = useMemo(
+    () => parent ? { ...parent, frame: relativeFrame } : null,
+    [parent, relativeFrame]
+  );
+  return /* @__PURE__ */ jsx(FrameContext.Provider, { value: frameValue, children: /* @__PURE__ */ jsx(RelativeFrameContext.Provider, { value: relativeFrame, children }) });
 };
-var RelativeFrameContext = createContext(0);
+var RelativeFrameContext = createContext(null);
 var useRelativeCurrentFrame = () => useContext(RelativeFrameContext);
 var Loop = ({
   durationInFrames,
@@ -921,10 +222,10 @@ var Series = ({ children }) => {
   let accumulatedFrames = 0;
   let activeChildIndex = -1;
   let relativeFrame = currentFrame;
-  const childArray = React3.Children.toArray(children);
+  const childArray = React2.Children.toArray(children);
   for (let i = 0; i < childArray.length; i++) {
     const child = childArray[i];
-    if (React3.isValidElement(child) && child.props.durationInFrames) {
+    if (React2.isValidElement(child) && child.props.durationInFrames) {
       const childDuration = child.props.durationInFrames;
       if (currentFrame >= accumulatedFrames && currentFrame < accumulatedFrames + childDuration) {
         activeChildIndex = i;
@@ -1217,6 +518,118 @@ var G = ({
 }) => {
   return /* @__PURE__ */ jsx("g", { transform, style, children });
 };
+var HyperFrame = ({
+  html,
+  css,
+  js,
+  frameVariableName = "frame",
+  className,
+  style
+}) => {
+  const frame = useCurrentFrame();
+  const { width, height, fps } = useVideoConfig();
+  const iframeRef = useRef(null);
+  const isLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!iframeRef.current) return;
+    const doc = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body, html {
+              margin: 0;
+              padding: 0;
+              width: ${width}px;
+              height: ${height}px;
+              overflow: hidden;
+              background: transparent;
+            }
+            ${css || ""}
+          </style>
+        </head>
+        <body>
+          <div id="content">${html}</div>
+          <script>
+            window.onFrameUpdate = function(newFrame, config) {
+              const ${frameVariableName} = newFrame;
+              const fps = config.fps;
+              const width = config.width;
+              const height = config.height;
+
+              try {
+                ${js || ""}
+                if (typeof renderFrame === 'function') {
+                  renderFrame(newFrame, config);
+                }
+              } catch (e) {
+                console.error('Error in HyperFrame JS:', e);
+              }
+            };
+
+            // Signal that we are ready
+            window.parent.postMessage('hyperframe-ready', '*');
+          </script>
+        </body>
+      </html>
+    `;
+    iframeRef.current.srcdoc = doc;
+    isLoadedRef.current = false;
+  }, [html, css, js, width, height, frameVariableName]);
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.data === "hyperframe-ready") {
+        isLoadedRef.current = true;
+        updateIframeFrame(frame);
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [frame]);
+  const updateIframeFrame = (currentFrame) => {
+    if (iframeRef.current && iframeRef.current.contentWindow && isLoadedRef.current) {
+      try {
+        if (typeof iframeRef.current.contentWindow.onFrameUpdate === "function") {
+          iframeRef.current.contentWindow.onFrameUpdate(currentFrame, { fps, width, height });
+        }
+      } catch (e) {
+        iframeRef.current.contentWindow.postMessage({
+          type: "update-frame",
+          frame: currentFrame,
+          config: { fps, width, height }
+        }, "*");
+      }
+    }
+  };
+  useEffect(() => {
+    updateIframeFrame(frame);
+  }, [frame, fps, width, height]);
+  return /* @__PURE__ */ jsx(
+    "div",
+    {
+      className,
+      style: {
+        width: "100%",
+        height: "100%",
+        position: "relative",
+        ...style
+      },
+      children: /* @__PURE__ */ jsx(
+        "iframe",
+        {
+          ref: iframeRef,
+          title: "hyperframe-render",
+          style: {
+            width: "100%",
+            height: "100%",
+            border: "none",
+            pointerEvents: "none"
+          }
+        }
+      )
+    }
+  );
+};
 
 // src/utils/animation.ts
 var Easing = {
@@ -1328,6 +741,7 @@ var spring = ({
   } = config;
   const omega = Math.sqrt(stiffness / mass);
   const zeta = damping / (2 * Math.sqrt(stiffness * mass));
+  if (frame <= 0) return from;
   const actualDuration = durationInFrames ?? Math.ceil(fps * 2);
   const t = Math.min(frame / actualDuration, 1);
   const time = t * actualDuration / fps;
@@ -1348,6 +762,12 @@ var spring = ({
     value = Math.max(0, Math.min(1, value));
   }
   return from + (to - from) * value;
+};
+var findSegment = (input, inputRange) => {
+  for (let i = 1; i < inputRange.length - 1; i++) {
+    if (input <= inputRange[i]) return i - 1;
+  }
+  return inputRange.length - 2;
 };
 var interpolate = (input, inputRange, outputRange, options = {}) => {
   const {
@@ -1375,13 +795,7 @@ var interpolate = (input, inputRange, outputRange, options = {}) => {
       return input;
     }
   }
-  let segmentIndex = 0;
-  for (let i = 1; i < inputRange.length; i++) {
-    if (input <= inputRange[i]) {
-      segmentIndex = i - 1;
-      break;
-    }
-  }
+  const segmentIndex = findSegment(input, inputRange);
   const inputStart = inputRange[segmentIndex];
   const inputEnd = inputRange[segmentIndex + 1];
   const outputStart = outputRange[segmentIndex];
@@ -1392,60 +806,62 @@ var interpolate = (input, inputRange, outputRange, options = {}) => {
   }
   return outputStart + progress * (outputEnd - outputStart);
 };
-var interpolateColors = (input, inputRange, outputRange) => {
-  const parseColor = (color) => {
-    if (color.startsWith("#")) {
-      const hex = color.slice(1);
-      if (hex.length === 3) {
-        return [
-          parseInt(hex[0] + hex[0], 16),
-          parseInt(hex[1] + hex[1], 16),
-          parseInt(hex[2] + hex[2], 16),
-          255
-        ];
-      }
+var parseColor = (color) => {
+  const value = color.trim();
+  if (value.startsWith("#")) {
+    const hex = value.slice(1);
+    if (hex.length === 3) {
       return [
-        parseInt(hex.slice(0, 2), 16),
-        parseInt(hex.slice(2, 4), 16),
-        parseInt(hex.slice(4, 6), 16),
-        hex.length === 8 ? parseInt(hex.slice(6, 8), 16) : 255
+        parseInt(hex[0] + hex[0], 16),
+        parseInt(hex[1] + hex[1], 16),
+        parseInt(hex[2] + hex[2], 16),
+        1
       ];
     }
-    if (color.startsWith("rgb")) {
-      const match = color.match(/\d+/g);
-      if (match) {
-        return [
-          parseInt(match[0]),
-          parseInt(match[1]),
-          parseInt(match[2]),
-          match[3] ? parseInt(match[3]) : 255
-        ];
-      }
-    }
-    return [0, 0, 0, 255];
-  };
-  const rgbToHex = (r2, g2, b2) => {
-    return "#" + [r2, g2, b2].map((x) => {
-      const hex = Math.round(x).toString(16);
-      return hex.length === 1 ? "0" + hex : hex;
-    }).join("");
-  };
-  let segmentIndex = 0;
-  for (let i = 1; i < inputRange.length; i++) {
-    if (input <= inputRange[i]) {
-      segmentIndex = i - 1;
-      break;
+    return [
+      parseInt(hex.slice(0, 2), 16),
+      parseInt(hex.slice(2, 4), 16),
+      parseInt(hex.slice(4, 6), 16),
+      hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1
+    ];
+  }
+  if (value.startsWith("rgb")) {
+    const match = value.match(/-?\d*\.?\d+/g);
+    if (match && match.length >= 3) {
+      return [
+        parseFloat(match[0]),
+        parseFloat(match[1]),
+        parseFloat(match[2]),
+        match[3] !== void 0 ? parseFloat(match[3]) : 1
+      ];
     }
   }
+  throw new Error(`interpolateColors: unsupported color "${color}"`);
+};
+var formatColor = ([r, g, b, a]) => {
+  const channel = (x) => Math.round(Math.max(0, Math.min(255, x)));
+  if (a >= 1) {
+    return "#" + [r, g, b].map((x) => channel(x).toString(16).padStart(2, "0")).join("");
+  }
+  const alpha = Math.round(Math.max(0, a) * 1e3) / 1e3;
+  return `rgba(${channel(r)}, ${channel(g)}, ${channel(b)}, ${alpha})`;
+};
+var interpolateColors = (input, inputRange, outputRange) => {
+  if (inputRange.length !== outputRange.length) {
+    throw new Error("inputRange and outputRange must have the same length");
+  }
+  if (inputRange.length < 2) {
+    throw new Error("inputRange must have at least 2 elements");
+  }
+  const clamped = Math.max(inputRange[0], Math.min(inputRange[inputRange.length - 1], input));
+  const segmentIndex = findSegment(clamped, inputRange);
   const inputStart = inputRange[segmentIndex];
   const inputEnd = inputRange[segmentIndex + 1];
   const colorStart = parseColor(outputRange[segmentIndex]);
   const colorEnd = parseColor(outputRange[segmentIndex + 1]);
-  const progress = (input - inputStart) / (inputEnd - inputStart);
-  const r = colorStart[0] + progress * (colorEnd[0] - colorStart[0]);
-  const g = colorStart[1] + progress * (colorEnd[1] - colorStart[1]);
-  const b = colorStart[2] + progress * (colorEnd[2] - colorStart[2]);
-  return rgbToHex(r, g, b);
+  const progress = inputEnd === inputStart ? 1 : (clamped - inputStart) / (inputEnd - inputStart);
+  const mix = (i) => colorStart[i] + progress * (colorEnd[i] - colorStart[i]);
+  return formatColor([mix(0), mix(1), mix(2), mix(3)]);
 };
 var useKeyframes = (keyframes, frame) => {
   if (keyframes.length === 0) return 0;
@@ -1520,13 +936,17 @@ var range = (start, end, step = 1) => {
 };
 var random = (seed, min = 0, max = 1) => {
   const str = typeof seed === "number" ? seed.toString() : seed;
-  let hash = 0;
+  let hash = 2166136261;
   for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
   }
-  const normalized = Math.abs(hash) % 1e4 / 1e4;
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 2246822507);
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 3266489909);
+  hash ^= hash >>> 16;
+  const normalized = (hash >>> 0) / 4294967296;
   return min + normalized * (max - min);
 };
 var noise2D = (x, y) => {
@@ -2038,7 +1458,7 @@ var ParticleSystem = ({
 }) => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
-  const particles = React3.useMemo(() => {
+  const particles = React2.useMemo(() => {
     const seed = (n) => {
       const x = Math.sin(n * 9999) * 1e4;
       return x - Math.floor(x);
@@ -2378,7 +1798,7 @@ var Confetti = ({
 }) => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
-  const confettiPieces = React3.useMemo(() => {
+  const confettiPieces = React2.useMemo(() => {
     const seed = (n) => {
       const x = Math.sin(n * 9999) * 1e4;
       return x - Math.floor(x);
@@ -2417,6 +1837,459 @@ var Confetti = ({
       i
     );
   }) });
+};
+var KineticTypography = ({
+  text,
+  durationInFrames = 60,
+  startFrame = 0,
+  stagger = 3,
+  fontSize = 80,
+  fontWeight = "bold",
+  fontFamily = "Inter, system-ui, sans-serif",
+  color = "white",
+  className = "",
+  type = "velocity",
+  style
+}) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const characters = text.split("");
+  return /* @__PURE__ */ jsx(
+    "div",
+    {
+      className,
+      style: {
+        display: "flex",
+        flexWrap: "wrap",
+        fontSize,
+        fontWeight,
+        fontFamily,
+        color,
+        ...style
+      },
+      children: characters.map((char, i) => {
+        const relativeStart = startFrame + i * stagger;
+        const charFrame = frame - relativeStart;
+        const progress = interpolate(
+          charFrame,
+          [0, durationInFrames],
+          [0, 1],
+          { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeOutExpo }
+        );
+        let charStyle = {
+          display: "inline-block",
+          whiteSpace: "pre"
+        };
+        if (type === "velocity") {
+          const y = interpolate(charFrame, [0, 20], [100, 0], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+            easing: Easing.easeOutBack
+          });
+          const opacity = interpolate(charFrame, [0, 15], [0, 1], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp"
+          });
+          const blur2 = interpolate(charFrame, [0, 10], [20, 0], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp"
+          });
+          charStyle = {
+            ...charStyle,
+            transform: `translateY(${y}px)`,
+            opacity,
+            filter: `blur(${blur2}px)`
+          };
+        } else if (type === "stretching") {
+          const scaleY = spring({
+            frame: charFrame,
+            fps,
+            config: { damping: 12, stiffness: 200 },
+            from: 0,
+            to: 1
+          });
+          const scaleX = spring({
+            frame: charFrame,
+            fps,
+            config: { damping: 15, stiffness: 150 },
+            from: 2,
+            to: 1
+          });
+          charStyle = {
+            ...charStyle,
+            transform: `scale(${scaleX}, ${scaleY})`,
+            transformOrigin: "bottom",
+            opacity: progress
+          };
+        } else if (type === "glitch") {
+          const seed = charFrame + i * 1e3;
+          const randomVal = Math.sin(seed) * 1e4 % 1;
+          const isGlitched = charFrame > 0 && charFrame < 15 && Math.abs(randomVal) > 0.8;
+          const xOffset = isGlitched ? Math.sin(seed + 1) * 1e4 % 1 * 20 : 0;
+          const colorShift = isGlitched ? "cyan" : color;
+          charStyle = {
+            ...charStyle,
+            transform: `translateX(${xOffset}px)`,
+            color: colorShift,
+            opacity: progress
+          };
+        } else if (type === "reveal") {
+          const clipWidth = interpolate(charFrame, [0, 20], [0, 100], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp"
+          });
+          charStyle = {
+            ...charStyle,
+            clipPath: `inset(0 ${100 - clipWidth}% 0 0)`,
+            opacity: progress > 0 ? 1 : 0
+          };
+        }
+        return /* @__PURE__ */ jsx("span", { style: charStyle, children: char === " " ? "\xA0" : char }, i);
+      })
+    }
+  );
+};
+var LiquidText = ({
+  text,
+  width = 800,
+  height = 300,
+  fillColor = "#10b981",
+  strokeColor = "#059669",
+  strokeWidth = 2,
+  fontSize = 150,
+  fontFamily = "Inter, system-ui, sans-serif",
+  fontWeight = "bold",
+  speed = 0.05,
+  amplitude = 20,
+  className = "",
+  style
+}) => {
+  const frame = useCurrentFrame();
+  const id = React2.useId().replace(/:/g, "");
+  const wavePath = React2.useMemo(() => {
+    let path = `M 0 ${height}`;
+    for (let x = 0; x <= width; x += 10) {
+      const y = Math.sin(frame * speed + x * 0.02) * amplitude + amplitude;
+      path += ` L ${x} ${y}`;
+    }
+    path += ` L ${width} ${height} Z`;
+    return path;
+  }, [frame, width, height, speed, amplitude]);
+  return /* @__PURE__ */ jsx("div", { className, style: { width, height, position: "relative", ...style }, children: /* @__PURE__ */ jsxs(
+    "svg",
+    {
+      width,
+      height,
+      viewBox: `0 0 ${width} ${height}`,
+      style: { overflow: "visible" },
+      children: [
+        /* @__PURE__ */ jsx("defs", { children: /* @__PURE__ */ jsx("clipPath", { id: `text-clip-${id}`, children: /* @__PURE__ */ jsx(
+          "text",
+          {
+            x: "50%",
+            y: "50%",
+            dominantBaseline: "middle",
+            textAnchor: "middle",
+            fontSize,
+            fontFamily,
+            fontWeight,
+            children: text
+          }
+        ) }) }),
+        /* @__PURE__ */ jsx(
+          "text",
+          {
+            x: "50%",
+            y: "50%",
+            dominantBaseline: "middle",
+            textAnchor: "middle",
+            fontSize,
+            fontFamily,
+            fontWeight,
+            fill: "none",
+            stroke: strokeColor,
+            strokeWidth,
+            opacity: "0.3",
+            children: text
+          }
+        ),
+        /* @__PURE__ */ jsxs("g", { clipPath: `url(#text-clip-${id})`, children: [
+          /* @__PURE__ */ jsx("path", { d: wavePath, fill: fillColor }),
+          /* @__PURE__ */ jsx(
+            "text",
+            {
+              x: "50%",
+              y: "50%",
+              dominantBaseline: "middle",
+              textAnchor: "middle",
+              fontSize,
+              fontFamily,
+              fontWeight,
+              fill: "none",
+              stroke: fillColor,
+              strokeWidth,
+              children: text
+            }
+          )
+        ] })
+      ]
+    }
+  ) });
+};
+var TextStack3D = ({
+  text,
+  layers = 8,
+  depth = 5,
+  fontSize = 120,
+  fontWeight = "900",
+  fontFamily = "Inter, system-ui, sans-serif",
+  mainColor = "#ffffff",
+  layerColor = "#10b981",
+  durationInFrames = 60,
+  startFrame = 0,
+  className = "",
+  style
+}) => {
+  const frame = useCurrentFrame();
+  const progress = interpolate(
+    frame - startFrame,
+    [0, durationInFrames],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeInOutCubic }
+  );
+  const rotateX = interpolate(progress, [0, 1], [0, 25]);
+  const rotateY = interpolate(progress, [0, 1], [0, -25]);
+  return /* @__PURE__ */ jsx(
+    "div",
+    {
+      className,
+      style: {
+        perspective: "1000px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        ...style
+      },
+      children: /* @__PURE__ */ jsx(
+        "div",
+        {
+          style: {
+            position: "relative",
+            transformStyle: "preserve-3d",
+            transform: `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
+            fontSize,
+            fontWeight,
+            fontFamily,
+            lineHeight: 1,
+            textAlign: "center"
+          },
+          children: Array.from({ length: layers }).map((_, i) => {
+            const layerDepth = (i + 1) * depth * progress;
+            const isTop = i === layers - 1;
+            return /* @__PURE__ */ jsx(
+              "span",
+              {
+                style: {
+                  position: isTop ? "relative" : "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: "100%",
+                  color: isTop ? mainColor : layerColor,
+                  transform: `translateZ(${layerDepth}px)`,
+                  WebkitTextStroke: isTop ? "none" : `1px ${layerColor}`,
+                  opacity: isTop ? 1 : 1 - i / layers,
+                  pointerEvents: "none"
+                },
+                children: text
+              },
+              i
+            );
+          })
+        }
+      )
+    }
+  );
+};
+var StickyGridScroll = ({
+  items,
+  columns = 3,
+  gap = 20,
+  padding = 40,
+  scrollDuration = 300,
+  startFrame = 0,
+  className = "",
+  style
+}) => {
+  const frame = useCurrentFrame();
+  const { height } = useVideoConfig();
+  const progress = interpolate(
+    frame - startFrame,
+    [0, scrollDuration],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.linear }
+  );
+  const totalHeight = Math.ceil(items.length / columns) * (height / 2) + padding * 2;
+  const scrollY = progress * (totalHeight - height);
+  return /* @__PURE__ */ jsx(
+    "div",
+    {
+      className,
+      style: {
+        width: "100%",
+        height: "100%",
+        overflow: "hidden",
+        position: "relative",
+        backgroundColor: "#050505",
+        ...style
+      },
+      children: /* @__PURE__ */ jsx(
+        "div",
+        {
+          style: {
+            display: "grid",
+            gridTemplateColumns: `repeat(${columns}, 1fr)`,
+            gap: `${gap}px`,
+            padding: `${padding}px`,
+            transform: `translateY(${-scrollY}px)`
+          },
+          children: items.map((item, i) => {
+            const itemRow = Math.floor(i / columns);
+            const itemY = itemRow * (height / 2) + padding;
+            const relativeY = itemY - scrollY;
+            const viewportProgress = interpolate(
+              relativeY,
+              [height, height * 0.8, height * 0.2, 0],
+              [0, 1, 1, 0],
+              { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+            );
+            return /* @__PURE__ */ jsx(
+              "div",
+              {
+                style: {
+                  height: height / 2.5,
+                  opacity: viewportProgress,
+                  transform: `scale(${0.8 + 0.2 * viewportProgress}) translateY(${(1 - viewportProgress) * 50}px)`,
+                  transition: "transform 0.1s linear"
+                },
+                children: item
+              },
+              i
+            );
+          })
+        }
+      )
+    }
+  );
+};
+var FlipImageReveal = ({
+  src,
+  thumbnailRect,
+  durationInFrames = 60,
+  startFrame = 0,
+  className = "",
+  style
+}) => {
+  const frame = useCurrentFrame();
+  const { width: videoWidth, height: videoHeight } = useVideoConfig();
+  const progress = interpolate(
+    frame - startFrame,
+    [0, durationInFrames],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeInOutQuart }
+  );
+  const x = interpolate(progress, [0, 1], [thumbnailRect.x, 0]);
+  const y = interpolate(progress, [0, 1], [thumbnailRect.y, 0]);
+  const width = interpolate(progress, [0, 1], [thumbnailRect.width, videoWidth]);
+  const height = interpolate(progress, [0, 1], [thumbnailRect.height, videoHeight]);
+  const borderRadius = interpolate(progress, [0, 1], [12, 0]);
+  const opacity = interpolate(progress, [0, 0.2], [0, 1]);
+  return /* @__PURE__ */ jsxs(
+    "div",
+    {
+      className,
+      style: {
+        position: "absolute",
+        left: x,
+        top: y,
+        width,
+        height,
+        borderRadius: `${borderRadius}px`,
+        overflow: "hidden",
+        boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
+        opacity,
+        ...style
+      },
+      children: [
+        /* @__PURE__ */ jsx(
+          "img",
+          {
+            src,
+            alt: "Reveal",
+            style: {
+              width: "100%",
+              height: "100%",
+              objectFit: "cover"
+            }
+          }
+        ),
+        /* @__PURE__ */ jsxs(
+          "div",
+          {
+            style: {
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              padding: "40px",
+              background: "linear-gradient(transparent, rgba(0,0,0,0.8))",
+              opacity: interpolate(progress, [0.8, 1], [0, 1]),
+              transform: `translateY(${interpolate(progress, [0.8, 1], [20, 0])}px)`
+            },
+            children: [
+              /* @__PURE__ */ jsx("h2", { style: { color: "white", fontSize: "48px", fontWeight: "bold" }, children: "Cinematic Reveal" }),
+              /* @__PURE__ */ jsx("p", { style: { color: "#ccc", fontSize: "18px" }, children: "Smooth FLIP transition between states." })
+            ]
+          }
+        )
+      ]
+    }
+  );
+};
+var CardExpansionMask = ({
+  children,
+  durationInFrames = 60,
+  startFrame = 0,
+  centerX = 50,
+  // percentage
+  centerY = 50,
+  // percentage
+  className = "",
+  style
+}) => {
+  const frame = useCurrentFrame();
+  React2.useId().replace(/:/g, "");
+  const progress = interpolate(
+    frame - startFrame,
+    [0, durationInFrames],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeInOutCubic }
+  );
+  const radius = progress * 150;
+  return /* @__PURE__ */ jsx(
+    "div",
+    {
+      className,
+      style: {
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        clipPath: `circle(${radius}% at ${centerX}% ${centerY}%)`,
+        ...style
+      },
+      children
+    }
+  );
 };
 
 // src/utils/transitions.ts
@@ -2756,205 +2629,6 @@ var usePulse = (minScale, maxScale, frequency) => {
   const scale2 = interpolate(progress, [0, 1], [minScale, maxScale]);
   return { transform: `scale(${scale2})` };
 };
-
-// src/renderer/cache.ts
-var FrameCache = class {
-  constructor(options = {}) {
-    this.cache = /* @__PURE__ */ new Map();
-    this.stats = { hits: 0, misses: 0 };
-    this.maxSize = options.maxSize ?? 100 * 1024 * 1024;
-    this.maxAge = options.maxAge ?? 5 * 60 * 1e3;
-  }
-  /**
-   * Generate cache key for a frame
-   */
-  static createKey(compositionId, frame, width, height) {
-    return `${compositionId}:${frame}:${width}x${height}`;
-  }
-  /**
-   * Get a cached frame
-   */
-  get(key) {
-    const entry = this.cache.get(key);
-    if (!entry) {
-      this.stats.misses++;
-      return null;
-    }
-    if (Date.now() - entry.timestamp > this.maxAge) {
-      this.cache.delete(key);
-      this.stats.misses++;
-      return null;
-    }
-    entry.accessCount++;
-    this.cache.delete(key);
-    this.cache.set(key, entry);
-    this.stats.hits++;
-    return entry.data;
-  }
-  /**
-   * Set a cached frame
-   */
-  set(key, data, size) {
-    const entrySize = size ?? this.estimateSize(data);
-    this.evictIfNeeded(entrySize);
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now(),
-      accessCount: 1,
-      size: entrySize
-    });
-  }
-  /**
-   * Check if key exists and is valid
-   */
-  has(key) {
-    const entry = this.cache.get(key);
-    if (!entry) return false;
-    if (Date.now() - entry.timestamp > this.maxAge) {
-      this.cache.delete(key);
-      return false;
-    }
-    return true;
-  }
-  /**
-   * Delete a cached frame
-   */
-  delete(key) {
-    return this.cache.delete(key);
-  }
-  /**
-   * Clear all cached frames
-   */
-  clear() {
-    this.cache.clear();
-    this.stats = { hits: 0, misses: 0 };
-  }
-  /**
-   * Get cache statistics
-   */
-  getStats() {
-    let totalSize = 0;
-    for (const entry of this.cache.values()) {
-      totalSize += entry.size;
-    }
-    const totalRequests = this.stats.hits + this.stats.misses;
-    return {
-      hits: this.stats.hits,
-      misses: this.stats.misses,
-      size: totalSize,
-      entries: this.cache.size,
-      hitRate: totalRequests > 0 ? this.stats.hits / totalRequests : 0
-    };
-  }
-  /**
-   * Get current cache size in bytes
-   */
-  getSize() {
-    let size = 0;
-    for (const entry of this.cache.values()) {
-      size += entry.size;
-    }
-    return size;
-  }
-  /**
-   * Evict entries until we have enough space
-   */
-  evictIfNeeded(neededSize) {
-    while (this.getSize() + neededSize > this.maxSize && this.cache.size > 0) {
-      const firstKey = this.cache.keys().next().value;
-      if (firstKey) {
-        this.cache.delete(firstKey);
-      } else {
-        break;
-      }
-    }
-  }
-  /**
-   * Estimate size of data
-   */
-  estimateSize(data) {
-    if (data instanceof ImageData) {
-      return data.data.length;
-    }
-    if (typeof data === "string") {
-      return data.length * 2;
-    }
-    if (data instanceof ArrayBuffer) {
-      return data.byteLength;
-    }
-    return 1024;
-  }
-};
-var frameCache = new FrameCache({
-  maxSize: 200 * 1024 * 1024,
-  // 200MB
-  maxAge: 10 * 60 * 1e3
-  // 10 minutes
-});
-var MemoCache = class _MemoCache {
-  constructor() {
-    this.cache = /* @__PURE__ */ new Map();
-  }
-  static getInstance() {
-    if (!_MemoCache.instance) {
-      _MemoCache.instance = new _MemoCache();
-    }
-    return _MemoCache.instance;
-  }
-  /**
-   * Get or compute a memoized value
-   */
-  getOrCompute(key, compute, deps = []) {
-    const cached = this.cache.get(key);
-    if (cached && this.depsEqual(cached.deps, deps)) {
-      return cached.value;
-    }
-    const value = compute();
-    this.cache.set(key, { value, deps });
-    return value;
-  }
-  /**
-   * Check if dependencies are equal
-   */
-  depsEqual(a, b) {
-    if (a.length !== b.length) return false;
-    return a.every((val, i) => Object.is(val, b[i]));
-  }
-  /**
-   * Clear all memoized values
-   */
-  clear() {
-    this.cache.clear();
-  }
-};
-function createDebouncedCache(fn, delay) {
-  let timeoutId = null;
-  let lastArgs = [];
-  return ((...args) => {
-    lastArgs = args;
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-    timeoutId = setTimeout(() => {
-      fn(...lastArgs);
-      timeoutId = null;
-    }, delay);
-  });
-}
-function createThrottledCache(fn, limit) {
-  let inThrottle = false;
-  return ((...args) => {
-    if (!inThrottle) {
-      fn(...args);
-      inThrottle = true;
-      setTimeout(() => {
-        inThrottle = false;
-      }, limit);
-    }
-  });
-}
-
-// src/hooks/performance.ts
 function useMemoizedFrame(compute, deps = []) {
   const frame = useCurrentFrame();
   const memoCache = useMemo(() => MemoCache.getInstance(), []);
@@ -3024,1977 +2698,6 @@ function usePerformanceMonitor() {
 function useRenderPriority() {
   return useMemo(() => "high", []);
 }
-
-// src/renderer/index.ts
-init_export();
-var generateFrames = async (component, config, options) => {
-  const frames = [];
-  const startFrame = options?.startFrame ?? 0;
-  const endFrame = options?.endFrame ?? config.durationInFrames;
-  for (let frame = startFrame; frame < endFrame; frame++) {
-    if (options?.onProgress) {
-      options.onProgress(frame - startFrame, endFrame - startFrame);
-    }
-    frames.push(`frame-${frame}`);
-  }
-  return frames;
-};
-var renderVideo = async (options) => {
-  const startTime = Date.now();
-  try {
-    const frames = await generateFrames(
-      () => null,
-      options.config,
-      {
-        onProgress: (frame, total) => {
-          if (options.onProgress) {
-            options.onProgress(frame / total);
-          }
-        }
-      }
-    );
-    const duration = Date.now() - startTime;
-    return {
-      success: true,
-      frameCount: frames.length,
-      duration,
-      outputUrl: `${options.outputDir}/output.mp4`
-    };
-  } catch (error) {
-    return {
-      success: false,
-      frameCount: 0,
-      duration: Date.now() - startTime,
-      error: error instanceof Error ? error.message : "Unknown error"
-    };
-  }
-};
-var buildFFmpegCommand = (inputPattern, outputPath, config, rendererConfig) => {
-  const args = [];
-  args.push("-framerate", config.fps.toString());
-  args.push("-i", inputPattern);
-  switch (rendererConfig.format) {
-    case "mp4":
-      args.push("-c:v", rendererConfig.codec === "h265" ? "libx265" : "libx264");
-      if (rendererConfig.crf) {
-        args.push("-crf", rendererConfig.crf.toString());
-      }
-      args.push("-pix_fmt", rendererConfig.pixelFormat ?? "yuv420p");
-      break;
-    case "webm":
-      args.push("-c:v", rendererConfig.codec === "vp9" ? "libvpx-vp9" : "libvpx");
-      args.push("-crf", (rendererConfig.crf ?? 30).toString());
-      args.push("-b:v", "0");
-      break;
-    case "gif":
-      args.push("-filter_complex", `[0:v] fps=${Math.min(config.fps, 15)},split [a][b];[a] palettegen [p];[b][p] paletteuse`);
-      break;
-  }
-  switch (rendererConfig.quality) {
-    case "low":
-      args.push("-preset", "ultrafast");
-      break;
-    case "medium":
-      args.push("-preset", "medium");
-      break;
-    case "high":
-      args.push("-preset", "slow");
-      break;
-  }
-  args.push("-y", outputPath);
-  return args;
-};
-var frameToDataURL = (canvas) => {
-  return canvas.toDataURL("image/png");
-};
-var calculateVideoSize = (width, height, fps, durationInSeconds, bitrate = 5e6) => {
-  return Math.ceil(bitrate * durationInSeconds / 8);
-};
-var estimateRenderTime = (durationInFrames, complexity = "medium") => {
-  const baseTimePerFrame = {
-    low: 10,
-    medium: 50,
-    high: 200
-  };
-  return durationInFrames * baseTimePerFrame[complexity];
-};
-var validateRenderConfig = (config) => {
-  const errors = [];
-  if (config.width < 1 || config.width > 8192) {
-    errors.push("Width must be between 1 and 8192 pixels");
-  }
-  if (config.height < 1 || config.height > 8192) {
-    errors.push("Height must be between 1 and 8192 pixels");
-  }
-  if (config.fps < 1 || config.fps > 120) {
-    errors.push("FPS must be between 1 and 120");
-  }
-  if (config.durationInFrames < 1) {
-    errors.push("Duration must be at least 1 frame");
-  }
-  return errors;
-};
-var RenderJobManager = class {
-  constructor() {
-    this.jobs = /* @__PURE__ */ new Map();
-  }
-  createJob(id, config) {
-    this.jobs.set(id, {
-      id,
-      config,
-      status: "pending",
-      progress: 0,
-      startTime: null,
-      endTime: null
-    });
-  }
-  startJob(id) {
-    const job = this.jobs.get(id);
-    if (job) {
-      job.status = "processing";
-      job.startTime = Date.now();
-    }
-  }
-  updateProgress(id, progress) {
-    const job = this.jobs.get(id);
-    if (job) {
-      job.progress = progress;
-    }
-  }
-  completeJob(id, outputUrl) {
-    const job = this.jobs.get(id);
-    if (job) {
-      job.status = "completed";
-      job.progress = 100;
-      job.endTime = Date.now();
-      job.outputUrl = outputUrl;
-    }
-  }
-  failJob(id, error) {
-    const job = this.jobs.get(id);
-    if (job) {
-      job.status = "failed";
-      job.error = error;
-      job.endTime = Date.now();
-    }
-  }
-  getJob(id) {
-    return this.jobs.get(id);
-  }
-  getActiveJobs() {
-    return Array.from(this.jobs.values()).filter(
-      (job) => job.status === "processing"
-    );
-  }
-};
-var renderJobManager = new RenderJobManager();
-async function renderCompositionToVideo(setFrame, element, config, options) {
-  const { VideoExportManager: VideoExportManager2 } = await Promise.resolve().then(() => (init_export(), export_exports));
-  const manager = new VideoExportManager2();
-  const result = await manager.exportVideo(setFrame, element, {
-    config,
-    onProgress: options?.onProgress ? (p) => options.onProgress(p.percentage) : void 0
-  });
-  if (result.success && result.blob) {
-    options?.onComplete?.(result.blob);
-    return result.blob;
-  }
-  return null;
-}
-function downloadVideo(blob, filename = "video.webm") {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-function downloadFrame(imageData, filename = "frame.png") {
-  const canvas = document.createElement("canvas");
-  canvas.width = imageData.width;
-  canvas.height = imageData.height;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    ctx.putImageData(imageData, 0, 0);
-    canvas.toBlob((blob) => {
-      if (blob) {
-        downloadVideo(blob, filename);
-      }
-    }, "image/png");
-  }
-}
-var PlayIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx(
-      "path",
-      {
-        d: "M8 5.14v14l11-7-11-7z",
-        fill: color
-      }
-    )
-  }
-);
-var PauseIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsxs(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: [
-      /* @__PURE__ */ jsx("rect", { x: "6", y: "4", width: "4", height: "16", fill: color }),
-      /* @__PURE__ */ jsx("rect", { x: "14", y: "4", width: "4", height: "16", fill: color })
-    ]
-  }
-);
-var StopIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("rect", { x: "6", y: "6", width: "12", height: "12", fill: color })
-  }
-);
-var SkipBackIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M6 6h2v12H6V6zm3.5 6l8.5 6V6l-8.5 6z", fill: color })
-  }
-);
-var SkipForwardIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M6 18l8.5-6L6 6v12zm8.5 0V6h2v12h-2z", fill: color })
-  }
-);
-var RewindIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z", fill: color })
-  }
-);
-var FastForwardIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z", fill: color })
-  }
-);
-var ReplayIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx(
-      "path",
-      {
-        d: "M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z",
-        fill: color
-      }
-    )
-  }
-);
-var ShuffleIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z", fill: color })
-  }
-);
-var RepeatIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z", fill: color })
-  }
-);
-var VolumeHighIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z", fill: color })
-  }
-);
-var VolumeMediumIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M5 9v6h4l5 5V4L9 9H5zm11.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z", fill: color })
-  }
-);
-var VolumeLowIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z", fill: color })
-  }
-);
-var VolumeMuteIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z", fill: color })
-  }
-);
-var ArrowLeftIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z", fill: color })
-  }
-);
-var ArrowRightIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8-8-8z", fill: color })
-  }
-);
-var ArrowUpIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z", fill: color })
-  }
-);
-var ArrowDownIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M20 12l-1.41-1.41L13 16.17V4h-2v12.17l-5.58-5.59L4 12l8 8 8-8z", fill: color })
-  }
-);
-var ChevronLeftIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12l4.58-4.59z", fill: color })
-  }
-);
-var ChevronRightIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6-6-6z", fill: color })
-  }
-);
-var ChevronUpIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14l-6-6z", fill: color })
-  }
-);
-var ChevronDownIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6-1.41-1.41z", fill: color })
-  }
-);
-var CheckIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z", fill: color })
-  }
-);
-var CloseIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z", fill: color })
-  }
-);
-var PlusIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z", fill: color })
-  }
-);
-var MinusIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M19 13H5v-2h14v2z", fill: color })
-  }
-);
-var EditIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z", fill: color })
-  }
-);
-var DeleteIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z", fill: color })
-  }
-);
-var SaveIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z", fill: color })
-  }
-);
-var CopyIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z", fill: color })
-  }
-);
-var DownloadIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z", fill: color })
-  }
-);
-var UploadIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z", fill: color })
-  }
-);
-var RefreshIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z", fill: color })
-  }
-);
-var CameraIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 15.2c1.77 0 3.2-1.43 3.2-3.2s-1.43-3.2-3.2-3.2-3.2 1.43-3.2 3.2 1.43 3.2 3.2 3.2zM9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z", fill: color })
-  }
-);
-var VideoIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z", fill: color })
-  }
-);
-var ImageIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z", fill: color })
-  }
-);
-var MusicIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z", fill: color })
-  }
-);
-var MicIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z", fill: color })
-  }
-);
-var StarIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z", fill: color })
-  }
-);
-var StarOutlineIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z", fill: color })
-  }
-);
-var HeartIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z", fill: color })
-  }
-);
-var HeartOutlineIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z", fill: color })
-  }
-);
-var ThumbUpIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z", fill: color })
-  }
-);
-var ThumbDownIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M23 3h-4v12h4V3zm-2 10h-2V5h2v8zM15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2z", fill: color })
-  }
-);
-var ShareIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z", fill: color })
-  }
-);
-var CommentIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z", fill: color })
-  }
-);
-var SettingsIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z", fill: color })
-  }
-);
-var FullscreenIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z", fill: color })
-  }
-);
-var FullscreenExitIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z", fill: color })
-  }
-);
-var SearchIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z", fill: color })
-  }
-);
-var InfoIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z", fill: color })
-  }
-);
-var WarningIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z", fill: color })
-  }
-);
-var ErrorIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z", fill: color })
-  }
-);
-var SuccessIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z", fill: color })
-  }
-);
-var QuestionIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z", fill: color })
-  }
-);
-var ClockIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z", fill: color })
-  }
-);
-var TimerIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z", fill: color })
-  }
-);
-var CalendarIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm-8 4H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z", fill: color })
-  }
-);
-var FolderIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z", fill: color })
-  }
-);
-var FileIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M6 2c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6H6zm7 7V3.5L18.5 9H13z", fill: color })
-  }
-);
-var FilmIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z", fill: color })
-  }
-);
-var SparkleIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 2L9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2z", fill: color })
-  }
-);
-var MagicWandIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M7.5 5.6L10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zM19.5 15.4L17 14l1.4 2.5L17 19l2.5-1.4L22 19l-1.4-2.5L22 14zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zM14.37 7.29L12.56 5.5 2 16.06V18.88L5.12 22h2.82l10.55-10.56zM5.91 17.09L5 16.17l8.06-8.06.91.91-8.06 8.07z", fill: color })
-  }
-);
-var LightningIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M7 2v11h3v9l7-12h-4l4-8z", fill: color })
-  }
-);
-var LayersIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z", fill: color })
-  }
-);
-var Loader2Icon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: color,
-    strokeWidth: "2",
-    strokeLinecap: "round",
-    strokeLinejoin: "round",
-    xmlns: "http://www.w3.org/2000/svg",
-    className: `animate-spin ${className || ""}`,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M21 12a9 9 0 1 1-6.219-8.56" })
-  }
-);
-var Icons = {
-  // Playback
-  Play: PlayIcon,
-  Pause: PauseIcon,
-  Stop: StopIcon,
-  SkipBack: SkipBackIcon,
-  SkipForward: SkipForwardIcon,
-  Rewind: RewindIcon,
-  FastForward: FastForwardIcon,
-  Replay: ReplayIcon,
-  Shuffle: ShuffleIcon,
-  Repeat: RepeatIcon,
-  // Volume
-  VolumeHigh: VolumeHighIcon,
-  VolumeMedium: VolumeMediumIcon,
-  VolumeLow: VolumeLowIcon,
-  VolumeMute: VolumeMuteIcon,
-  // Navigation
-  ArrowLeft: ArrowLeftIcon,
-  ArrowRight: ArrowRightIcon,
-  ArrowUp: ArrowUpIcon,
-  ArrowDown: ArrowDownIcon,
-  ChevronLeft: ChevronLeftIcon,
-  ChevronRight: ChevronRightIcon,
-  ChevronUp: ChevronUpIcon,
-  ChevronDown: ChevronDownIcon,
-  // Actions
-  Check: CheckIcon,
-  Close: CloseIcon,
-  Plus: PlusIcon,
-  Minus: MinusIcon,
-  Edit: EditIcon,
-  Delete: DeleteIcon,
-  Save: SaveIcon,
-  Copy: CopyIcon,
-  Download: DownloadIcon,
-  Upload: UploadIcon,
-  Refresh: RefreshIcon,
-  // Media
-  Camera: CameraIcon,
-  Video: VideoIcon,
-  Image: ImageIcon,
-  Music: MusicIcon,
-  Mic: MicIcon,
-  // Social
-  Star: StarIcon,
-  StarOutline: StarOutlineIcon,
-  Heart: HeartIcon,
-  HeartOutline: HeartOutlineIcon,
-  ThumbUp: ThumbUpIcon,
-  ThumbDown: ThumbDownIcon,
-  Share: ShareIcon,
-  Comment: CommentIcon,
-  // UI
-  Settings: SettingsIcon,
-  Fullscreen: FullscreenIcon,
-  FullscreenExit: FullscreenExitIcon,
-  Search: SearchIcon,
-  Info: InfoIcon,
-  Warning: WarningIcon,
-  Error: ErrorIcon,
-  Success: SuccessIcon,
-  Question: QuestionIcon,
-  // Time
-  Clock: ClockIcon,
-  Timer: TimerIcon,
-  Calendar: CalendarIcon,
-  // Files
-  Folder: FolderIcon,
-  File: FileIcon,
-  Film: FilmIcon,
-  // Animation
-  Sparkle: SparkleIcon,
-  MagicWand: MagicWandIcon,
-  Lightning: LightningIcon,
-  Layers: LayersIcon,
-  Loader2: Loader2Icon
-};
-var icons_default = Icons;
-var Timeline = ({ durationInFrames, frame, onSeek, marks = [], fps }) => {
-  const timelineRef = useRef(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const handleClick = useCallback((e) => {
-    if (!timelineRef.current) return;
-    const rect = timelineRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percentage = x / rect.width;
-    onSeek(Math.floor(percentage * durationInFrames));
-  }, [durationInFrames, onSeek]);
-  const handleMouseDown = useCallback((e) => {
-    setIsDragging(true);
-    handleClick(e);
-  }, [handleClick]);
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (!isDragging || !timelineRef.current) return;
-      const rect = timelineRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const percentage = Math.max(0, Math.min(1, x / rect.width));
-      onSeek(Math.floor(percentage * durationInFrames));
-    };
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
-    if (isDragging) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
-    }
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isDragging, durationInFrames, onSeek]);
-  const progress = frame / (durationInFrames - 1) * 100;
-  const timeInSeconds = frame / fps;
-  const durationInSeconds = durationInFrames / fps;
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    const ms = Math.floor(seconds % 1 * 100);
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}.${ms.toString().padStart(2, "0")}`;
-  };
-  return /* @__PURE__ */ jsxs("div", { className: "w-full", children: [
-    /* @__PURE__ */ jsxs(
-      "div",
-      {
-        ref: timelineRef,
-        className: "relative h-2 bg-emerald-950 rounded-full cursor-pointer group border border-emerald-900/50",
-        onMouseDown: handleMouseDown,
-        children: [
-          /* @__PURE__ */ jsx(
-            "div",
-            {
-              className: "absolute h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-75",
-              style: { width: `${progress}%` }
-            }
-          ),
-          /* @__PURE__ */ jsx(
-            "div",
-            {
-              className: "absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-gradient-to-br from-emerald-400 to-teal-400 rounded-full shadow-lg shadow-emerald-500/50 cursor-grab opacity-0 group-hover:opacity-100 transition-opacity border-2 border-white",
-              style: { left: `calc(${progress}% - 8px)` }
-            }
-          ),
-          marks.map((mark, i) => /* @__PURE__ */ jsx(
-            "div",
-            {
-              className: "absolute top-0 w-0.5 h-full bg-emerald-400",
-              style: { left: `${mark / durationInFrames * 100}%` }
-            },
-            i
-          ))
-        ]
-      }
-    ),
-    /* @__PURE__ */ jsxs("div", { className: "flex justify-between mt-2 text-xs text-emerald-500 font-mono", children: [
-      /* @__PURE__ */ jsx("span", { children: formatTime(timeInSeconds) }),
-      /* @__PURE__ */ jsx("span", { children: formatTime(durationInSeconds) })
-    ] })
-  ] });
-};
-var Controls = ({
-  playing,
-  onPlayPause,
-  onRestart,
-  onStepBack,
-  onStepForward,
-  playbackRate,
-  onPlaybackRateChange,
-  frame,
-  totalFrames,
-  onExport,
-  isExporting
-}) => {
-  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
-  const speeds = [0.25, 0.5, 1, 1.5, 2];
-  return /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-center gap-2", children: [
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        onClick: onRestart,
-        className: "p-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950 rounded-lg transition-all duration-200 hover:scale-110",
-        title: "Restart",
-        children: /* @__PURE__ */ jsx("svg", { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 20 20", children: /* @__PURE__ */ jsx("path", { fillRule: "evenodd", d: "M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z", clipRule: "evenodd" }) })
-      }
-    ),
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        onClick: onStepBack,
-        className: "p-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950 rounded-lg transition-all duration-200 hover:scale-110",
-        title: "Previous frame (\u2190)",
-        children: /* @__PURE__ */ jsx("svg", { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 20 20", children: /* @__PURE__ */ jsx("path", { d: "M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" }) })
-      }
-    ),
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        onClick: onPlayPause,
-        className: "p-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white rounded-full transition-all duration-200 hover:scale-110 shadow-lg shadow-emerald-500/30",
-        title: playing ? "Pause (Space)" : "Play (Space)",
-        children: playing ? /* @__PURE__ */ jsx("svg", { className: "w-6 h-6", fill: "currentColor", viewBox: "0 0 20 20", children: /* @__PURE__ */ jsx("path", { fillRule: "evenodd", d: "M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z", clipRule: "evenodd" }) }) : /* @__PURE__ */ jsx("svg", { className: "w-6 h-6", fill: "currentColor", viewBox: "0 0 20 20", children: /* @__PURE__ */ jsx("path", { fillRule: "evenodd", d: "M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z", clipRule: "evenodd" }) })
-      }
-    ),
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        onClick: onStepForward,
-        className: "p-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950 rounded-lg transition-all duration-200 hover:scale-110",
-        title: "Next frame (\u2192)",
-        children: /* @__PURE__ */ jsx("svg", { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 20 20", children: /* @__PURE__ */ jsx("path", { d: "M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" }) })
-      }
-    ),
-    /* @__PURE__ */ jsxs("div", { className: "relative", children: [
-      /* @__PURE__ */ jsxs(
-        "button",
-        {
-          onClick: () => setShowSpeedMenu(!showSpeedMenu),
-          className: "px-3 py-2 text-sm text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950 rounded-lg transition-all duration-200 min-w-[55px] font-mono border border-emerald-900/50",
-          title: "Playback speed",
-          children: [
-            playbackRate,
-            "x"
-          ]
-        }
-      ),
-      showSpeedMenu && /* @__PURE__ */ jsx("div", { className: "absolute bottom-full left-0 mb-2 bg-[#0a0a0a] rounded-lg shadow-xl border border-emerald-900/50 py-1 min-w-[65px] overflow-hidden", children: speeds.map((speed) => /* @__PURE__ */ jsxs(
-        "button",
-        {
-          onClick: () => {
-            onPlaybackRateChange(speed);
-            setShowSpeedMenu(false);
-          },
-          className: `w-full px-3 py-2 text-sm text-left transition-colors ${playbackRate === speed ? "text-emerald-400 bg-emerald-950/50" : "text-emerald-500 hover:text-emerald-300 hover:bg-emerald-950/30"}`,
-          children: [
-            speed,
-            "x"
-          ]
-        },
-        speed
-      )) })
-    ] }),
-    /* @__PURE__ */ jsx("div", { className: "ml-2 px-3 py-1 bg-emerald-950/50 rounded-lg border border-emerald-900/50", children: /* @__PURE__ */ jsxs("span", { className: "text-sm text-emerald-400 font-mono", children: [
-      /* @__PURE__ */ jsx("span", { className: "text-emerald-300", children: frame + 1 }),
-      /* @__PURE__ */ jsx("span", { className: "text-emerald-600 mx-1", children: "/" }),
-      /* @__PURE__ */ jsx("span", { className: "text-emerald-500", children: totalFrames })
-    ] }) }),
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        onClick: onExport,
-        disabled: isExporting,
-        className: `ml-auto flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-900/50 text-white rounded-lg transition-all duration-200 shadow-lg shadow-emerald-500/20 font-medium ${isExporting ? "cursor-not-allowed" : "hover:scale-105 active:scale-95"}`,
-        title: "Export Video",
-        children: isExporting ? /* @__PURE__ */ jsxs(Fragment, { children: [
-          /* @__PURE__ */ jsx(Loader2Icon, { size: 18 }),
-          /* @__PURE__ */ jsx("span", { children: "Exporting..." })
-        ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-          /* @__PURE__ */ jsx(DownloadIcon, { size: 18 }),
-          /* @__PURE__ */ jsx("span", { children: "Export" })
-        ] })
-      }
-    )
-  ] });
-};
-var Canvas = ({
-  canvasRef,
-  component: Component,
-  width,
-  height,
-  frame,
-  fps,
-  durationInFrames,
-  playing,
-  playbackRate,
-  defaultProps = {}
-}) => {
-  const scale2 = Math.min(1, 800 / width);
-  return /* @__PURE__ */ jsxs(
-    "div",
-    {
-      ref: canvasRef,
-      className: "relative rounded-xl overflow-hidden shadow-2xl shadow-emerald-900/30 border border-emerald-900/30",
-      style: {
-        width: width * scale2,
-        height: height * scale2,
-        backgroundColor: "#0a0a0a"
-      },
-      children: [
-        /* @__PURE__ */ jsx(
-          "div",
-          {
-            className: "absolute -inset-px rounded-xl",
-            style: {
-              background: "linear-gradient(135deg, rgba(16, 185, 129, 0.2), transparent, rgba(20, 184, 166, 0.2))",
-              zIndex: -1
-            }
-          }
-        ),
-        /* @__PURE__ */ jsx(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width,
-              height,
-              transform: `scale(${scale2})`,
-              transformOrigin: "top left"
-            },
-            children: /* @__PURE__ */ jsx(
-              FrameContext.Provider,
-              {
-                value: {
-                  frame,
-                  fps,
-                  durationInFrames,
-                  width,
-                  height,
-                  playing,
-                  playbackRate,
-                  setFrame: () => {
-                  },
-                  setPlaying: () => {
-                  },
-                  setPlaybackRate: () => {
-                  }
-                },
-                children: /* @__PURE__ */ jsx(Component, { ...defaultProps })
-              }
-            )
-          }
-        )
-      ]
-    }
-  );
-};
-var Player = ({
-  component,
-  durationInFrames,
-  fps = 30,
-  width = 1920,
-  height = 1080,
-  defaultProps = {},
-  controls = true,
-  loop = true,
-  autoPlay = false,
-  style,
-  className
-}) => {
-  const [frame, setFrame] = useState(0);
-  const [playing, setPlaying] = useState(autoPlay);
-  const [playbackRate, setPlaybackRate] = useState(1);
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportProgress, setExportProgress] = useState(0);
-  const animationRef = useRef(null);
-  const lastTimeRef = useRef(0);
-  const canvasRef = useRef(null);
-  useEffect(() => {
-    if (playing) {
-      const frameDuration = 1e3 / (fps * playbackRate);
-      const animate = (currentTime) => {
-        if (currentTime - lastTimeRef.current >= frameDuration) {
-          setFrame((prevFrame) => {
-            const nextFrame = prevFrame + 1;
-            if (nextFrame >= durationInFrames) {
-              if (loop) {
-                return 0;
-              }
-              setPlaying(false);
-              return prevFrame;
-            }
-            return nextFrame;
-          });
-          lastTimeRef.current = currentTime;
-        }
-        animationRef.current = requestAnimationFrame(animate);
-      };
-      lastTimeRef.current = performance.now();
-      animationRef.current = requestAnimationFrame(animate);
-      return () => {
-        if (animationRef.current) {
-          cancelAnimationFrame(animationRef.current);
-        }
-      };
-    }
-  }, [playing, fps, playbackRate, durationInFrames, loop]);
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      switch (e.key) {
-        case " ":
-          e.preventDefault();
-          setPlaying((p) => !p);
-          break;
-        case "ArrowLeft":
-          e.preventDefault();
-          setFrame((f) => Math.max(0, f - 1));
-          break;
-        case "ArrowRight":
-          e.preventDefault();
-          setFrame((f) => Math.min(durationInFrames - 1, f + 1));
-          break;
-        case "Home":
-          setFrame(0);
-          break;
-        case "End":
-          setFrame(durationInFrames - 1);
-          break;
-        case "j":
-        case "J":
-          setFrame((f) => Math.max(0, f - 10));
-          break;
-        case "l":
-        case "L":
-          setFrame((f) => Math.min(durationInFrames - 1, f + 10));
-          break;
-        case "k":
-        case "K":
-          setPlaying((p) => !p);
-          break;
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [durationInFrames]);
-  const handleSeek = useCallback((targetFrame) => {
-    setFrame(Math.max(0, Math.min(targetFrame, durationInFrames - 1)));
-  }, [durationInFrames]);
-  const handlePlayPause = useCallback(() => {
-    setPlaying((p) => !p);
-  }, []);
-  const handleRestart = useCallback(() => {
-    setFrame(0);
-    setPlaying(true);
-  }, []);
-  const handleStepBack = useCallback(() => {
-    setFrame((f) => Math.max(0, f - 1));
-  }, []);
-  const handleStepForward = useCallback(() => {
-    setFrame((f) => Math.min(durationInFrames - 1, f + 1));
-  }, [durationInFrames]);
-  const handleExport = async () => {
-    if (isExporting || !canvasRef.current) return;
-    setIsExporting(true);
-    setExportProgress(0);
-    setPlaying(false);
-    try {
-      const elementToCapture = canvasRef.current.querySelector("div");
-      const blob = await renderCompositionToVideo(
-        (f) => setFrame(f),
-        elementToCapture,
-        { width, height, fps, durationInFrames },
-        {
-          onProgress: (progress) => setExportProgress(progress)
-        }
-      );
-      if (blob) {
-        downloadVideo(blob, `motionforge-export-${Date.now()}.webm`);
-      }
-    } catch (error) {
-      console.error("Export failed:", error);
-      alert("Export failed. Check console for details.");
-    } finally {
-      setIsExporting(false);
-      setExportProgress(0);
-    }
-  };
-  return /* @__PURE__ */ jsxs(
-    "div",
-    {
-      className: `flex flex-col bg-[#0a0a0a] rounded-2xl p-5 border border-emerald-900/30 ${className || ""}`,
-      style,
-      children: [
-        isExporting && /* @__PURE__ */ jsx("div", { className: "fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-6", children: /* @__PURE__ */ jsxs("div", { className: "bg-[#0f0f0f] border border-emerald-900/50 rounded-2xl p-8 max-w-md w-full shadow-2xl", children: [
-          /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between mb-6", children: [
-            /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-3", children: [
-              /* @__PURE__ */ jsx("div", { className: "w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center", children: /* @__PURE__ */ jsx(VideoIcon, { size: 24, className: "text-emerald-500" }) }),
-              /* @__PURE__ */ jsxs("div", { children: [
-                /* @__PURE__ */ jsx("h3", { className: "text-xl font-bold text-emerald-400", children: "Exporting Video" }),
-                /* @__PURE__ */ jsx("p", { className: "text-sm text-emerald-700", children: "High Quality Render" })
-              ] })
-            ] }),
-            /* @__PURE__ */ jsx(Loader2Icon, { size: 24, className: "text-emerald-500" })
-          ] }),
-          /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
-            /* @__PURE__ */ jsx("div", { className: "h-4 bg-emerald-950 rounded-full overflow-hidden border border-emerald-900/30", children: /* @__PURE__ */ jsx(
-              "div",
-              {
-                className: "h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-300",
-                style: { width: `${exportProgress}%` }
-              }
-            ) }),
-            /* @__PURE__ */ jsxs("div", { className: "flex justify-between text-sm font-mono", children: [
-              /* @__PURE__ */ jsx("span", { className: "text-emerald-500", children: "Progress" }),
-              /* @__PURE__ */ jsxs("span", { className: "text-emerald-400", children: [
-                Math.round(exportProgress),
-                "%"
-              ] })
-            ] }),
-            /* @__PURE__ */ jsxs("div", { className: "pt-4 border-t border-emerald-900/20 grid grid-cols-2 gap-4", children: [
-              /* @__PURE__ */ jsxs("div", { className: "bg-emerald-950/20 p-3 rounded-xl border border-emerald-900/10 text-center", children: [
-                /* @__PURE__ */ jsx("div", { className: "text-xs text-emerald-700 uppercase mb-1", children: "Resolution" }),
-                /* @__PURE__ */ jsxs("div", { className: "text-sm text-emerald-400", children: [
-                  width,
-                  "x",
-                  height
-                ] })
-              ] }),
-              /* @__PURE__ */ jsxs("div", { className: "bg-emerald-950/20 p-3 rounded-xl border border-emerald-900/10 text-center", children: [
-                /* @__PURE__ */ jsx("div", { className: "text-xs text-emerald-700 uppercase mb-1", children: "Frames" }),
-                /* @__PURE__ */ jsx("div", { className: "text-sm text-emerald-400", children: durationInFrames })
-              ] })
-            ] }),
-            /* @__PURE__ */ jsx("p", { className: "text-xs text-center text-emerald-800 italic pt-2", children: "Please keep this tab active for faster rendering." })
-          ] })
-        ] }) }),
-        /* @__PURE__ */ jsx("div", { className: "flex justify-center mb-5", children: /* @__PURE__ */ jsx(
-          Canvas,
-          {
-            canvasRef,
-            component,
-            width,
-            height,
-            frame,
-            fps,
-            durationInFrames,
-            playing,
-            playbackRate,
-            defaultProps
-          }
-        ) }),
-        controls && /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
-          /* @__PURE__ */ jsx(
-            Controls,
-            {
-              playing,
-              onPlayPause: handlePlayPause,
-              onRestart: handleRestart,
-              onStepBack: handleStepBack,
-              onStepForward: handleStepForward,
-              playbackRate,
-              onPlaybackRateChange: setPlaybackRate,
-              frame,
-              totalFrames: durationInFrames,
-              onExport: handleExport,
-              isExporting
-            }
-          ),
-          /* @__PURE__ */ jsx(
-            Timeline,
-            {
-              durationInFrames,
-              frame,
-              onSeek: handleSeek,
-              fps
-            }
-          )
-        ] })
-      ]
-    }
-  );
-};
 /**
  * MotionForge - A React-based framework for creating videos programmatically
  *
@@ -5003,10 +2706,10 @@ var Player = ({
  * marketing videos, and automated video generation.
  *
  * @package MotionForge
- * @version 1.2.0
+ * @version 1.4.0
  * @license MIT
  */
 
-export { AbsoluteFill, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, Audio, Blur, Bounce, CalendarIcon, CameraIcon, CanvasRenderer, CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, Circle, ClockIcon, CloseIcon, CommentIcon, Composition, CompositionManagerProvider, Confetti, CopyIcon, Counter, Cube3D, DeleteIcon, AbsoluteFill as Div, DownloadIcon, Easing, EditIcon, ErrorIcon, Fade, FastForwardIcon, FileIcon, FilmIcon, Flip3D, FolderIcon, FrameCache, FrameProvider, FrameSequenceEncoder, Freeze, FullscreenExitIcon, FullscreenIcon, G, Glitch, GradientText, HeartIcon, HeartOutlineIcon, Highlight, icons_default as Icons, ImageIcon, Img, InfoIcon, LayersIcon, LetterByLetter, LightningIcon, Loader2Icon, Loop, MagicWandIcon, MaskReveal, MemoCache, MicIcon, MinusIcon, MusicIcon, NeonGlow, ParticleSystem, Path, PauseIcon, Perspective3D, PlayIcon, Player, PlayerComposition, PlayerProvider, PlusIcon, ProgressBar, Pulse, QuestionIcon, RainbowText, Rect, RefreshIcon, RenderJobManager, RepeatIcon, ReplayIcon, Retiming, Reverse, RewindIcon, Rotate, Rotate3D, SVG, SaveIcon, Scale, SearchIcon, Sequence, Series, SettingsIcon, ShakeEffect, ShareIcon, ShuffleIcon, SkipBackIcon, SkipForwardIcon, Slide, SparkleIcon, StarIcon, StarOutlineIcon, StopIcon, SuccessIcon, Swing, Text, ThumbDownIcon, ThumbUpIcon, TimerIcon, Trail, Typewriter, UploadIcon, Video, VideoExportManager, VideoIcon, VolumeHighIcon, VolumeLowIcon, VolumeMediumIcon, VolumeMuteIcon, WarningIcon, WaveText, WebMEncoder, WordByWord, blur, bounce, buildFFmpegCommand, calculateProgress, calculateVideoSize, checkEncodingSupport, combine, createDebouncedCache, createThrottledCache, downloadFrame, downloadVideo, Easing as easing, estimateFileSize, estimateRenderTime, fade, flash, flip, frameCache, frameToDataURL, generateFrames, getFramesFromSeconds, getSecondsFromFrames, glitch, interpolate, interpolateColors, measureSpring, noise2D, pulse as pulseTransition, random, range, renderCompositionToVideo, renderJobManager, renderVideo, rotate as rotateTransition, scale as scaleTransition, shake as shakeTransition, slide, slideWithFade, spring, staticFile, transitions, useAnimation, useAnimationValue, useBatchFrameProcessor, useCachedFrame, useComposition, useVideoConfig2 as useConfig, useCurrentFrame, useCycle, useDelay, useDurationInFrames, useFade, useFrameRange, useInterpolate, useKeyframeState, useKeyframes, useLoop, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePerformanceMonitor, usePrecomputeFrames, useProgress, usePulse, useRelativeCurrentFrame, useRenderPriority, useSequence, useShake, useSlide, useSpring, useThrottledFrame, useTimeline, useTimelineState, useTransform, useVideoConfig, useWindowedFrame, validateRenderConfig, videoExportManager, wipe, zoom };
+export { AbsoluteFill, Audio, Blur, Bounce, CardExpansionMask, Circle, Composition, Confetti, Counter, Cube3D, AbsoluteFill as Div, Easing, Fade, Flip3D, FlipImageReveal, Freeze, G, Glitch, GradientText, Highlight, HyperFrame, Img, KineticTypography, LetterByLetter, LiquidText, Loop, MaskReveal, NeonGlow, ParticleSystem, Path, Perspective3D, PlayerComposition, ProgressBar, Pulse, RainbowText, Rect, Retiming, Reverse, Rotate, Rotate3D, SVG, Scale, Sequence, Series, ShakeEffect, Slide, StickyGridScroll, Swing, Text, TextStack3D, Trail, Typewriter, Video, WaveText, WordByWord, blur, bounce, combine, Easing as easing, fade, flash, flip, getFramesFromSeconds, getSecondsFromFrames, glitch, interpolate, interpolateColors, measureSpring, noise2D, pulse as pulseTransition, random, range, rotate as rotateTransition, scale as scaleTransition, shake as shakeTransition, slide, slideWithFade, spring, staticFile, transitions, useAnimation, useAnimationValue, useBatchFrameProcessor, useCachedFrame, useComposition, useVideoConfig2 as useConfig, useCycle, useDelay, useDurationInFrames, useFade, useFrameRange, useInterpolate, useKeyframeState, useKeyframes, useLoop, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePerformanceMonitor, usePrecomputeFrames, useProgress, usePulse, useRelativeCurrentFrame, useRenderPriority, useSequence, useShake, useSlide, useSpring, useThrottledFrame, useTimeline, useTransform, useWindowedFrame, wipe, zoom };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map
