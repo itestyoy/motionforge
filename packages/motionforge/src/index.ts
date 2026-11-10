@@ -210,27 +210,6 @@ export type {
   PathFromPointsOptions,
 } from './utils/path';
 
-// Transitions
-export {
-  fade,
-  slide,
-  scale as scaleTransition,
-  rotate as rotateTransition,
-  zoom,
-  wipe,
-  blur,
-  glitch,
-  shake as shakeTransition,
-  pulse as pulseTransition,
-  bounce,
-  flash,
-  slideWithFade,
-  flip,
-  combine,
-  transitions,
-} from './utils/transitions';
-export type { TransitionConfig, TransitionName } from './utils/transitions';
-
 // Animation hooks
 export {
   useSpring,

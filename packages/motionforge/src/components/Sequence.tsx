@@ -487,7 +487,8 @@ const SeriesSequence: React.FC<SeriesSequenceProps> = () => {
   throw new Error('<Series.Sequence> must be a direct child of <Series>');
 };
 
-const describeChild = (child: ReactNode): string => {
+/** How a child is named in errors of Series and TransitionSeries. */
+export const describeChild = (child: ReactNode): string => {
   if (typeof child === 'string') return `the string ${JSON.stringify(child)}`;
   if (React.isValidElement(child)) {
     const type = child.type as string | { displayName?: string; name?: string };
@@ -498,7 +499,7 @@ const describeChild = (child: ReactNode): string => {
 };
 
 // Children with fragments opened up, each keyed by its path.
-const flattenChildren = (children: ReactNode, prefix = ''): Array<{ key: string; child: ReactNode }> =>
+export const flattenChildren = (children: ReactNode, prefix = ''): Array<{ key: string; child: ReactNode }> =>
   React.Children.toArray(children).flatMap((child, index) => {
     const key = `${prefix}${React.isValidElement(child) && child.key !== null ? child.key : index}`;
     if (React.isValidElement<{ children?: ReactNode }>(child) && child.type === React.Fragment) {

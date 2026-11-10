@@ -79,6 +79,106 @@
         "default": "./dist/media-utils/index.cjs"
       }
     },
+    "./transitions": {
+      "import": {
+        "types": "./dist/transitions/index.d.ts",
+        "default": "./dist/transitions/index.js"
+      },
+      "require": {
+        "types": "./dist/transitions/index.d.cts",
+        "default": "./dist/transitions/index.cjs"
+      }
+    },
+    "./transitions/fade": {
+      "import": {
+        "types": "./dist/transitions/fade.d.ts",
+        "default": "./dist/transitions/fade.js"
+      },
+      "require": {
+        "types": "./dist/transitions/fade.d.cts",
+        "default": "./dist/transitions/fade.cjs"
+      }
+    },
+    "./transitions/slide": {
+      "import": {
+        "types": "./dist/transitions/slide.d.ts",
+        "default": "./dist/transitions/slide.js"
+      },
+      "require": {
+        "types": "./dist/transitions/slide.d.cts",
+        "default": "./dist/transitions/slide.cjs"
+      }
+    },
+    "./transitions/wipe": {
+      "import": {
+        "types": "./dist/transitions/wipe.d.ts",
+        "default": "./dist/transitions/wipe.js"
+      },
+      "require": {
+        "types": "./dist/transitions/wipe.d.cts",
+        "default": "./dist/transitions/wipe.cjs"
+      }
+    },
+    "./transitions/flip": {
+      "import": {
+        "types": "./dist/transitions/flip.d.ts",
+        "default": "./dist/transitions/flip.js"
+      },
+      "require": {
+        "types": "./dist/transitions/flip.d.cts",
+        "default": "./dist/transitions/flip.cjs"
+      }
+    },
+    "./transitions/clock-wipe": {
+      "import": {
+        "types": "./dist/transitions/clock-wipe.d.ts",
+        "default": "./dist/transitions/clock-wipe.js"
+      },
+      "require": {
+        "types": "./dist/transitions/clock-wipe.d.cts",
+        "default": "./dist/transitions/clock-wipe.cjs"
+      }
+    },
+    "./transitions/iris": {
+      "import": {
+        "types": "./dist/transitions/iris.d.ts",
+        "default": "./dist/transitions/iris.js"
+      },
+      "require": {
+        "types": "./dist/transitions/iris.d.cts",
+        "default": "./dist/transitions/iris.cjs"
+      }
+    },
+    "./transitions/cube": {
+      "import": {
+        "types": "./dist/transitions/cube.d.ts",
+        "default": "./dist/transitions/cube.js"
+      },
+      "require": {
+        "types": "./dist/transitions/cube.d.cts",
+        "default": "./dist/transitions/cube.cjs"
+      }
+    },
+    "./transitions/none": {
+      "import": {
+        "types": "./dist/transitions/none.d.ts",
+        "default": "./dist/transitions/none.js"
+      },
+      "require": {
+        "types": "./dist/transitions/none.d.cts",
+        "default": "./dist/transitions/none.cjs"
+      }
+    },
+    "./transitions/push-cut": {
+      "import": {
+        "types": "./dist/transitions/push-cut.d.ts",
+        "default": "./dist/transitions/push-cut.js"
+      },
+      "require": {
+        "types": "./dist/transitions/push-cut.d.cts",
+        "default": "./dist/transitions/push-cut.cjs"
+      }
+    },
     "./shapes": {
       "import": {
         "types": "./dist/shapes/index.d.ts",

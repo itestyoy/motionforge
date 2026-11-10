@@ -36,8 +36,15 @@ const layoutUtils: any = layoutUtilsEntry;
 const gif: any = gifEntry;
 const mediaUtils: any = mediaUtilsEntry;
 // @ts-ignore
+import * as transitionsEntry from '../dist/transitions/index.js';
+// @ts-ignore
+import * as fadeEntry from '../dist/transitions/fade.js';
+// @ts-ignore
 import * as shapesEntry from '../dist/shapes/index.js';
+const transitions: any = transitionsEntry;
+const fadeModule: any = fadeEntry;
 const shapes: any = shapesEntry;
+const PRESENTATIONS = ['fade', 'slide', 'wipe', 'flip', 'clock-wipe', 'iris', 'cube', 'none', 'push-cut'];
 
 const packageDir = fileURLToPath(new URL('..', import.meta.url));
 const distDir = join(packageDir, 'dist');
@@ -97,14 +104,35 @@ describe('built entries', () => {
     expect(html.match(/<b>(\d+)<\/b>/g)).toEqual(['<b>8</b>', '<b>10</b>']);
   });
 
-  it('exports the shapes as in Remotion', () => {
+  it('lets motionforge/transitions render scenes of a FrameProvider from motionforge', () => {
+    const Scene = ({ id }: { id: string }) => <b data-id={id}>{main.useCurrentFrame()}</b>;
+    const html = renderToStaticMarkup(
+      <main.FrameProvider frame={25} fps={30} durationInFrames={100} width={100} height={100}>
+        <transitions.TransitionSeries>
+          <transitions.TransitionSeries.Sequence durationInFrames={40}><Scene id="a" /></transitions.TransitionSeries.Sequence>
+          <transitions.TransitionSeries.Transition timing={transitions.linearTiming({ durationInFrames: 30 })} presentation={fadeModule.fade()} />
+          <transitions.TransitionSeries.Sequence durationInFrames={60}><Scene id="b" /></transitions.TransitionSeries.Sequence>
+        </transitions.TransitionSeries>
+      </main.FrameProvider>,
+    );
+    expect(html).toContain('data-id="a">25<');
+    expect(html).toMatch(/opacity:0\.5[^"]*"><b data-id="b">15</);
+  });
+
+  it('exports the transitions, presentations and shapes as in Remotion', async () => {
+    expect(Object.keys(transitions).sort()).toEqual(['TransitionSeries', 'linearTiming', 'pushCut', 'springTiming', 'useTransitionProgress']);
+    for (const name of PRESENTATIONS) {
+      const module = await import(`../dist/transitions/${name}.js`);
+      const fn = name.replace(/-(.)/g, (_, c: string) => c.toUpperCase());
+      expect(Object.keys(module), name).toEqual([fn]);
+    }
     expect(Object.keys(shapes).sort()).toEqual([
       'Arrow', 'Callout', 'Circle', 'Ellipse', 'Heart', 'Pie', 'Polygon', 'Rect', 'Spark', 'Star', 'Triangle',
       'makeArrow', 'makeCallout', 'makeCircle', 'makeEllipse', 'makeHeart', 'makePie', 'makePolygon', 'makeRect',
       'makeSpark', 'makeStar', 'makeTriangle',
     ]);
-    // The old SVG element wrappers are gone from the main entry.
-    for (const name of ['Rect', 'Circle']) {
+    // The old SVG element wrappers and transition helpers are gone from the main entry.
+    for (const name of ['Rect', 'Circle', 'TransitionSeries', 'fade', 'slide', 'wipe', 'flip', 'transitions', 'combine', 'scaleTransition']) {
       expect(main, name).not.toHaveProperty(name);
     }
     for (const name of ['parsePath', 'interpolatePath', 'interpolatePaths', 'warpPath', 'getBoundingBox', 'SVG', 'Path', 'G']) {
@@ -165,6 +193,8 @@ describe('built entries', () => {
       ['./layout-utils', 'layout-utils/index'],
       ['./gif', 'gif/index'],
       ['./media-utils', 'media-utils/index'],
+      ['./transitions', 'transitions/index'],
+      ...PRESENTATIONS.map((name) => [`./transitions/${name}`, `transitions/${name}`]),
       ['./shapes', 'shapes/index'],
     ];
     expect(Object.keys(pkg.exports)).toEqual(entries.map(([subpath]) => subpath));

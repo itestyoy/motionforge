@@ -18,7 +18,6 @@ import { StickyGridScroll } from '../src/components/animations/StickyGridScroll'
 import { KineticTypography } from '../src/components/animations/KineticTypography';
 import { FlipImageReveal } from '../src/components/animations/FlipImageReveal';
 import { DepthGallery3D } from '../src/components/animations/DepthGallery3D';
-import { transitions } from '../src/utils/transitions';
 
 // The 3D scene renders through @react-three/fiber, which needs WebGL: replace
 // the canvas and drei primitives with plain elements to see what is rendered.
@@ -65,14 +64,6 @@ describe('frame-independent CSS', () => {
     }
     // It still glitches: a non-zero offset on glitch frames.
     expect(renderAt(1, <Glitch intensity={10}>X</Glitch>)).not.toContain('left:0;');
-  });
-});
-
-describe('transitions.scale', () => {
-  it('exit goes from full size to nothing', () => {
-    expect(transitions.scale.exit(0).transform).toBe('scale(1)');
-    expect(transitions.scale.exit(1).transform).toBe('scale(0)');
-    expect(transitions.scale.enter(0).transform).toBe('scale(0)');
   });
 });
 
