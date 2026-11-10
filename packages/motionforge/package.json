@@ -58,6 +58,16 @@
         "types": "./dist/layout-utils/index.d.cts",
         "default": "./dist/layout-utils/index.cjs"
       }
+    },
+    "./gif": {
+      "import": {
+        "types": "./dist/gif/index.d.ts",
+        "default": "./dist/gif/index.js"
+      },
+      "require": {
+        "types": "./dist/gif/index.d.cts",
+        "default": "./dist/gif/index.cjs"
+      }
     }
   },
   "files": [
@@ -106,13 +116,15 @@
     "three": ">=0.170.0"
   },
   "dependencies": {
-    "lottie-web": "^5.13.0"
+    "lottie-web": "^5.13.0",
+    "omggif": "1.0.10"
   },
   "devDependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/omggif": "1.0.5",
     "@types/three": "^0.184.1",
     "happy-dom": "^21.0.4",
     "react": "^19.0.0",

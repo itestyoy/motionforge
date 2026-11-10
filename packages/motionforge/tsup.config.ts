@@ -34,6 +34,7 @@ export default defineConfig({
     'lottie/index': 'src/lottie.ts',
     'motion-blur/index': 'src/motion-blur.ts',
     'layout-utils/index': 'src/layout-utils.ts',
+    'gif/index': 'src/gif.ts',
   },
   format: ['esm', 'cjs'],
   dts: true,
