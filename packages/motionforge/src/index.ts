@@ -129,6 +129,41 @@ export {
 export type { EasingSpringConfig, InterpolateColorsOptions } from './utils/animation';
 export { noise2D, noise3D, noise4D } from './utils/noise';
 
+// CSS transforms and style interpolation (as in @remotion/animation-utils)
+export {
+  makeTransform,
+  matrix,
+  matrix3d,
+  perspective,
+  rotate,
+  rotate3d,
+  rotateX,
+  rotateY,
+  rotateZ,
+  scale,
+  scale3d,
+  scaleX,
+  scaleY,
+  scaleZ,
+  skew,
+  skewX,
+  skewY,
+  translate,
+  translate3d,
+  translateX,
+  translateY,
+  translateZ,
+} from './utils/transform';
+export type {
+  AngleUnit,
+  AngleUnitString,
+  LengthUnit,
+  LengthUnitString,
+  LengthPercentageUnit,
+  LengthPercentageUnitString,
+} from './utils/transform';
+export { interpolateStyles } from './utils/interpolate-styles';
+
 // SVG path geometry (no DOM needed)
 export {
   getLength,
