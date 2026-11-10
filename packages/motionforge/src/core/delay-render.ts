@@ -35,11 +35,16 @@ const toError = (error: unknown): Error => {
  * component is in.
  *
  *   const { delayRender, continueRender, cancelRender } = useDelayRender();
+ *   const handle = useRef<number | null>(null);
  *   useEffect(() => {
- *     const handle = delayRender('fetch data');
- *     fetchData().then(setData, cancelRender).finally(() => continueRender(handle));
- *     return () => continueRender(handle);
+ *     handle.current = delayRender('fetch data');
+ *     fetchData().then(setData, cancelRender);
+ *     return () => continueRender(handle.current!);
  *   }, []);
+ *   // Release after the data has rendered (setData renders later).
+ *   useEffect(() => {
+ *     if (data !== null) continueRender(handle.current!);
+ *   }, [data]);
  *
  * Inside a premounted Sequence the handles do not hold the frame until the
  * sequence starts.

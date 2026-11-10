@@ -127,16 +127,22 @@ import { useDelayRender } from 'motionforge';
 const Chart = () => {
   const { delayRender, continueRender, cancelRender } = useDelayRender();
   const [data, setData] = useState(null);
+  const handle = useRef<number | null>(null);
   useEffect(() => {
-    const handle = delayRender('chart data');
-    fetchData().then(setData, cancelRender).finally(() => continueRender(handle));
-    return () => continueRender(handle);
+    handle.current = delayRender('chart data');
+    fetchData().then(setData, cancelRender);
+    return () => continueRender(handle.current!);
   }, []);
+  // Release once the data is on screen: setData renders later, not at once.
+  useEffect(() => {
+    if (data !== null) continueRender(handle.current!);
+  }, [data]);
   // ...
 };
 ```
 
 - Call `delayRender(label?)` from an effect or a callback, never during render (it throws there: React may render twice and that handle would never be continued). Handles are numbers counted per gate.
+- Continue a handle once React has rendered what it waited for (in an effect), not in the callback that sets the state: the state update renders after the callback, and the host would capture the frame from before.
 - Handles still pending when the component unmounts are continued automatically, so StrictMode's double effects and unmounting do not leak them. Continuing a handle twice is allowed.
 - Built in: `Img` holds the frame until the image is loaded and decoded (`decode()`), `Video` until it has data and has seeked to the frame (`seeked`), `Lottie` (from `motionforge/lottie`) until its data is ready and the frame is set. Their load errors go to `cancelRender()`.
 
