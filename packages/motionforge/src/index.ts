@@ -175,15 +175,42 @@ export type {
 } from './utils/transform';
 export { interpolateStyles } from './utils/interpolate-styles';
 
-// SVG path geometry (no DOM needed)
+// SVG paths (as in @remotion/paths; no DOM needed)
 export {
+  parsePath,
+  serializeInstructions,
+  normalizePath,
+  reduceInstructions,
   getLength,
   getPointAtLength,
   getTangentAtLength,
+  getInstructionIndexAtLength,
   evolvePath,
+  getBoundingBox,
+  translatePath,
+  resetPath,
+  centerPath,
+  scalePath,
+  reversePath,
+  getSubpaths,
+  cutPath,
+  extendViewBox,
+  warpPath,
+  interpolatePath,
+  interpolatePaths,
   pathFromPoints,
 } from './utils/path';
-export type { Point, PathFromPointsOptions } from './utils/path';
+export type {
+  Instruction,
+  AbsoluteInstruction,
+  ReducedInstruction,
+  Point,
+  BoundingBox,
+  CenterPathTarget,
+  WarpPathFn,
+  InterpolatePathsOptions,
+  PathFromPointsOptions,
+} from './utils/path';
 
 // Transitions
 export {
