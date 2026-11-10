@@ -12,12 +12,18 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 ### Removed (breaking)
 - `Player`, `PlayerProvider`, `usePlayer`, `PlayerComposition`, `useTimelineState`, `CompositionManagerProvider`, and the playback state of the frame context (`playing`, `playbackRate`, `setFrame`, `setPlaying`, `setPlaybackRate`).
 - The renderer and export API (`renderVideo`, `VideoExportManager`, `CanvasRenderer`, `WebMEncoder`, `FrameCache`, ffmpeg helpers, …), icons, and the `motionforge/renderer`, `motionforge/player`, `motionforge/icons` and `motionforge/styles.css` entries.
+- `usePerformanceMonitor`, `useThrottledFrame`, `useBatchFrameProcessor` and `useRenderPriority`: they returned constants or ignored their arguments.
 
 ### Changed (breaking)
 - `FrameProvider` and `Composition` are controlled: they take a required `frame` prop and have no clock.
 - 3D components (`DepthGallery3D`, `ShaderImageReveal`, `DitheringEffect`) moved to `motionforge/three`, `Lottie` to `motionforge/lottie`; the main entry no longer imports three.js or lottie-web. `three` and the `@react-three/*` peers are optional; `framer-motion` is no longer a peer dependency (nothing used it).
 - `Sequence`, `Loop`, `Freeze`, `Retiming`, `Reverse` and `Series` shift `useCurrentFrame()` for their children; nested sequences compose. Code inside a `Sequence` that subtracted the sequence start itself must use the local frame now.
 - `interpolateColors()` throws on colors it cannot parse instead of returning black.
+- `FrameProvider` and `Composition` throw when `frame` is not an integer from 0 to `durationInFrames - 1`, or when `fps`, `width`, `height` or `durationInFrames` is not positive.
+- Inside `Sequence`, `Loop` and `Series`, `useVideoConfig().durationInFrames` is the length of the sequence (`Sequence`: its `durationInFrames`, or the rest of the parent when it has none; `Loop`: one iteration; `Series`: the active child).
+- The `Loop` context hook is exported as `useLoopInfo()` (it was unreachable: `useLoop` is the frame-modulo hook from `hooks/animation`).
+- `Retiming` with a function `playbackRate` advances by the rate on each frame: the content frame is `floor(Σ playbackRate(i) for i < frame)`, so speed ramps no longer jump or run backwards.
+- `useFade()` without `endFrame` fades out to 0 on the last frame (`durationInFrames - 1`).
 
 ### Fixed
 - All entries are built together and share one frame context.
@@ -25,6 +31,10 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - `interpolate()` with `extrapolateRight: 'extend'` continues the last segment, not the first.
 - `interpolateColors()` holds the end colors outside the input range and keeps alpha of `rgba()` / `#rrggbbaa`.
 - `random()` gives unrelated values for neighbouring seeds.
+- `useMemoizedFrame()` keeps the value per component (it used a process-wide cache keyed only by frame and deps, so components read each other's values and the cache never shrank).
+- `Sequence layout="none"` renders no wrapper element.
+- `Freeze` holds the frame for exactly `durationInFrames` frames, then continues from the frame after it.
+- `useProgress()` and `useTimeline().progress` return 1 instead of NaN for a one-frame composition.
 
 ## [1.3.0] - 2024-03-20
 

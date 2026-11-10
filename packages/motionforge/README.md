@@ -88,6 +88,7 @@ const MyVideo = () => {
 
 // Render it at any frame. Your app owns time: a player advances `frame`,
 // a scrubber sets it, an exporter steps through 0..durationInFrames-1.
+// `frame` must be an integer in that range; anything else throws.
 const Preview = ({ frame }: { frame: number }) => (
   <FrameProvider frame={frame} fps={30} durationInFrames={150} width={1920} height={1080}>
     <MyVideo />
@@ -114,7 +115,7 @@ All entries share one frame context, so components from `motionforge/three` and 
 | `Sequence` | Time-based rendering for scene management; inside it `useCurrentFrame()` counts from the sequence start |
 | `Loop` | Loop content infinitely or for a set number of times |
 | `Freeze` | Pause content at a specific frame |
-| `Retiming` | Variable speed playback |
+| `Retiming` | Variable speed playback; with a function rate the content frame is `floor(Σ rate(i), i < frame)` |
 | `Reverse` | Play content backwards |
 | `Series` | Sequential scene management |
 
@@ -204,7 +205,8 @@ const scale = useOptimizedSpring({ damping: 10 }, 0, 1);
 | Hook | Description |
 |------|-------------|
 | `useCurrentFrame()` | Returns the current frame number |
-| `useVideoConfig()` | Returns video configuration `{ fps, width, height, durationInFrames }` |
+| `useVideoConfig()` | Returns video configuration `{ fps, width, height, durationInFrames }`; inside a `Sequence`, `Loop` or `Series` `durationInFrames` is the sequence's own length |
+| `useLoopInfo()` | Inside a `Loop`: `{ loopedFrame, currentLoop, durationInFrames }` |
 | `useSpring(config)` | Creates spring-based animations |
 | `useInterpolate(inputRange, outputRange, options)` | Interpolates values with easing |
 

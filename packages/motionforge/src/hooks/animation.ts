@@ -77,11 +77,15 @@ export const useDelay = (delayInFrames: number): boolean => {
   return frame >= delayInFrames;
 };
 
+// 0 on the first frame, 1 on the last (a one-frame composition is at 1).
+const progressOf = (frame: number, durationInFrames: number): number =>
+  durationInFrames > 1 ? frame / (durationInFrames - 1) : frame >= 0 ? 1 : 0;
+
 // Use Progress - returns 0-1 progress through video
 export const useProgress = (): number => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
-  return frame / (durationInFrames - 1);
+  return progressOf(frame, durationInFrames);
 };
 
 // Use Loop - loops animation
@@ -99,7 +103,7 @@ export const useTimeline = () => {
     frame,
     durationInFrames,
     fps,
-    progress: frame / (durationInFrames - 1),
+    progress: progressOf(frame, durationInFrames),
     timeInSeconds: frame / fps,
     durationInSeconds: durationInFrames / fps,
     remainingFrames: durationInFrames - frame - 1,
@@ -222,7 +226,8 @@ export const useTransform = (options: TransformOptions): React.CSSProperties => 
   return style;
 };
 
-// Use Fade - simple fade in/out
+// Use Fade - simple fade in/out. Opacity is 0 at `startFrame` and at
+// `endFrame` (default: the last frame, durationInFrames - 1).
 export const useFade = (
   fadeInDuration: number,
   fadeOutDuration: number,
@@ -232,7 +237,7 @@ export const useFade = (
   const { durationInFrames } = useVideoConfig();
   
   const startFrame = options?.startFrame ?? 0;
-  const endFrame = options?.endFrame ?? durationInFrames;
+  const endFrame = options?.endFrame ?? durationInFrames - 1;
   
   // Fade in
   if (frame < startFrame + fadeInDuration) {

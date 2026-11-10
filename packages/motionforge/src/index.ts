@@ -30,6 +30,7 @@ export {
   Series,
   useSequence,
   useRelativeCurrentFrame,
+  useLoopInfo,
 } from './components/Sequence';
 export {
   AbsoluteFill,
@@ -155,14 +156,10 @@ export {
   useMemoizedFrame,
   useAnimationValue,
   useCachedFrame,
-  useThrottledFrame,
-  useBatchFrameProcessor,
   useFrameRange,
   usePrecomputeFrames,
   useOptimizedSpring,
   useOptimizedInterpolate,
-  usePerformanceMonitor,
-  useRenderPriority,
 } from './hooks/performance';
 
 // Types

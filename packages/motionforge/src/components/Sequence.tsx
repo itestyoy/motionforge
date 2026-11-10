@@ -41,6 +41,7 @@ export const Sequence: React.FC<SequenceProps> = ({
   layout = 'absolute-fill',
 }) => {
   const currentFrame = useCurrentFrame();
+  const parent = useContext(FrameContext);
   const startFrame = from + offset;
   const endFrame = durationInFrames !== undefined ? startFrame + durationInFrames : Infinity;
   
@@ -63,6 +64,21 @@ export const Sequence: React.FC<SequenceProps> = ({
     return null;
   }
 
+  // Inside the sequence useVideoConfig().durationInFrames is the sequence's
+  // own length; without one it runs to the end of the parent.
+  const localDuration =
+    durationInFrames ?? (parent ? parent.durationInFrames - startFrame : undefined);
+
+  const content = (
+    <SequenceFrameProvider relativeFrame={relativeFrame} durationInFrames={localDuration}>
+      {children}
+    </SequenceFrameProvider>
+  );
+
+  if (layout === 'none') {
+    return <SequenceContext.Provider value={contextValue}>{content}</SequenceContext.Provider>;
+  }
+
   return (
     <SequenceContext.Provider value={contextValue}>
       <div
@@ -70,7 +86,7 @@ export const Sequence: React.FC<SequenceProps> = ({
         data-sequence-from={startFrame}
         data-sequence-duration={durationInFrames}
         style={{
-          position: layout === 'absolute-fill' ? 'absolute' : 'relative',
+          position: 'absolute',
           top: 0,
           left: 0,
           right: 0,
@@ -79,9 +95,7 @@ export const Sequence: React.FC<SequenceProps> = ({
           flexDirection: 'column',
         }}
       >
-        <SequenceFrameProvider relativeFrame={relativeFrame}>
-          {children}
-        </SequenceFrameProvider>
+        {content}
       </div>
     </SequenceContext.Provider>
   );
@@ -89,19 +103,29 @@ export const Sequence: React.FC<SequenceProps> = ({
 
 // Frame provider for sequences: children read the shifted frame from
 // useCurrentFrame(), so nested sequences and time remapping compose.
+// `durationInFrames`, when given, replaces the parent's in useVideoConfig().
 interface SequenceFrameProviderProps {
   relativeFrame: number;
+  durationInFrames?: number;
   children: ReactNode;
 }
 
 const SequenceFrameProvider: React.FC<SequenceFrameProviderProps> = ({
   relativeFrame,
+  durationInFrames,
   children,
 }) => {
   const parent = useContext(FrameContext);
   const frameValue = useMemo(
-    () => (parent ? { ...parent, frame: relativeFrame } : null),
-    [parent, relativeFrame],
+    () =>
+      parent
+        ? {
+            ...parent,
+            frame: relativeFrame,
+            durationInFrames: durationInFrames ?? parent.durationInFrames,
+          }
+        : null,
+    [parent, relativeFrame, durationInFrames],
   );
   return (
     <FrameContext.Provider value={frameValue}>
@@ -145,7 +169,7 @@ export const Loop: React.FC<LoopProps> = ({
 
   return (
     <LoopContext.Provider value={{ loopedFrame, currentLoop, durationInFrames }}>
-      <SequenceFrameProvider relativeFrame={loopedFrame}>
+      <SequenceFrameProvider relativeFrame={loopedFrame} durationInFrames={durationInFrames}>
         {children}
       </SequenceFrameProvider>
     </LoopContext.Provider>
@@ -163,7 +187,8 @@ const LoopContext = createContext<{
   durationInFrames: 0,
 });
 
-export const useLoop = () => useContext(LoopContext);
+/** Inside a `Loop`: the frame within the current iteration, the iteration index and the loop length. */
+export const useLoopInfo = () => useContext(LoopContext);
 
 // Freeze Component - freezes a frame for specified duration
 interface FreezeProps {
@@ -180,8 +205,10 @@ export const Freeze: React.FC<FreezeProps> = ({
 }) => {
   const currentFrame = useCurrentFrame();
   
-  // Calculate which frame to show
-  const displayFrame = currentFrame < durationInFrames ? freezeFrame : currentFrame - durationInFrames + freezeFrame;
+  // Hold `frame` for exactly `durationInFrames` frames, then continue from the
+  // frame after it.
+  const displayFrame =
+    currentFrame < durationInFrames ? freezeFrame : currentFrame - durationInFrames + freezeFrame + 1;
 
   return (
     <SequenceFrameProvider relativeFrame={displayFrame}>
@@ -193,20 +220,56 @@ export const Freeze: React.FC<FreezeProps> = ({
 // Retiming Component - changes playback speed
 interface RetimingProps {
   children: ReactNode;
+  /**
+   * Speed: a number, or a pure function of the parent frame. With a function
+   * the content advances by `playbackRate(i)` on each frame `i`, so the
+   * content frame at `frame` is floor(sum of playbackRate(i) for i < frame).
+   */
   playbackRate: number | ((frame: number) => number);
   name?: string;
 }
 
+const checkRate = (rate: number, frame: number): number => {
+  if (typeof rate !== 'number' || !Number.isFinite(rate)) {
+    throw new Error(`Retiming: playbackRate must be a finite number, got ${rate} at frame ${frame}`);
+  }
+  return rate;
+};
+
+// Running sums of a rate function: table[n] = sum of rate(i) for 0 <= i < n.
+// Kept per function, so pass a stable function (defined outside the component
+// or memoised) to avoid recomputing it.
+const cumulativeTables = new WeakMap<(frame: number) => number, number[]>();
+
+const cumulativeRate = (rate: (frame: number) => number, frame: number): number => {
+  const whole = Math.floor(frame);
+  const partial = frame - whole === 0 ? 0 : (frame - whole) * checkRate(rate(whole), whole);
+  if (whole < 0) {
+    let sum = 0;
+    for (let i = whole; i < 0; i++) sum -= checkRate(rate(i), i);
+    return sum + partial;
+  }
+  let table = cumulativeTables.get(rate);
+  if (!table) {
+    table = [0];
+    cumulativeTables.set(rate, table);
+  }
+  for (let n = table.length; n <= whole; n++) {
+    table.push(table[n - 1] + checkRate(rate(n - 1), n - 1));
+  }
+  return table[whole] + partial;
+};
+
 export const Retiming: React.FC<RetimingProps> = ({
   children,
   playbackRate,
-  name,
 }) => {
   const currentFrame = useCurrentFrame();
-  
-  // Calculate retimed frame
-  const rate = typeof playbackRate === 'function' ? playbackRate(currentFrame) : playbackRate;
-  const retimedFrame = Math.floor(currentFrame * rate);
+
+  const retimedFrame =
+    typeof playbackRate === 'function'
+      ? Math.floor(cumulativeRate(playbackRate, currentFrame))
+      : Math.floor(currentFrame * checkRate(playbackRate, currentFrame));
 
   return (
     <SequenceFrameProvider relativeFrame={retimedFrame}>
@@ -246,6 +309,7 @@ export const Series: React.FC<SeriesProps> = ({ children }) => {
   // Calculate cumulative frames for each child
   let accumulatedFrames = 0;
   let activeChildIndex = -1;
+  let activeDuration = 0;
   let relativeFrame = currentFrame;
 
   const childArray = React.Children.toArray(children);
@@ -257,6 +321,7 @@ export const Series: React.FC<SeriesProps> = ({ children }) => {
       
       if (currentFrame >= accumulatedFrames && currentFrame < accumulatedFrames + childDuration) {
         activeChildIndex = i;
+        activeDuration = childDuration;
         relativeFrame = currentFrame - accumulatedFrames;
         break;
       }
@@ -272,7 +337,7 @@ export const Series: React.FC<SeriesProps> = ({ children }) => {
   const activeChild = childArray[activeChildIndex];
   
   return (
-    <SequenceFrameProvider relativeFrame={relativeFrame}>
+    <SequenceFrameProvider relativeFrame={relativeFrame} durationInFrames={activeDuration}>
       {activeChild}
     </SequenceFrameProvider>
   );
