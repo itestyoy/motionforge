@@ -61,6 +61,10 @@ export {
   staticFile,
 } from './components/Media';
 export { HyperFrame } from './components/HyperFrame';
+export { Particles } from './components/Particles';
+export type { ParticlesProps } from './components/Particles';
+export { getParticles } from './utils/particles';
+export type { Particle, ParticleEmitterOptions, ParticleRange, ParticlePoint } from './utils/particles';
 
 // Effect components
 export {

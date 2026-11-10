@@ -215,6 +215,48 @@ import {
 />
 ```
 
+### Particles
+
+`<Particles>` is a particle emitter, and `getParticles(options & { frame, fps })` the pure function behind it: build bursts, sparkles, confetti rains and trails from the same parts. Time is in **seconds** and motion in **px per second**, so an emitter looks the same at any fps; `startFrame` is the frame of the first birth. All randomness comes from `random(seed, …)`.
+
+```tsx
+// burst
+<Particles seed="win" origin={{ x: 540, y: 900 }} count={80} lifetime={[0.6, 1.2]}
+  speed={[400, 1200]} drag={2} gravity={900} size={[10, 18]} shape="star"
+  colors={['#ffd700', '#ff4d6d', '#4dd2ff']} rotation={[0, 360]} spin={[-360, 360]} />
+
+// confetti rain: born along the top edge over 3 s
+<Particles seed="rain" origin={{ x: 540, y: -20 }} area={{ width: 1080, height: 0 }} count={150}
+  emitDuration={3} lifetime={4} speed={[50, 150]} angle={90} spread={40} gravity={300} drag={0.8}
+  size={[8, 14]} shape="square" rotation={[0, 360]} spin={[-540, 540]} fadeOut={false} />
+
+// trail: the origin follows a moving object; each particle is born where it was
+<Particles seed="trail" origin={(f) => getPointAtLength(d, (f / 60) * length)} count={120}
+  emitDuration={2} lifetime={0.5} speed={[0, 40]} size={[4, 10]} />
+```
+
+| Option | Unit / default | Meaning |
+|--------|----------------|---------|
+| `seed` | required | Same seed, same particles |
+| `origin` | px, required | `{ x, y }`, or a function of the birth frame (moving emitters) |
+| `area` | px, `0 × 0` | `{ width, height }` around the origin to be born in |
+| `startFrame` | frames, `0` | Frame of the first birth |
+| `count` | required | Number of particles |
+| `emitDuration` | s, `0` | Births spread evenly over this time (`0`: a burst) |
+| `lifetime` | s, required | Life of each particle |
+| `speed` | px/s, required | Initial speed |
+| `angle`, `spread` | deg, `-90`, `360` | Emission direction (0 right, 90 down) and cone width |
+| `gravity` | px/s², `0` | Downward acceleration |
+| `drag` | 1/s, `0` | Velocity decays as e^(−drag·t) (towards `gravity / drag`) |
+| `size` | px, required | Width and height |
+| `colors` | `['#ffffff']` | One per particle |
+| `rotation`, `spin` | deg, deg/s, `0` | Initial rotation and its speed |
+| `fadeOut` | `true` | Opacity from 1 at birth to 0 at the end of life |
+| `shape` | `'circle'` | `'circle'`, `'square'`, `'triangle'`, `'star'` (component only) |
+| `render` | — | `(particle) => ReactNode` instead of the default element (component only) |
+
+Number options marked as ranges (`lifetime`, `speed`, `size`, `rotation`, `spin`) take a value or `[min, max]`, picked per particle. Each particle has `{ index, x, y, vx, vy, size, rotation, color, opacity, age, lifetime, progress }`. Wrong values throw.
+
 ### Animation Functions
 
 ```tsx

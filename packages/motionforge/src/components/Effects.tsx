@@ -775,11 +775,13 @@ interface ParticleSystemProps {
   minSize?: number;
   maxSize?: number;
   speed?: number;
-  direction?: 'random' | 'up' | 'down' | 'left' | 'right' | 'explode';
+  direction?: 'random' | 'up' | 'down' | 'left' | 'right';
   fadeOut?: boolean;
   style?: React.CSSProperties;
   particleShape?: 'circle' | 'square' | 'star' | 'triangle';
 }
+
+const PARTICLE_DIRECTIONS = ['random', 'up', 'down', 'left', 'right'];
 
 export const ParticleSystem: React.FC<ParticleSystemProps> = ({
   count = 50,
@@ -794,6 +796,11 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
+  if (!PARTICLE_DIRECTIONS.includes(direction)) {
+    throw new Error(
+      `ParticleSystem: direction must be one of ${PARTICLE_DIRECTIONS.join(', ')}, got ${JSON.stringify(direction)} (for bursts use <Particles>)`,
+    );
+  }
 
   // Generate deterministic particles based on index
   const particles: ParticleConfig[] = React.useMemo(() => {
@@ -828,12 +835,6 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
         case 'right':
           vx = rand2 * speed * 2 + speed;
           vy = (rand3 - 0.5) * speed;
-          break;
-        case 'explode':
-          const angle = rand2 * Math.PI * 2;
-          const mag = rand3 * speed * 3 + speed;
-          vx = Math.cos(angle) * mag;
-          vy = Math.sin(angle) * mag;
           break;
         default: // random
           vx = (rand2 - 0.5) * speed * 2;

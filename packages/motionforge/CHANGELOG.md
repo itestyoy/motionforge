@@ -15,6 +15,7 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - `preloadImage`, `preloadVideo`, `preloadAudio`, `preloadFont` and `usePreloadAssets(assets)`.
 - SVG path helpers that need no DOM: `getLength`, `getPointAtLength`, `getTangentAtLength`, `evolvePath`, and `pathFromPoints(points, { cornerRadius, closed })` (corners rounded with circular arcs). They read `M L H V C S Q T A Z`, absolute and relative.
 - Remotion's easing composition: `Easing.in(f)`, `Easing.out(f)`, `Easing.inOut(f)` and the bases `ease`, `quad`, `cubic`, `poly(n)`, `sin`, `circle`, `exp`, `elastic(bounciness)`, `back(s)`, `bounce` (next to `linear` and `bezier`).
+- Particle emitter: `<Particles>` and the pure `getParticles()`; time in seconds, motion in px per second, randomness from the seed; per-particle birth, lifetime and fade; gravity and drag in closed form; moving origins for trails.
 - `Sequence premountFor`: children mount that many frames early, invisible and at their frame 0; their handles hold the frame only once the sequence has started. `useSequence().isPremounted` tells them.
 
 ### Removed (breaking)
@@ -23,6 +24,7 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - `usePerformanceMonitor`, `useThrottledFrame`, `useBatchFrameProcessor` and `useRenderPriority`: they returned constants or ignored their arguments.
 
 ### Changed (breaking)
+- `ParticleSystem` has no `direction="explode"` any more (use `<Particles>`), and it throws on an unknown `direction`.
 - `Series` takes only `<Series.Sequence durationInFrames offset? name? layout? premountFor?>` children and throws on anything else; children with a `durationInFrames` prop are no longer read. All sequences render in their range, so overlapping ones (negative `offset`) play together; positive `offset` leaves a gap.
 - `Lottie` with `frameEnd` not after `frameStart` (or `frameStart` past the end of the animation) cancels the render with an error instead of showing nothing.
 - `FrameProvider` and `Composition` are controlled: they take a required `frame` prop and have no clock.
