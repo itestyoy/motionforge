@@ -5,6 +5,51 @@ All notable changes to MotionForge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `interpolate()`: `posterize` option; a one-element `inputRange` returns `outputRange[0]`.
+- `Easing.step0`, `Easing.step1`, `Easing.spring({ damping, mass, stiffness, overshootClamping, allowTail, durationRestThreshold })`; a spring easing with `allowTail` continues past its segment, also when clamped.
+- `interpolateColors()`: CSS named colors and `transparent`, `hsl()`/`hsla()`, `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()` (comma and space/slash syntax); options `{ easing, posterize }`.
+- `noise3D(seed, x, y, z)` and `noise4D(seed, x, y, z, w)` (simplex; dependency `simplex-noise` 4.0.1).
+- `makeTransform()` with `translate*`, `scale*`, `rotate*`, `skew*`, `perspective`, `matrix`, `matrix3d`, and `interpolateStyles()` (as in `@remotion/animation-utils`).
+- `Sequence`: `style`, `className`, `width`, `height`, `postmountFor`, `styleWhilePremounted`, `styleWhilePostmounted`; `useSequence().isPostmounted`. `Series.Sequence` passes the layout props through. `Loop`: `layout`, `style`, `className`, `name`, and `Loop.useLoop()`.
+- `Video`/`Audio`: `durationInFrames`, `loop`; `Video`: `objectFit`.
+- `Lottie`: `direction`, `renderer`, `preserveAspectRatio`, `assetsPath`, `onAnimationLoaded`; `getLottieMetadata()` in `motionforge/lottie`.
+- `delayRender(label, { timeoutInMilliseconds })`.
+- `prefetch(src, options) → { free, waitUntilDone }`; `Img`, `Video` and `Audio` use the prefetched copy.
+- `loadFont({ family, url, ... })`: holds every gate until the font is loaded and fails them if it cannot load.
+- `ThreeCanvas` in `motionforge/three` (as `@remotion/three`): an R3F `<Canvas>` drawn once per frame (`frameloop: 'never'`, `advance(frame / fps)`); frame, config, gate and sequence contexts work inside; holds the render gate until the renderer exists, suspended content has loaded and the frame is drawn; canvas errors go to `cancelRender()`.
+- `motionforge/layout-utils` (as `@remotion/layout-utils`): `measureText`, `fitText`, `fitTextOnNLines`, `fillTextBox`.
+- `motionforge/motion-blur` (as `@remotion/motion-blur`): `Trail { layers, lagInFrames, trailOpacity }` and `CameraMotionBlur { shutterAngle = 180, samples = 10 }`.
+- `AnimatedImage`: animated GIF/APNG/AVIF/WebP via WebCodecs `ImageDecoder`, frame-exact by time; holds the render gate.
+- `motionforge/gif` (as `@remotion/gif`): `Gif` and `getGifDurationInSeconds`, decoded in JavaScript (dependency `omggif` 1.0.10).
+- `motionforge/media-utils` (as `@remotion/media-utils`): `getVideoMetadata`, `getImageDimensions`, `getAudioDurationInSeconds`, `getAudioData`, `useAudioData`, `useWindowedAudioData`, `visualizeAudio`, `visualizeAudioWaveform`, `createSmoothSvgPath`; the hooks hold the render gate.
+- `bun run typecheck` also type-checks `tests/`.
+
+### Changed (breaking)
+- `interpolate()` and `useInterpolate()`: `extrapolateLeft`/`extrapolateRight` default to `'extend'` (was `'clamp'`); ranges must contain finite numbers.
+- `interpolateColors()` always returns `rgba(r, g, b, a)` (was hex for opaque colors).
+- `noise2D(x, y)` is now `noise2D(seed, x, y)`: simplex noise in [-1, 1] (was value noise in [0, 1)).
+- `Video`/`Audio`: `trimBefore`/`trimAfter` replace `startFrom`/`endAt`; the element unmounts at the end unless `loop`; `muted` defaults to `false`; `Video` has no default size and `object-fit` defaults to `contain`; `playbackRate` must be > 0 and `volume` ≥ 0.
+- `Lottie`: `animationData` (an object) replaces `src`; URLs are no longer accepted.
+- `Loop` renders each iteration in an absolute-fill wrapper (use `layout="none"` for none); `times` may be 0.
+- `Sequence` with `layout="none"` throws on `style`, `className` and the mounting props.
+- `usePreloadAssets()` font assets are `{ type: 'font', family, weight?, style? }`.
+- `ImageProps` is now `ImgProps`; `CompositionProps`, `SequenceProps`, `VideoProps`, `AudioProps` and `TextProps` are the components' real props.
+- `delayRender()` throws on unknown options; calling it during render throws an error that shows the effect-based code to write instead.
+- `Freeze` accepts sub-frames (any finite `frame`), as Remotion does.
+
+### Fixed
+- Fonts split by `unicode-range` (Google Fonts, @fontsource) load all their subsets in `usePreloadAssets()`, so Cyrillic is ready when the frame is captured.
+- `useFade()` clamps explicitly instead of relying on `interpolate()`'s default.
+
+### Removed
+- `preloadImage`, `preloadVideo`, `preloadAudio`, `preloadFont` (use `prefetch()`, `usePreloadAssets()` or `loadFont()`).
+- `useLoopInfo()` (use `Loop.useLoop()`), the `useConfig` alias and `Composition`'s duplicate `useVideoConfig`.
+- `Video`'s `pauseOnFrame`, `Sequence`'s unused `showInTimeline`, the `LayerProps` type.
+- `Trail` from the main entry (it rendered identical copies); use `Trail` from `motionforge/motion-blur`.
+
 ## [2.0.0] - 2026-11-10
 
 MotionForge is now a headless SDK: scenes are pure functions of the frame, and the host app renders them, owns time and provides playback, seeking and export.
