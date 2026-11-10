@@ -48,6 +48,16 @@
         "types": "./dist/motion-blur/index.d.cts",
         "default": "./dist/motion-blur/index.cjs"
       }
+    },
+    "./layout-utils": {
+      "import": {
+        "types": "./dist/layout-utils/index.d.ts",
+        "default": "./dist/layout-utils/index.js"
+      },
+      "require": {
+        "types": "./dist/layout-utils/index.d.cts",
+        "default": "./dist/layout-utils/index.cjs"
+      }
     }
   },
   "files": [

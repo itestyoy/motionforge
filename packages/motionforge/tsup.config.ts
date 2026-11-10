@@ -33,6 +33,7 @@ export default defineConfig({
     'three/index': 'src/three.ts',
     'lottie/index': 'src/lottie.ts',
     'motion-blur/index': 'src/motion-blur.ts',
+    'layout-utils/index': 'src/layout-utils.ts',
   },
   format: ['esm', 'cjs'],
   dts: true,
