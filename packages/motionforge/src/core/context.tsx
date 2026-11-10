@@ -1,7 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { FrameContextValue, CompositionProps, TimelineState } from './types';
+import { usePlaybackLoop } from './playback';
 
 // Frame Context - provides current frame information to all children
 const FrameContext = createContext<FrameContextValue | null>(null);
@@ -104,46 +105,26 @@ export const FrameProvider: React.FC<FrameProviderProps> = ({
   const [frame, setFrameState] = useState(initialFrame);
   const [playing, setPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const animationRef = useRef<number | null>(null);
-  const lastTimeRef = useRef<number>(0);
   const frameRef = useRef<number>(initialFrame);
+  const seekVersionRef = useRef(0);
 
   const setFrame = useCallback((newFrame: number) => {
     const clampedFrame = Math.max(0, Math.min(newFrame, durationInFrames - 1));
-    setFrameState(clampedFrame);
     frameRef.current = clampedFrame;
+    seekVersionRef.current += 1;
+    setFrameState(clampedFrame);
   }, [durationInFrames]);
 
-  useEffect(() => {
-    if (playing) {
-      const frameDuration = 1000 / (fps * playbackRate);
-      
-      const animate = (currentTime: number) => {
-        if (currentTime - lastTimeRef.current >= frameDuration) {
-          frameRef.current += 1;
-          
-          if (frameRef.current >= durationInFrames) {
-            frameRef.current = 0;
-            setFrameState(0);
-            lastTimeRef.current = currentTime;
-          } else {
-            setFrameState(frameRef.current);
-            lastTimeRef.current = currentTime;
-          }
-        }
-        
-        animationRef.current = requestAnimationFrame(animate);
-      };
-      
-      animationRef.current = requestAnimationFrame(animate);
-      
-      return () => {
-        if (animationRef.current) {
-          cancelAnimationFrame(animationRef.current);
-        }
-      };
-    }
-  }, [playing, fps, playbackRate, durationInFrames]);
+  usePlaybackLoop({
+    playing,
+    fps,
+    playbackRate,
+    durationInFrames,
+    loop: true,
+    frameRef,
+    seekVersionRef,
+    onFrame: setFrameState,
+  });
 
   const value: FrameContextValue = {
     frame,
@@ -219,55 +200,32 @@ export const PlayerProvider: React.FC<PlayerProviderProps> = ({
 }) => {
   const [frame, setFrameState] = useState(0);
   const [playing, setPlayingState] = useState(false);
-  const [playbackRate, setPlaybackRateState] = useState(1);
-  const animationRef = useRef<number | null>(null);
-  const lastTimeRef = useRef<number>(0);
+  const [playbackRate] = useState(1);
   const frameRef = useRef<number>(0);
+  const seekVersionRef = useRef(0);
 
   const seek = useCallback((targetFrame: number) => {
     const clampedFrame = Math.max(0, Math.min(targetFrame, durationInFrames - 1));
     frameRef.current = clampedFrame;
+    seekVersionRef.current += 1;
     setFrameState(clampedFrame);
   }, [durationInFrames]);
 
   const play = useCallback(() => setPlayingState(true), []);
   const pause = useCallback(() => setPlayingState(false), []);
   const toggle = useCallback(() => setPlayingState(p => !p), []);
-  const restart = useCallback(() => {
-    frameRef.current = 0;
-    setFrameState(0);
-  }, []);
+  const restart = useCallback(() => seek(0), [seek]);
 
-  useEffect(() => {
-    if (playing) {
-      const frameDuration = 1000 / (fps * playbackRate);
-      
-      const animate = (currentTime: number) => {
-        if (currentTime - lastTimeRef.current >= frameDuration) {
-          frameRef.current += 1;
-          
-          if (frameRef.current >= durationInFrames) {
-            frameRef.current = 0;
-            setFrameState(0);
-          } else {
-            setFrameState(frameRef.current);
-          }
-          lastTimeRef.current = currentTime;
-        }
-        
-        animationRef.current = requestAnimationFrame(animate);
-      };
-      
-      lastTimeRef.current = performance.now();
-      animationRef.current = requestAnimationFrame(animate);
-      
-      return () => {
-        if (animationRef.current) {
-          cancelAnimationFrame(animationRef.current);
-        }
-      };
-    }
-  }, [playing, fps, playbackRate, durationInFrames]);
+  usePlaybackLoop({
+    playing,
+    fps,
+    playbackRate,
+    durationInFrames,
+    loop: true,
+    frameRef,
+    seekVersionRef,
+    onFrame: setFrameState,
+  });
 
   return (
     <PlayerContext.Provider

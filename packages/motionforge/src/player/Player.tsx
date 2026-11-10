@@ -6,7 +6,8 @@ import { renderCompositionToVideo, downloadVideo, RenderProgress } from '../rend
 import { DownloadIcon, VideoIcon, ClockIcon, Loader2Icon } from '../icons';
 
 // Player Context
-import { PlayerProvider, usePlayer, FrameContext } from '../core/context';
+import { FrameContext } from '../core/context';
+import { usePlaybackLoop } from '../core/playback';
 
 // Timeline component
 const Timeline: React.FC<{
@@ -361,44 +362,28 @@ export const Player: React.FC<PlayerProps> = ({
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<number>(0);
 
-  const animationRef = useRef<number | null>(null);
-  const lastTimeRef = useRef<number>(0);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef(0);
+  const seekVersionRef = useRef(0);
 
-  // Animation loop
-  useEffect(() => {
-    if (playing) {
-      const frameDuration = 1000 / (fps * playbackRate);
+  const seek = useCallback((targetFrame: number) => {
+    const clampedFrame = Math.max(0, Math.min(targetFrame, durationInFrames - 1));
+    frameRef.current = clampedFrame;
+    seekVersionRef.current += 1;
+    setFrame(clampedFrame);
+  }, [durationInFrames]);
 
-      const animate = (currentTime: number) => {
-        if (currentTime - lastTimeRef.current >= frameDuration) {
-          setFrame((prevFrame) => {
-            const nextFrame = prevFrame + 1;
-            if (nextFrame >= durationInFrames) {
-              if (loop) {
-                return 0;
-              }
-              setPlaying(false);
-              return prevFrame;
-            }
-            return nextFrame;
-          });
-          lastTimeRef.current = currentTime;
-        }
-
-        animationRef.current = requestAnimationFrame(animate);
-      };
-
-      lastTimeRef.current = performance.now();
-      animationRef.current = requestAnimationFrame(animate);
-
-      return () => {
-        if (animationRef.current) {
-          cancelAnimationFrame(animationRef.current);
-        }
-      };
-    }
-  }, [playing, fps, playbackRate, durationInFrames, loop]);
+  usePlaybackLoop({
+    playing,
+    fps,
+    playbackRate,
+    durationInFrames,
+    loop,
+    frameRef,
+    seekVersionRef,
+    onFrame: setFrame,
+    onEnded: () => setPlaying(false),
+  });
 
   // Keyboard controls
   useEffect(() => {
@@ -410,25 +395,25 @@ export const Player: React.FC<PlayerProps> = ({
           break;
         case 'ArrowLeft':
           e.preventDefault();
-          setFrame((f) => Math.max(0, f - 1));
+          seek(frameRef.current - 1);
           break;
         case 'ArrowRight':
           e.preventDefault();
-          setFrame((f) => Math.min(durationInFrames - 1, f + 1));
+          seek(frameRef.current + 1);
           break;
         case 'Home':
-          setFrame(0);
+          seek(0);
           break;
         case 'End':
-          setFrame(durationInFrames - 1);
+          seek(durationInFrames - 1);
           break;
         case 'j':
         case 'J':
-          setFrame((f) => Math.max(0, f - 10));
+          seek(frameRef.current - 10);
           break;
         case 'l':
         case 'L':
-          setFrame((f) => Math.min(durationInFrames - 1, f + 10));
+          seek(frameRef.current + 10);
           break;
         case 'k':
         case 'K':
@@ -439,28 +424,26 @@ export const Player: React.FC<PlayerProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [durationInFrames]);
+  }, [durationInFrames, seek]);
 
-  const handleSeek = useCallback((targetFrame: number) => {
-    setFrame(Math.max(0, Math.min(targetFrame, durationInFrames - 1)));
-  }, [durationInFrames]);
+  const handleSeek = seek;
 
   const handlePlayPause = useCallback(() => {
     setPlaying((p) => !p);
   }, []);
 
   const handleRestart = useCallback(() => {
-    setFrame(0);
+    seek(0);
     setPlaying(true);
-  }, []);
+  }, [seek]);
 
   const handleStepBack = useCallback(() => {
-    setFrame((f) => Math.max(0, f - 1));
-  }, []);
+    seek(frameRef.current - 1);
+  }, [seek]);
 
   const handleStepForward = useCallback(() => {
-    setFrame((f) => Math.min(durationInFrames - 1, f + 1));
-  }, [durationInFrames]);
+    seek(frameRef.current + 1);
+  }, [seek]);
 
   const handleExport = async () => {
     if (isExporting || !canvasRef.current) return;
@@ -474,7 +457,7 @@ export const Player: React.FC<PlayerProps> = ({
       const elementToCapture = canvasRef.current.querySelector('div') as HTMLElement;
 
       const blob = await renderCompositionToVideo(
-        (f) => setFrame(f),
+        (f) => seek(f),
         elementToCapture,
         { width, height, fps, durationInFrames },
         {
