@@ -21,11 +21,23 @@
     },
     "./player": {
       "types": "./dist/player/Player.d.ts",
-      "import": "./dist/player/Player.js"
+      "import": "./dist/player/Player.js",
+      "require": "./dist/player/Player.cjs"
     },
     "./renderer": {
       "types": "./dist/renderer/index.d.ts",
-      "import": "./dist/renderer/index.js"
+      "import": "./dist/renderer/index.js",
+      "require": "./dist/renderer/index.cjs"
+    },
+    "./three": {
+      "types": "./dist/three/index.d.ts",
+      "import": "./dist/three/index.js",
+      "require": "./dist/three/index.cjs"
+    },
+    "./lottie": {
+      "types": "./dist/lottie/index.d.ts",
+      "import": "./dist/lottie/index.js",
+      "require": "./dist/lottie/index.cjs"
     },
     "./styles.css": "./dist/styles.css"
   },
@@ -38,10 +50,11 @@
     "**/*.css"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && tailwindcss -i src/styles.css -o dist/styles.css --minify",
     "dev": "tsup --watch",
     "lint": "eslint src --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "prepublishOnly": "bun run build"
   },
   "keywords": [
@@ -72,7 +85,6 @@
   "peerDependencies": {
     "@react-three/drei": ">=10.0.0",
     "@react-three/fiber": ">=9.0.0",
-    "framer-motion": ">=12.0.0",
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0",
     "three": ">=0.170.0"
@@ -83,15 +95,17 @@
   "devDependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
+    "@tailwindcss/cli": "4.1.17",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/three": "^0.184.1",
-    "framer-motion": "^12.40.0",
-    "three": "^0.184.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "tailwindcss": "4.1.17",
+    "three": "^0.184.0",
     "tsup": "^8.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "3.2.4"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -99,5 +113,16 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"
+  },
+  "peerDependenciesMeta": {
+    "three": {
+      "optional": true
+    },
+    "@react-three/fiber": {
+      "optional": true
+    },
+    "@react-three/drei": {
+      "optional": true
+    }
   }
 }

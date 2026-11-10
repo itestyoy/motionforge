@@ -47,7 +47,7 @@ jobs:
 
           # Using bun x ensures tsup is found/run correctly
           echo "Building motionforge..."
-          bun x tsup
+          bun run build
 
           PACKAGE_NAME=$(node -p "require('./package.json').name")
           CURRENT_VERSION=$(node -p "require('./package.json').version")

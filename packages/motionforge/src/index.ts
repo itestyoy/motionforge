@@ -47,9 +47,7 @@ export {
   G,
   staticFile,
 } from './components/Media';
-export { Lottie } from './components/Lottie';
 export { HyperFrame } from './components/HyperFrame';
-export type { LottieProps } from './components/Lottie';
 
 // Effect components
 export {
@@ -94,9 +92,8 @@ export { TextStack3D } from './components/animations/TextStack3D';
 export { StickyGridScroll } from './components/animations/StickyGridScroll';
 export { FlipImageReveal } from './components/animations/FlipImageReveal';
 export { CardExpansionMask } from './components/animations/CardExpansionMask';
-export { DepthGallery3D } from './components/animations/DepthGallery3D';
-export { ShaderImageReveal } from './components/animations/ShaderImageReveal';
-export { DitheringEffect } from './components/animations/DitheringEffect';
+// 3D components live in 'motionforge/three', Lottie in 'motionforge/lottie',
+// so the main entry does not pull in three.js or lottie-web.
 
 // Animation utilities
 export {

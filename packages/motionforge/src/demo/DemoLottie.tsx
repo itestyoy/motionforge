@@ -4,9 +4,9 @@ import React from 'react';
 import {
   AbsoluteFill,
   Sequence,
-  Lottie,
   useCurrentFrame,
 } from '../index';
+import { Lottie } from '../lottie';
 
 // Simple rotating square Lottie JSON for local testing
 const simpleLottie = {

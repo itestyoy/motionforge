@@ -88,7 +88,9 @@ const MyVideo = () => {
   );
 };
 
-// Use with Player
+// Use with Player (its controls are styled by the bundled stylesheet)
+import 'motionforge/styles.css';
+
 const App = () => (
   <Player
     component={MyVideo}
@@ -102,6 +104,18 @@ const App = () => (
 );
 ```
 
+## 📦 Entry points
+
+| Import | What it contains | Extra dependencies |
+|--------|------------------|--------------------|
+| `motionforge` | Core: frame hooks, sequences, effects, utilities, `Player`, renderer | — |
+| `motionforge/three` | `DepthGallery3D`, `ShaderImageReveal`, `DitheringEffect` | `three`, `@react-three/fiber`, `@react-three/drei` |
+| `motionforge/lottie` | `Lottie` | `lottie-web` (installed with the package) |
+| `motionforge/player` | `Player` only | — |
+| `motionforge/styles.css` | Styles of the `Player` controls (no CSS reset) | — |
+
+All entries share one frame context, so `Player` and the hooks work together whichever entry they come from.
+
 ## 🎨 Available Components
 
 ### Layout Components
@@ -109,7 +123,7 @@ const App = () => (
 | Component | Description |
 |-----------|-------------|
 | `AbsoluteFill` | Full-screen container with absolute positioning |
-| `Sequence` | Time-based rendering for scene management |
+| `Sequence` | Time-based rendering for scene management; inside it `useCurrentFrame()` counts from the sequence start |
 | `Loop` | Loop content infinitely or for a set number of times |
 | `Freeze` | Pause content at a specific frame |
 | `Retiming` | Variable speed playback |
@@ -266,7 +280,8 @@ MotionForge provides first-class, production-grade Lottie support. Animations ar
 ### Basic Usage
 
 ```tsx
-import { Lottie, AbsoluteFill } from 'motionforge';
+import { AbsoluteFill } from 'motionforge';
+import { Lottie } from 'motionforge/lottie';
 
 const MyComposition = () => {
   return (
@@ -297,7 +312,7 @@ The `Lottie` component supports several props to control playback and appearance
 
 ### Syncing with Sequences
 
-`Lottie` automatically detects if it's inside a `Sequence` and adjusts its internal timing to match the relative frame.
+Inside a `Sequence`, `useCurrentFrame()` (and so `Lottie`) counts from the sequence start.
 
 ```tsx
 <Sequence from={30} durationInFrames={120}>
