@@ -11,6 +11,8 @@ interface SequenceContextValue {
   isActive: boolean;
   /** True while the sequence is premounted (before its start, invisible). */
   isPremounted: boolean;
+  /** True while the sequence is postmounted (after its end, invisible). */
+  isPostmounted: boolean;
   startFrame: number;
   endFrame: number;
 }
@@ -19,42 +21,86 @@ const SequenceContext = createContext<SequenceContextValue>({
   relativeFrom: 0,
   isActive: true,
   isPremounted: false,
+  isPostmounted: false,
   startFrame: 0,
   endFrame: Infinity,
 });
 
 export const useSequence = () => useContext(SequenceContext);
 
-interface SequenceProps {
-  from: number;
+/**
+ * The wrapper of a Sequence, as in Remotion: by default an absolutely
+ * positioned element filling the parent (`layout: 'absolute-fill'`), which
+ * takes `style` and `className` and can premount and postmount the children;
+ * with `layout: 'none'` no element is rendered.
+ */
+export type SequenceLayoutProps =
+  | {
+      layout?: 'absolute-fill';
+      style?: React.CSSProperties;
+      className?: string;
+      /**
+       * Mount the children this many frames before the start, invisible
+       * (opacity 0, no pointer events) and at their frame 0, so images, video
+       * and fonts load in time. Their delayRender() handles hold the frame
+       * only once the sequence has started.
+       */
+      premountFor?: number;
+      /**
+       * Keep the children mounted this many frames after the end, invisible
+       * and at their last frame. Their handles do not hold the frame then.
+       */
+      postmountFor?: number;
+      /** Merged over the style while premounted (after opacity 0 and pointer-events none). */
+      styleWhilePremounted?: React.CSSProperties;
+      /** Merged over the style while postmounted. */
+      styleWhilePostmounted?: React.CSSProperties;
+    }
+  | {
+      layout: 'none';
+    };
+
+export type SequenceProps = {
+  /** The frame the sequence starts at, in the parent's frames (an integer, default 0). */
+  from?: number;
+  /** Length in frames (a positive integer); without it the sequence runs to the end of the parent. */
   durationInFrames?: number;
+  /** Shifts the start by this many frames (an integer). */
   offset?: number;
   name?: string;
-  children: ReactNode;
-  showInTimeline?: boolean;
-  layout?: 'absolute-fill' | 'none';
-  /**
-   * Mount the children this many frames before the start, invisible (opacity
-   * 0, no pointer events) and at their frame 0, so images, video and fonts
-   * load in time. Their delayRender() handles hold the frame only once the
-   * sequence has started. Needs layout 'absolute-fill'.
-   */
-  premountFor?: number;
-}
+  /** Width the children see in useVideoConfig(), and the wrapper's width (positive, px). */
+  width?: number;
+  /** Height the children see in useVideoConfig(), and the wrapper's height (positive, px). */
+  height?: number;
+  children?: ReactNode;
+} & SequenceLayoutProps;
+
+const checkFrames = (component: string, name: string, value: unknown) => {
+  if (!Number.isInteger(value) || (value as number) < 0) {
+    throw new Error(`${component}: ${name} must be a non-negative integer, got ${value}`);
+  }
+};
+
+const checkSize = (name: string, value: unknown) => {
+  if (value !== undefined && !(typeof value === 'number' && Number.isFinite(value) && value > 0)) {
+    throw new Error(`Sequence: ${name} must be a positive number of pixels, got ${value}`);
+  }
+};
 
 // Sequence Component - renders children only during specified frame range
-export const Sequence: React.FC<SequenceProps> = ({
-  from,
-  durationInFrames,
-  offset = 0,
-  name,
-  children,
-  layout = 'absolute-fill',
-  premountFor = 0,
-}) => {
+export const Sequence: React.FC<SequenceProps> = (props) => {
+  const { from = 0, durationInFrames, offset = 0, name, width, height, children } = props;
+  const layout = props.layout ?? 'absolute-fill';
+  const fill = props.layout === 'none' ? null : props;
+  const premountFor = fill?.premountFor ?? 0;
+  const postmountFor = fill?.postmountFor ?? 0;
+
   const currentFrame = useCurrentFrame();
   const parent = useContext(FrameContext);
   const parentGate = useContext(GateContext);
+  if (layout !== 'absolute-fill' && layout !== 'none') {
+    throw new Error(`Sequence: layout must be "absolute-fill" or "none", got ${JSON.stringify(layout)}`);
+  }
   if (!Number.isInteger(from)) {
     throw new Error(`Sequence: from must be an integer, got ${from}`);
   }
@@ -66,11 +112,22 @@ export const Sequence: React.FC<SequenceProps> = ({
       `Sequence: durationInFrames must be a positive integer (leave it out to run to the end), got ${durationInFrames}`,
     );
   }
-  if (!Number.isInteger(premountFor) || premountFor < 0) {
-    throw new Error(`Sequence: premountFor must be a non-negative integer, got ${premountFor}`);
+  checkSize('width', width);
+  checkSize('height', height);
+  if (layout === 'none') {
+    const rest = props as Record<string, unknown>;
+    for (const key of ['style', 'className', 'premountFor', 'postmountFor', 'styleWhilePremounted', 'styleWhilePostmounted']) {
+      if (rest[key] !== undefined) {
+        throw new Error(
+          `Sequence: layout="none" renders no element, so it takes no ${key} (it needs layout="absolute-fill")`,
+        );
+      }
+    }
   }
-  if (premountFor > 0 && layout === 'none') {
-    throw new Error('Sequence: premountFor needs layout="absolute-fill" (the wrapper hides the premounted content)');
+  checkFrames('Sequence', 'premountFor', premountFor);
+  checkFrames('Sequence', 'postmountFor', postmountFor);
+  if (postmountFor > 0 && durationInFrames === undefined) {
+    throw new Error('Sequence: postmountFor needs durationInFrames (a sequence without one never ends)');
   }
   const startFrame = from + offset;
   const endFrame = durationInFrames !== undefined ? startFrame + durationInFrames : Infinity;
@@ -78,20 +135,27 @@ export const Sequence: React.FC<SequenceProps> = ({
   // Check if sequence is active
   const isActive = currentFrame >= startFrame && currentFrame < endFrame;
   const isPremounted = !isActive && currentFrame >= startFrame - premountFor && currentFrame < startFrame;
+  const isPostmounted = !isActive && currentFrame >= endFrame && currentFrame < endFrame + postmountFor;
+  const hidden = isPremounted || isPostmounted;
 
-  // Premounted content renders at its frame 0.
-  const relativeFrame = isPremounted ? 0 : currentFrame - startFrame;
+  // Premounted content renders at its frame 0, postmounted at its last frame.
+  const relativeFrame = isPremounted
+    ? 0
+    : isPostmounted
+      ? (durationInFrames as number) - 1
+      : currentFrame - startFrame;
 
-  // Handles registered by premounted children count once the sequence starts.
-  const [scope] = useState<GateScope>(() => ({ visible: !isPremounted, parent: parentGate?.scope ?? null }));
+  // Handles registered by hidden children count only while the sequence is shown.
+  const [scope] = useState<GateScope>(() => ({ visible: !hidden, parent: parentGate?.scope ?? null }));
   useEffect(() => {
-    if (!parentGate || scope.visible === !isPremounted) return;
-    scope.visible = !isPremounted;
+    if (!parentGate || scope.visible === !hidden) return;
+    scope.visible = !hidden;
     getGateInternals(parentGate.gate).changed();
-  }, [isPremounted, parentGate, scope]);
+  }, [hidden, parentGate, scope]);
+  const mounts = premountFor > 0 || postmountFor > 0;
   const gateValue = useMemo(
-    () => (parentGate && premountFor > 0 ? { gate: parentGate.gate, scope } : parentGate),
-    [parentGate, premountFor, scope],
+    () => (parentGate && mounts ? { gate: parentGate.gate, scope } : parentGate),
+    [parentGate, mounts, scope],
   );
 
   const contextValue: SequenceContextValue = {
@@ -99,12 +163,13 @@ export const Sequence: React.FC<SequenceProps> = ({
     durationInFrames,
     isActive,
     isPremounted,
+    isPostmounted,
     startFrame,
     endFrame,
   };
 
   // Don't render children if not active (optimization)
-  if (!isActive && !isPremounted) {
+  if (!isActive && !hidden) {
     return null;
   }
 
@@ -113,17 +178,22 @@ export const Sequence: React.FC<SequenceProps> = ({
   const localDuration =
     durationInFrames ?? (parent ? parent.durationInFrames - startFrame : undefined);
 
-  // The element tree is the same while premounted and while active, so the
-  // children stay mounted when the sequence starts.
+  // The element tree is the same while premounted, active and postmounted,
+  // so the children stay mounted.
   const content = (
     <GateContext.Provider value={gateValue}>
-      <SequenceFrameProvider relativeFrame={relativeFrame} durationInFrames={localDuration}>
+      <SequenceFrameProvider
+        relativeFrame={relativeFrame}
+        durationInFrames={localDuration}
+        width={width}
+        height={height}
+      >
         {children}
       </SequenceFrameProvider>
     </GateContext.Provider>
   );
 
-  if (layout === 'none') {
+  if (fill === null) {
     return <SequenceContext.Provider value={contextValue}>{content}</SequenceContext.Provider>;
   }
 
@@ -133,6 +203,7 @@ export const Sequence: React.FC<SequenceProps> = ({
         data-sequence-name={name}
         data-sequence-from={startFrame}
         data-sequence-duration={durationInFrames}
+        className={fill.className}
         style={{
           position: 'absolute',
           top: 0,
@@ -141,7 +212,12 @@ export const Sequence: React.FC<SequenceProps> = ({
           bottom: 0,
           display: 'flex',
           flexDirection: 'column',
-          ...(isPremounted ? { opacity: 0, pointerEvents: 'none' as const } : null),
+          ...(width !== undefined ? { width } : null),
+          ...(height !== undefined ? { height } : null),
+          ...fill.style,
+          ...(hidden ? { opacity: 0, pointerEvents: 'none' as const } : null),
+          ...(isPremounted ? fill.styleWhilePremounted : null),
+          ...(isPostmounted ? fill.styleWhilePostmounted : null),
         }}
       >
         {content}
@@ -152,16 +228,21 @@ export const Sequence: React.FC<SequenceProps> = ({
 
 // Frame provider for sequences: children read the shifted frame from
 // useCurrentFrame(), so nested sequences and time remapping compose.
-// `durationInFrames`, when given, replaces the parent's in useVideoConfig().
+// `durationInFrames`, `width` and `height`, when given, replace the parent's
+// in useVideoConfig().
 interface SequenceFrameProviderProps {
   relativeFrame: number;
   durationInFrames?: number;
+  width?: number;
+  height?: number;
   children: ReactNode;
 }
 
 const SequenceFrameProvider: React.FC<SequenceFrameProviderProps> = ({
   relativeFrame,
   durationInFrames,
+  width,
+  height,
   children,
 }) => {
   const parent = useContext(FrameContext);
@@ -172,9 +253,11 @@ const SequenceFrameProvider: React.FC<SequenceFrameProviderProps> = ({
             ...parent,
             frame: relativeFrame,
             durationInFrames: durationInFrames ?? parent.durationInFrames,
+            width: width ?? parent.width,
+            height: height ?? parent.height,
           }
         : null,
-    [parent, relativeFrame, durationInFrames],
+    [parent, relativeFrame, durationInFrames, width, height],
   );
   return (
     <FrameContext.Provider value={frameValue}>
@@ -190,16 +273,6 @@ const RelativeFrameContext = createContext<number | null>(null);
 
 export const useRelativeCurrentFrame = () => useContext(RelativeFrameContext);
 
-// Loop Component - loops a sequence for specified number of times
-interface LoopProps {
-  /** Length of one iteration (a positive integer). */
-  durationInFrames: number;
-  /** Number of iterations (a positive integer, default Infinity); after them nothing is rendered. */
-  times?: number;
-  children: ReactNode;
-  name?: string;
-}
-
 // Loop and Reverse map the frame with a modulo, which needs frames >= 0.
 const checkFrameNotNegative = (component: string, frame: number) => {
   if (frame < 0) {
@@ -207,52 +280,70 @@ const checkFrameNotNegative = (component: string, frame: number) => {
   }
 };
 
-export const Loop: React.FC<LoopProps> = ({
-  durationInFrames,
-  times = Infinity,
-  children,
-}) => {
+/** Inside a Loop: the index of the current iteration and the length of one. */
+export interface LoopContextValue {
+  iteration: number;
+  durationInFrames: number;
+}
+
+const LoopContext = createContext<LoopContextValue | null>(null);
+
+/** Remotion's Loop.useLoop(): `{ iteration, durationInFrames }` inside a Loop, `null` outside. */
+const useLoop = (): LoopContextValue | null => useContext(LoopContext);
+
+export type LoopProps = {
+  /** Length of one iteration (a positive integer). */
+  durationInFrames: number;
+  /** Number of iterations (a non-negative integer, default Infinity); after them nothing is rendered. */
+  times?: number;
+  name?: string;
+  children?: ReactNode;
+} & (
+  | { layout?: 'absolute-fill'; style?: React.CSSProperties; className?: string }
+  | { layout: 'none' }
+);
+
+/**
+ * Repeats its children every `durationInFrames` frames, as in Remotion: each
+ * iteration is a Sequence (an absolute-fill element with `style` and
+ * `className`, or none with `layout="none"`), inside which useCurrentFrame()
+ * counts from the start of the iteration. Loop.useLoop() tells the iteration.
+ */
+const LoopRoot: React.FC<LoopProps> = (props) => {
+  const { durationInFrames, times = Infinity, name, children } = props;
   const currentFrame = useCurrentFrame();
   if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
     throw new Error(`Loop: durationInFrames must be a positive integer, got ${durationInFrames}`);
   }
-  if (times !== Infinity && (!Number.isInteger(times) || times <= 0)) {
-    throw new Error(`Loop: times must be a positive integer or Infinity, got ${times}`);
+  if (times !== Infinity && (!Number.isInteger(times) || times < 0)) {
+    throw new Error(`Loop: times must be a non-negative integer or Infinity, got ${times}`);
   }
   checkFrameNotNegative('Loop', currentFrame);
 
-  // Calculate looped frame
-  const totalFrames = times === Infinity ? durationInFrames : durationInFrames * times;
-  const loopedFrame = currentFrame % durationInFrames;
-  const currentLoop = Math.floor(currentFrame / durationInFrames);
-  
-  // Check if within total duration
-  if (times !== Infinity && currentFrame >= totalFrames) {
+  const iteration = Math.floor(currentFrame / durationInFrames);
+  const loopContext = useMemo(() => ({ iteration, durationInFrames }), [iteration, durationInFrames]);
+
+  // After the last iteration nothing is rendered.
+  if (iteration >= times) {
     return null;
   }
 
+  const layoutProps =
+    props.layout === 'none'
+      ? ({ layout: 'none' } as const)
+      : { layout: props.layout, style: props.style, className: props.className };
+
+  // The same element every iteration, so the children stay mounted.
   return (
-    <LoopContext.Provider value={{ loopedFrame, currentLoop, durationInFrames }}>
-      <SequenceFrameProvider relativeFrame={loopedFrame} durationInFrames={durationInFrames}>
+    <LoopContext.Provider value={loopContext}>
+      <Sequence from={iteration * durationInFrames} durationInFrames={durationInFrames} name={name} {...layoutProps}>
         {children}
-      </SequenceFrameProvider>
+      </Sequence>
     </LoopContext.Provider>
   );
 };
 
-// Loop Context
-const LoopContext = createContext<{
-  loopedFrame: number;
-  currentLoop: number;
-  durationInFrames: number;
-}>({
-  loopedFrame: 0,
-  currentLoop: 0,
-  durationInFrames: 0,
-});
-
-/** Inside a `Loop`: the frame within the current iteration, the iteration index and the loop length. */
-export const useLoopInfo = () => useContext(LoopContext);
+export const Loop = Object.assign(LoopRoot, { useLoop });
 
 // Freeze: shows its children one frame, as in Remotion.
 interface FreezeProps {
@@ -377,7 +468,7 @@ export const Reverse: React.FC<ReverseProps> = ({
 };
 
 // Series: sequences one after another.
-interface SeriesSequenceProps {
+export type SeriesSequenceProps = {
   /** Length of this sequence in frames (a positive integer). */
   durationInFrames: number;
   /**
@@ -386,11 +477,8 @@ interface SeriesSequenceProps {
    */
   offset?: number;
   name?: string;
-  layout?: 'absolute-fill' | 'none';
-  /** See Sequence premountFor. */
-  premountFor?: number;
   children?: ReactNode;
-}
+} & SequenceLayoutProps;
 
 const SeriesSequence: React.FC<SeriesSequenceProps> = () => {
   throw new Error('<Series.Sequence> must be a direct child of <Series>');
@@ -429,7 +517,8 @@ const SeriesRoot: React.FC<{ children?: ReactNode }> = ({ children }) => {
     if (!React.isValidElement<SeriesSequenceProps>(child) || child.type !== SeriesSequence) {
       throw new Error(`Series: children must be <Series.Sequence> elements, got ${describeChild(child)} at index ${index}`);
     }
-    const { durationInFrames, offset = 0, name, layout, premountFor, children: content } = child.props;
+    // name and the layout props (layout, style, className, premountFor, ...) go to the Sequence.
+    const { durationInFrames, offset = 0, children: content, ...sequenceProps } = child.props;
     if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
       throw new Error(
         `Series.Sequence: durationInFrames must be a positive integer, got ${durationInFrames} at index ${index}`,
@@ -441,14 +530,7 @@ const SeriesRoot: React.FC<{ children?: ReactNode }> = ({ children }) => {
     const from = start + offset;
     start = from + durationInFrames;
     return (
-      <Sequence
-        key={key}
-        from={from}
-        durationInFrames={durationInFrames}
-        name={name}
-        layout={layout}
-        premountFor={premountFor}
-      >
+      <Sequence key={key} {...sequenceProps} from={from} durationInFrames={durationInFrames}>
         {content}
       </Sequence>
     );

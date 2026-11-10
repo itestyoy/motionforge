@@ -365,8 +365,9 @@ describe('Sequence premountFor', () => {
     expect(() => renderAt(0, <Sequence from={10} premountFor={-1}>{null}</Sequence>)).toThrow(
       /premountFor must be a non-negative integer/,
     );
-    expect(() => renderAt(0, <Sequence from={10} premountFor={5} layout="none">{null}</Sequence>)).toThrow(
-      /premountFor needs layout="absolute-fill"/,
+    const noLayout = { from: 10, premountFor: 5, layout: 'none' } as unknown as React.ComponentProps<typeof Sequence>;
+    expect(() => renderAt(0, <Sequence {...noLayout}>{null}</Sequence>)).toThrow(
+      /layout="none" renders no element, so it takes no premountFor/,
     );
   });
 });

@@ -44,7 +44,13 @@ export {
   Series,
   useSequence,
   useRelativeCurrentFrame,
-  useLoopInfo,
+} from './components/Sequence';
+export type {
+  SequenceProps,
+  SequenceLayoutProps,
+  SeriesSequenceProps,
+  LoopProps,
+  LoopContextValue,
 } from './components/Sequence';
 export {
   AbsoluteFill,
@@ -230,8 +236,6 @@ export {
 export type {
   VideoConfig,
   CompositionProps,
-  SequenceProps,
-  LayerProps,
   VideoProps,
   AudioProps,
   ImageProps,

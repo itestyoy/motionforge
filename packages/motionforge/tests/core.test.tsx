@@ -177,12 +177,14 @@ describe('useFade / useProgress / useTimeline', () => {
 });
 
 describe('public hooks', () => {
-  it('exports the Loop context hook as useLoopInfo', () => {
+  it('exposes the Loop context as Loop.useLoop(), as in Remotion', () => {
     const Info = () => {
-      const { loopedFrame, currentLoop, durationInFrames } = entry.useLoopInfo();
-      return <i data-id="l">{`${loopedFrame}/${currentLoop}/${durationInFrames}`}</i>;
+      const loop = entry.Loop.useLoop();
+      return <i data-id="l">{loop === null ? 'none' : `${useCurrentFrame()}/${loop.iteration}/${loop.durationInFrames}`}</i>;
     };
     expect(valueOf(renderAt(25, <entry.Loop durationInFrames={10}><Info /></entry.Loop>), 'l')).toBe('5/2/10');
+    expect(valueOf(renderAt(25, <Info />), 'l')).toBe('none');
+    expect(entry).not.toHaveProperty('useLoopInfo');
   });
 
   it('does not export hooks that ignore their arguments', () => {
@@ -199,11 +201,12 @@ describe('input checks', () => {
         /Loop: durationInFrames must be a positive integer/,
       );
     }
-    for (const times of [0, 1.5, -2]) {
+    for (const times of [1.5, -2]) {
       expect(() => renderAt(5, <Loop durationInFrames={10} times={times}><ShowFrame id="a" /></Loop>)).toThrow(
-        /Loop: times must be a positive integer or Infinity/,
+        /Loop: times must be a non-negative integer or Infinity/,
       );
     }
+    expect(valueOf(renderAt(5, <Loop durationInFrames={10} times={0}><ShowFrame id="a" /></Loop>), 'a')).toBeNull();
     expect(() =>
       renderAt(5, <Freeze frame={-3}><Loop durationInFrames={10}><ShowFrame id="a" /></Loop></Freeze>),
     ).toThrow(/Loop: the current frame must be >= 0, got -3/);
