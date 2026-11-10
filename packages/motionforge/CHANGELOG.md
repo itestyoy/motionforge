@@ -16,6 +16,8 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - SVG path helpers that need no DOM: `getLength`, `getPointAtLength`, `getTangentAtLength`, `evolvePath`, and `pathFromPoints(points, { cornerRadius, closed })` (corners rounded with circular arcs). They read `M L H V C S Q T A Z`, absolute and relative.
 - Remotion's easing composition: `Easing.in(f)`, `Easing.out(f)`, `Easing.inOut(f)` and the bases `ease`, `quad`, `cubic`, `poly(n)`, `sin`, `circle`, `exp`, `elastic(bounciness)`, `back(s)`, `bounce` (next to `linear` and `bezier`).
 - Particle emitter: `<Particles>` and the pure `getParticles()`; time in seconds, motion in px per second, randomness from the seed; per-particle birth, lifetime and fade; gravity and drag in closed form; moving origins for trails.
+- `spring({ delay, reverse })`: `delay` in frames; `reverse` plays the motion backwards in time over `durationInFrames` or the natural settle time, holding `to` before it starts (Remotion semantics, not a swap of `from` and `to`).
+- `interpolate()`: `extrapolateLeft` / `extrapolateRight: 'wrap'`, and `easing` as an array with one easing per segment.
 - `Sequence premountFor`: children mount that many frames early, invisible and at their frame 0; their handles hold the frame only once the sequence has started. `useSequence().isPremounted` tells them.
 
 ### Removed (breaking)
@@ -24,6 +26,8 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - `usePerformanceMonitor`, `useThrottledFrame`, `useBatchFrameProcessor` and `useRenderPriority`: they returned constants or ignored their arguments.
 
 ### Changed (breaking)
+- `Freeze` follows Remotion: `<Freeze frame active?>` shows `frame` while `active` (a boolean or a function of the frame, default `true`) for its whole lifetime. `durationInFrames` (hold, then resume) and the unused `name` prop are removed; `frame` must be an integer.
+- `interpolate()` throws on an unknown `extrapolateLeft` / `extrapolateRight` and on an `easing` that is not a function (or an array of them, one per segment).
 - `ParticleSystem` has no `direction="explode"` any more (use `<Particles>`), and it throws on an unknown `direction`.
 - `Series` takes only `<Series.Sequence durationInFrames offset? name? layout? premountFor?>` children and throws on anything else; children with a `durationInFrames` prop are no longer read. All sequences render in their range, so overlapping ones (negative `offset`) play together; positive `offset` leaves a gap.
 - `Lottie` with `frameEnd` not after `frameStart` (or `frameStart` past the end of the animation) cancels the render with an error instead of showing nothing.
@@ -70,7 +74,6 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - `GradientText` stops stay in order and work with one color (no `NaN%`).
 - `Video` / `Audio`: a caller's `onLoadedData` no longer replaces the internal handler (it is called after it); they seek when more than half a frame off (was 0.05 s) and map time as `(startFrom + frame × playbackRate) / fps`.
 - `Lottie` resets its loaded state when `src` changes and shows an error when the data fails to load (`data_failed`) instead of rendering nothing.
-- `Freeze` holds the frame for exactly `durationInFrames` frames, then continues from the frame after it.
 - `useProgress()` and `useTimeline().progress` return 1 instead of NaN for a one-frame composition.
 
 ## [1.3.0] - 2024-03-20

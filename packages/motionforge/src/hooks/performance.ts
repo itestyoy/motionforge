@@ -4,6 +4,7 @@
 import { useMemo, useCallback } from 'react';
 import { useCurrentFrame, useVideoConfig } from '../core/context';
 import { spring, interpolate } from '../utils/animation';
+import { InterpolateOptions } from '../core/types';
 
 /**
  * Memoized frame value hook: `compute()` runs again when the frame or one of
@@ -104,7 +105,7 @@ export function useOptimizedSpring(
 export function useOptimizedInterpolate(
   inputRange: number[],
   outputRange: number[],
-  options?: { easing?: (t: number) => number; extrapolateLeft?: 'clamp' | 'extend' | 'identity'; extrapolateRight?: 'clamp' | 'extend' | 'identity' }
+  options?: InterpolateOptions
 ): (frame: number) => number {
   return useCallback((frame: number) => {
     return interpolate(frame, inputRange, outputRange, options);

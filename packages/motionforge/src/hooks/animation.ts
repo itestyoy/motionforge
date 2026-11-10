@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useCurrentFrame, useVideoConfig } from '../core/context';
 import { spring, interpolate, Easing, measureSpring } from '../utils/animation';
+import { InterpolateOptions } from '../core/types';
 
 // Re-export animation utilities
 export { spring, interpolate, Easing, measureSpring };
@@ -49,11 +50,7 @@ export const useSpring = (options: UseSpringOptions = {}) => {
 export const useInterpolate = (
   inputRange: number[],
   outputRange: number[],
-  options?: {
-    extrapolateLeft?: 'clamp' | 'extend' | 'identity';
-    extrapolateRight?: 'clamp' | 'extend' | 'identity';
-    easing?: (t: number) => number;
-  }
+  options?: InterpolateOptions
 ) => {
   const frame = useCurrentFrame();
   return interpolate(frame, inputRange, outputRange, options);

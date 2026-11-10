@@ -132,10 +132,30 @@ describe('Sequence layout="none"', () => {
 });
 
 describe('Freeze', () => {
-  it('holds the frame for exactly durationInFrames frames, then continues after it', () => {
-    const at = (f: number) =>
-      valueOf(renderAt(f, <Freeze frame={7} durationInFrames={10}><ShowFrame id="a" /></Freeze>), 'a');
-    expect([at(0), at(9), at(10), at(11)]).toEqual(['7', '7', '8', '9']);
+  it('shows `frame` while active, the current frame otherwise (Remotion semantics)', () => {
+    const at = (f: number, active?: boolean | ((frame: number) => boolean)) =>
+      valueOf(renderAt(f, <Freeze frame={7} active={active}><ShowFrame id="a" /></Freeze>), 'a');
+    expect([at(0), at(150), at(299)]).toEqual(['7', '7', '7']);
+    expect(at(150, false)).toBe('150');
+    const fromTen = (frame: number) => frame >= 10;
+    expect([at(5, fromTen), at(10, fromTen), at(200, fromTen)]).toEqual(['5', '7', '7']);
+  });
+
+  it('keeps the parent duration in useVideoConfig()', () => {
+    const html = renderAt(5, <Freeze frame={2}><ShowDuration id="d" /></Freeze>);
+    expect(valueOf(html, 'd')).toBe('300');
+  });
+
+  it('throws on a frame that is not an integer or an active that is not a boolean', () => {
+    expect(() => renderAt(0, <Freeze frame={1.5}><ShowFrame id="a" /></Freeze>)).toThrow(/frame must be an integer/);
+    // @ts-expect-error not a boolean
+    expect(() => renderAt(0, <Freeze frame={1} active="yes"><ShowFrame id="a" /></Freeze>)).toThrow(
+      /active must be a boolean or a function/,
+    );
+    // @ts-expect-error returns a number
+    expect(() => renderAt(0, <Freeze frame={1} active={() => 1}><ShowFrame id="a" /></Freeze>)).toThrow(
+      /active\(0\) must return a boolean, got 1/,
+    );
   });
 });
 

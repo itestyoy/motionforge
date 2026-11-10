@@ -228,28 +228,38 @@ const LoopContext = createContext<{
 /** Inside a `Loop`: the frame within the current iteration, the iteration index and the loop length. */
 export const useLoopInfo = () => useContext(LoopContext);
 
-// Freeze Component - freezes a frame for specified duration
+// Freeze: shows its children one frame, as in Remotion.
 interface FreezeProps {
+  /** The frame the children see while frozen (an integer). */
   frame: number;
-  durationInFrames: number;
+  /**
+   * Whether to freeze: a boolean, or a function of the current frame (default
+   * true). While inactive the children see the current frame.
+   */
+  active?: boolean | ((frame: number) => boolean);
   children: ReactNode;
-  name?: string;
 }
 
 export const Freeze: React.FC<FreezeProps> = ({
-  frame: freezeFrame,
-  durationInFrames,
+  frame: frozenFrame,
+  active = true,
   children,
 }) => {
   const currentFrame = useCurrentFrame();
-  
-  // Hold `frame` for exactly `durationInFrames` frames, then continue from the
-  // frame after it.
-  const displayFrame =
-    currentFrame < durationInFrames ? freezeFrame : currentFrame - durationInFrames + freezeFrame + 1;
+  if (!Number.isInteger(frozenFrame)) {
+    throw new Error(`Freeze: frame must be an integer, got ${frozenFrame}`);
+  }
+  if (typeof active !== 'boolean' && typeof active !== 'function') {
+    throw new Error(`Freeze: active must be a boolean or a function of the frame, got ${active}`);
+  }
+  const isActive = typeof active === 'function' ? active(currentFrame) : active;
+  if (typeof isActive !== 'boolean') {
+    throw new Error(`Freeze: active(${currentFrame}) must return a boolean, got ${isActive}`);
+  }
 
+  // The same element either way, so the children stay mounted when it toggles.
   return (
-    <SequenceFrameProvider relativeFrame={displayFrame}>
+    <SequenceFrameProvider relativeFrame={isActive ? frozenFrame : currentFrame}>
       {children}
     </SequenceFrameProvider>
   );

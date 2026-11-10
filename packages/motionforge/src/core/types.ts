@@ -75,12 +75,19 @@ export interface SpringConfig {
   to?: number;
   durationInFrames?: number;
   durationRestThreshold?: number;
+  /** Frames to wait before the spring is released. */
+  delay?: number;
+  /** Play the motion backwards in time: from `to` back to `from`. */
+  reverse?: boolean;
 }
 
+export type ExtrapolateType = 'clamp' | 'extend' | 'identity' | 'wrap';
+
 export interface InterpolateOptions {
-  extrapolateLeft?: 'clamp' | 'extend' | 'identity';
-  extrapolateRight?: 'clamp' | 'extend' | 'identity';
-  easing?: (t: number) => number;
+  extrapolateLeft?: ExtrapolateType;
+  extrapolateRight?: ExtrapolateType;
+  /** One easing for every segment, or one per segment (length inputRange.length - 1). */
+  easing?: EasingFunction | readonly EasingFunction[];
 }
 
 export type EasingFunction = (t: number) => number;

@@ -168,7 +168,7 @@ All entries share one frame context, so components from `motionforge/three` and 
 | `AbsoluteFill` | Full-screen container with absolute positioning |
 | `Sequence` | Time-based rendering for scene management; inside it `useCurrentFrame()` counts from the sequence start; `premountFor` mounts it early, invisibly |
 | `Loop` | Loop content infinitely or for a set number of times |
-| `Freeze` | Pause content at a specific frame |
+| `Freeze` | `<Freeze frame={n} active?>`: the children see frame `n` while `active` (a boolean or `(frame) => boolean`, default `true`), the current frame otherwise |
 | `Retiming` | Variable speed playback; with a function rate the content frame is `floor(Σ rate(i), i < frame)` |
 | `Reverse` | Play content backwards |
 | `Series` | Scenes one after another: `<Series.Sequence durationInFrames offset? name? layout? premountFor?>` children only |
@@ -329,9 +329,9 @@ const scale = useOptimizedSpring({ damping: 10 }, 0, 1);
 
 | Function | Description |
 |----------|-------------|
-| `spring({ frame, fps, config })` | Calculate spring animation value; with `durationInFrames` the motion is stretched to settle at that frame and is exactly `to` from then on |
+| `spring({ frame, fps, config, delay?, reverse? })` | Calculate spring animation value; with `durationInFrames` the motion is stretched to settle at that frame and is exactly `to` from then on. `delay` (frames) releases it later. `reverse` plays the motion backwards in time (Remotion semantics): it starts at `to` and comes to rest at `from` after `durationInFrames`, or after its natural settle time (`measureSpring` with `durationRestThreshold`) |
 | `measureSpring({ fps, config, threshold })` | Frames until a spring stays within `threshold` of its target |
-| `interpolate(input, inputRange, outputRange, options)` | Map values between ranges; `inputRange` must be ascending |
+| `interpolate(input, inputRange, outputRange, options)` | Map values between ranges; `inputRange` must be ascending. `extrapolateLeft` / `extrapolateRight`: `'clamp'` (default), `'extend'`, `'identity'` or `'wrap'` (repeats the whole range). `easing`: one function, or an array with one per segment (`inputRange.length - 1`) |
 | `interpolateColors(input, inputRange, outputRange)` | Smooth color transitions between `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()` / `rgba()` (comma or `rgb(r g b / a)` syntax) |
 | `random(seed)` | Deterministic random number generator |
 | `noise2D(x, y)` | Smooth deterministic 2D value noise in [0, 1) |

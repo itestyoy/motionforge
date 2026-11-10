@@ -310,12 +310,17 @@ const settleFrame = (fps: number, omega: number, zeta: number, threshold: number
 };
 
 /**
- * Spring from `from` to `to`, released at rest at frame 0.
+ * Spring from `from` to `to`, released at rest at frame `delay` (default 0).
  *
  * Without `durationInFrames` it follows the physics of `config` and settles
  * when it settles. With `durationInFrames` the motion is stretched in time so
  * that it settles (to within `durationRestThreshold`) at `durationInFrames`,
  * and from that frame on it is exactly `to`.
+ *
+ * `reverse` plays the motion backwards in time, as in Remotion: it starts at
+ * `to` and comes to rest at `from` after its length (`durationInFrames`, or
+ * the natural settle time measureSpring({ fps, config, threshold:
+ * durationRestThreshold })). Before it starts it is exactly `to`.
  */
 export const spring = ({
   frame,
@@ -325,6 +330,8 @@ export const spring = ({
   to = 1,
   durationInFrames,
   durationRestThreshold = 0.005,
+  delay = 0,
+  reverse = false,
 }: SpringConfig): number => {
   if (!isPositive(fps)) {
     throw new Error(`spring: fps must be a positive number (use useVideoConfig().fps), got ${fps}`);
@@ -338,17 +345,32 @@ export const spring = ({
   if (durationInFrames !== undefined && !isPositive(durationInFrames)) {
     throw new Error(`spring: durationInFrames must be a positive number, got ${durationInFrames}`);
   }
+  if (typeof delay !== 'number' || !Number.isFinite(delay)) {
+    throw new Error(`spring: delay must be a finite number of frames, got ${delay}`);
+  }
+  if (typeof reverse !== 'boolean') {
+    throw new Error(`spring: reverse must be a boolean, got ${reverse}`);
+  }
   const { omega, zeta, overshootClamping } = resolveSpringConfig('spring', config);
+
+  const naturalDuration =
+    reverse || durationInFrames !== undefined
+      ? measureSpring({ fps, config, threshold: durationRestThreshold })
+      : 0;
+  // Frames since the release, on the spring's own clock; reversed, the clock
+  // runs from the end of the motion back to its start.
+  const elapsed = frame - delay;
+  const local = reverse ? (durationInFrames ?? naturalDuration) - elapsed : elapsed;
 
   // Before the spring starts it rests at `from` (the closed form grows without
   // bound for negative time).
-  if (frame <= 0) return from;
+  if (local <= 0) return from;
+  if (reverse && local >= (durationInFrames ?? naturalDuration)) return to;
 
-  let time = frame / fps;
+  let time = local / fps;
   if (durationInFrames !== undefined) {
-    if (frame >= durationInFrames) return to;
-    const naturalDuration = measureSpring({ fps, config, threshold: durationRestThreshold });
-    time = (frame * naturalDuration) / durationInFrames / fps;
+    if (local >= durationInFrames) return to;
+    time = (local * naturalDuration) / durationInFrames / fps;
   }
 
   let value = springStep(time, omega, zeta);
@@ -396,6 +418,8 @@ const checkRanges = (fn: string, input: number, inputRange: number[], outputLeng
 const segmentProgress = (input: number, start: number, end: number): number =>
   end === start ? (input >= end ? 1 : 0) : (input - start) / (end - start);
 
+const EXTRAPOLATE = ['clamp', 'extend', 'identity', 'wrap'];
+
 // Interpolate function
 export const interpolate = (
   input: number,
@@ -415,9 +439,39 @@ export const interpolate = (
       throw new Error(`interpolate: outputRange must contain numbers, got [${outputRange.join(', ')}]`);
     }
   });
+  for (const [name, value] of [['extrapolateLeft', extrapolateLeft], ['extrapolateRight', extrapolateRight]]) {
+    if (!EXTRAPOLATE.includes(value)) {
+      throw new Error(`interpolate: ${name} must be one of ${EXTRAPOLATE.join(', ')}, got ${JSON.stringify(value)}`);
+    }
+  }
+  const segments = inputRange.length - 1;
+  if (Array.isArray(easing)) {
+    if (easing.length !== segments) {
+      throw new Error(
+        `interpolate: an easing array needs one easing per segment (inputRange.length - 1 = ${segments}), got ${easing.length}`
+      );
+    }
+    easing.forEach((fn, i) => {
+      if (typeof fn !== 'function') throw new Error(`interpolate: easing[${i}] must be a function, got ${fn}`);
+    });
+  } else if (easing !== undefined && typeof easing !== 'function') {
+    throw new Error(`interpolate: easing must be a function or an array of functions, got ${easing}`);
+  }
+
+  const first = inputRange[0];
+  const last = inputRange[inputRange.length - 1];
+
+  // 'wrap' repeats the whole input range (before a segment is chosen).
+  if ((input < first && extrapolateLeft === 'wrap') || (input > last && extrapolateRight === 'wrap')) {
+    const span = last - first;
+    if (span === 0) {
+      throw new Error(`interpolate: extrapolate 'wrap' needs an inputRange that spans more than one value, got [${inputRange.join(', ')}]`);
+    }
+    input = ((((input - first) % span) + span) % span) + first;
+  }
 
   // Check if input is outside the range
-  if (input < inputRange[0]) {
+  if (input < first) {
     if (extrapolateLeft === 'clamp') {
       return outputRange[0];
     } else if (extrapolateLeft === 'identity') {
@@ -426,7 +480,7 @@ export const interpolate = (
     // extend - continue the linear extrapolation
   }
 
-  if (input > inputRange[inputRange.length - 1]) {
+  if (input > last) {
     if (extrapolateRight === 'clamp') {
       return outputRange[outputRange.length - 1];
     } else if (extrapolateRight === 'identity') {
@@ -448,10 +502,11 @@ export const interpolate = (
 
   // Calculate progress
   let progress = segmentProgress(input, inputStart, inputEnd);
-  
-  // Apply easing
-  if (easing) {
-    progress = easing(progress);
+
+  // Apply easing: one for all segments, or one per segment.
+  const segmentEasing = Array.isArray(easing) ? easing[segmentIndex] : easing;
+  if (segmentEasing) {
+    progress = segmentEasing(progress);
   }
 
   return outputStart + progress * (outputEnd - outputStart);

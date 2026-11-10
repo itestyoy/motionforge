@@ -337,3 +337,94 @@ describe('Easing composition (Remotion)', () => {
     expect(() => Easing.back(Infinity)).toThrow(/Easing.back: expects a finite number/);
   });
 });
+
+describe('spring delay and reverse', () => {
+  it('delays the release by `delay` frames', () => {
+    expect(spring({ frame: 5, fps: 30, delay: 10, from: 2, to: 4 })).toBe(2);
+    expect(spring({ frame: 10, fps: 30, delay: 10, from: 2, to: 4 })).toBe(2);
+    for (const k of [1, 7, 20]) {
+      expect(spring({ frame: 10 + k, fps: 30, delay: 10 })).toBe(spring({ frame: k, fps: 30 }));
+      expect(spring({ frame: 10 + k, fps: 30, delay: 10, durationInFrames: 20 })).toBe(
+        spring({ frame: k, fps: 30, durationInFrames: 20 }),
+      );
+    }
+  });
+
+  it('plays a stretched spring backwards in time', () => {
+    for (let f = 0; f <= 25; f++) {
+      expect(spring({ frame: f, fps: 30, durationInFrames: 20, reverse: true, from: 2, to: 4 })).toBe(
+        f >= 20 ? 2 : spring({ frame: 20 - f, fps: 30, durationInFrames: 20, from: 2, to: 4 }),
+      );
+    }
+    expect(spring({ frame: 0, fps: 30, durationInFrames: 20, reverse: true })).toBe(1);
+  });
+
+  it('plays a natural spring backwards over its settle time, and holds `to` before it starts', () => {
+    const config = { damping: 8 };
+    const natural = measureSpring({ fps: 30, config });
+    expect(spring({ frame: 0, fps: 30, config, reverse: true })).toBe(1);
+    expect(spring({ frame: -5, fps: 30, config, reverse: true })).toBe(1);
+    for (const f of [1, 10, natural - 1]) {
+      expect(spring({ frame: f, fps: 30, config, reverse: true })).toBe(spring({ frame: natural - f, fps: 30, config }));
+    }
+    expect(spring({ frame: natural, fps: 30, config, reverse: true })).toBe(0);
+    // With a delay it holds `to` for `delay` frames first.
+    expect(spring({ frame: 4, fps: 30, config, reverse: true, delay: 5 })).toBe(1);
+    expect(spring({ frame: 5 + 10, fps: 30, config, reverse: true, delay: 5 })).toBe(
+      spring({ frame: natural - 10, fps: 30, config }),
+    );
+  });
+
+  it('is the motion reversed in time, not from and to swapped', () => {
+    const config = { damping: 5 };
+    const frames = Array.from({ length: 60 }, (_, f) => f);
+    const reversed = frames.map((frame) => spring({ frame, fps: 30, config, reverse: true }));
+    const swapped = frames.map((frame) => spring({ frame, fps: 30, config, from: 1, to: 0 }));
+    // Reversed, the bounce happens at the start, above `to`, and it arrives at `from` without overshoot.
+    expect(Math.max(...reversed)).toBeGreaterThan(1.05);
+    expect(Math.min(...reversed)).toBeGreaterThanOrEqual(0);
+    // Swapped, it leaves `to` smoothly and overshoots past `from`.
+    expect(Math.min(...swapped)).toBeLessThan(-0.05);
+  });
+
+  it('checks delay and reverse', () => {
+    expect(() => spring({ frame: 1, fps: 30, delay: Number.NaN })).toThrow(/delay must be a finite number/);
+    // @ts-expect-error not a boolean
+    expect(() => spring({ frame: 1, fps: 30, reverse: 'yes' })).toThrow(/reverse must be a boolean/);
+  });
+});
+
+describe('interpolate wrap and per-segment easing', () => {
+  it('wraps the whole input range on either side', () => {
+    expect(interpolate(15, [0, 10], [0, 100], { extrapolateRight: 'wrap' })).toBe(50);
+    expect(interpolate(-5, [0, 10], [0, 100], { extrapolateLeft: 'wrap' })).toBe(50);
+    expect(interpolate(25, [0, 10, 20], [0, 100, 0], { extrapolateRight: 'wrap' })).toBe(50);
+    expect(interpolate(34, [10, 20], [0, 1], { extrapolateRight: 'wrap' })).toBe(0.4);
+    // Only the side that wraps.
+    expect(interpolate(-5, [0, 10], [0, 100], { extrapolateRight: 'wrap' })).toBe(0);
+    expect(() => interpolate(15, [10, 10], [0, 1], { extrapolateRight: 'wrap' })).toThrow(/wrap' needs an inputRange/);
+  });
+
+  it('applies one easing per segment', () => {
+    const options = { easing: [Easing.quad, Easing.linear] };
+    expect(interpolate(5, [0, 10, 20], [0, 100, 200], options)).toBe(25);
+    expect(interpolate(15, [0, 10, 20], [0, 100, 200], options)).toBe(150);
+  });
+
+  it('throws on an easing array of the wrong length or with non-functions', () => {
+    expect(() => interpolate(5, [0, 10, 20], [0, 1, 2], { easing: [Easing.quad] })).toThrow(
+      /one easing per segment \(inputRange.length - 1 = 2\), got 1/,
+    );
+    // @ts-expect-error not a function
+    expect(() => interpolate(5, [0, 10], [0, 1], { easing: [1] })).toThrow(/easing\[0\] must be a function/);
+    // @ts-expect-error not a function
+    expect(() => interpolate(5, [0, 10], [0, 1], { easing: 'ease' })).toThrow(/easing must be a function/);
+  });
+
+  it('throws on an unknown extrapolation', () => {
+    // @ts-expect-error unknown
+    expect(() => interpolate(5, [0, 10], [0, 1], { extrapolateLeft: 'mirror' })).toThrow(
+      /extrapolateLeft must be one of clamp, extend, identity, wrap/,
+    );
+  });
+});

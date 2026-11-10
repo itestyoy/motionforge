@@ -55,7 +55,7 @@ describe('time-remapping components', () => {
   });
 
   it('Freeze holds a frame', () => {
-    expect(frameOf(renderAt(3, <Freeze frame={7} durationInFrames={10}><ShowFrame id="a" /></Freeze>), 'a')).toBe(7);
+    expect(frameOf(renderAt(3, <Freeze frame={7}><ShowFrame id="a" /></Freeze>), 'a')).toBe(7);
   });
 
 });
