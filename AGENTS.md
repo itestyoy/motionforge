@@ -4,5 +4,5 @@
 - Headless: no player, no clock, no UI. `FrameProvider` / `Composition` take the frame from the host app.
 - Deterministic: everything a scene renders is derived from `useCurrentFrame()` / `useVideoConfig()` and props. No `Date.now()`, `Math.random()`, timers or CSS transitions/animations; use `random(seed)`.
 - Inside `Sequence` (and `Loop`, `Freeze`, `Retiming`, `Reverse`, `Series`) `useCurrentFrame()` is local to that sequence.
-- three.js components go to `motionforge/three`, Lottie to `motionforge/lottie`; the main entry must not import them.
+- three.js components go to `motionforge/three`, Lottie to `motionforge/lottie`, Tone.js (an optional peer dependency, imported dynamically) to `motionforge/audio`; the main entry must not import them.
 - Every fix comes with a test in `packages/motionforge/tests` (vitest, run under Node).

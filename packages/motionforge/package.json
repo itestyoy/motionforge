@@ -188,6 +188,16 @@
         "types": "./dist/shapes/index.d.cts",
         "default": "./dist/shapes/index.cjs"
       }
+    },
+    "./audio": {
+      "import": {
+        "types": "./dist/audio/index.d.ts",
+        "default": "./dist/audio/index.js"
+      },
+      "require": {
+        "types": "./dist/audio/index.d.cts",
+        "default": "./dist/audio/index.cjs"
+      }
     }
   },
   "files": [
@@ -233,7 +243,8 @@
     "@react-three/fiber": ">=9.0.0",
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0",
-    "three": ">=0.170.0"
+    "three": ">=0.170.0",
+    "tone": ">=15.0.0"
   },
   "dependencies": {
     "lottie-web": "^5.13.0",
@@ -252,9 +263,11 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "three": "^0.184.0",
+    "tone": "15.1.22",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",
-    "vitest": "3.2.4"
+    "vitest": "3.2.4",
+    "zzfx": "1.4.0"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -271,6 +284,9 @@
       "optional": true
     },
     "@react-three/drei": {
+      "optional": true
+    },
+    "tone": {
       "optional": true
     }
   }

@@ -183,6 +183,7 @@ There are no `preloadImage` / `preloadVideo` / `preloadAudio` / `preloadFont`: `
 | `motionforge/transitions` | `TransitionSeries`, `linearTiming`, `springTiming`, `useTransitionProgress`, `pushCut` | — |
 | `motionforge/transitions/fade`, `/slide`, `/wipe`, `/flip`, `/clock-wipe`, `/iris`, `/cube`, `/none`, `/push-cut` | One presentation each: `fade`, `slide`, `wipe`, `flip`, `clockWipe`, `iris`, `cube`, `none`, `pushCut` | — |
 | `motionforge/shapes` | `Rect`, `Circle`, `Ellipse`, `Triangle`, `Star`, `Polygon`, `Pie`, `Heart`, `Arrow`, `Spark`, `Callout` and their `make*()` functions | — |
+| `motionforge/audio` | `ToneAudio`, `Sfx`, `renderZzfx`: generated sounds as audio tracks | `tone` for `ToneAudio` (optional peer dependency, `>=15`); ZzFX is built in |
 
 They follow Remotion's packages: `@remotion/three`, `@remotion/motion-blur`, `@remotion/layout-utils`, `@remotion/gif`, `@remotion/media-utils`, `@remotion/transitions` (with the same per-presentation entries: `@remotion/transitions/fade` is `motionforge/transitions/fade`), `@remotion/shapes`. The functions of `@remotion/paths` are in the main entry. All entries share one frame context and render gate, so their components read the frame of the `FrameProvider` from `motionforge`.
 
@@ -610,6 +611,60 @@ const soundtrack = await mix.startRendering();
 - Without `audio`, nothing is collected and `Audio` does nothing. A `FrameProvider` inside another one does not use the outer collector: its frames are its own. A collector serves one `FrameProvider` at a time.
 - `Audio` / `Video` inside `Freeze`, `Retiming` or `Reverse` (and so inside `Trail` and `CameraMotionBlur`, which render through `Freeze`) throw: their frames do not run with the composition's, and a track plays in real time. Put the sound outside.
 - **Differs from Remotion:** Remotion's player plays `<Audio>` through an `<audio>` element and its renderer collects per-frame assets; MotionForge has no player, so `Audio` is only a description and the host plays it. A `volume` above 1 amplifies (no media element caps it); the frame a `volume` function sees restarts per loop iteration only when `trimAfter` (or `durationInFrames`) gives the iteration length.
+
+### Generated audio: `motionforge/audio`
+
+Sounds made in code become audio tracks like any `<Audio>`: they start at the start of the enclosing sequence (or at `at`), and the host plays their `AudioBuffer`.
+
+**`<ToneAudio>`** renders [Tone.js](https://tonejs.github.io/) code offline (`Tone.OfflineContext`, an `OfflineAudioContext`, faster than real time) into an `AudioBuffer`. `render` is ordinary Tone.js code and receives Tone itself; the wrapper only converts frames to seconds, renders offline, caches, holds the gate and registers the track.
+
+```tsx
+import { ToneAudio, Sfx } from 'motionforge/audio';
+
+<Sequence from={30} premountFor={15}>
+  <ToneAudio
+    durationInFrames={90}
+    deps={[notes]}
+    render={(Tone, { framesToSeconds }) => {
+      const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+      notes.forEach((note, i) => synth.triggerAttackRelease(note, '8n', framesToSeconds(i * 10)));
+      new Tone.NoiseSynth({ volume: -18 }).toDestination().triggerAttackRelease('16n', framesToSeconds(45));
+    }}
+  />
+</Sequence>
+```
+
+| Prop | Default | Meaning |
+|------|---------|---------|
+| `durationInFrames` | required | Length of the render (a positive integer) |
+| `render` | required | `(Tone, { context, fps, durationInSeconds, framesToSeconds }) => void`: build the graph, schedule notes (`context.transport` is the offline transport, also `Tone.getTransport()` during the call). It must be synchronous; samples Tone loads are awaited before the render, so start them from the transport |
+| `deps` | `[]` | JSON data `render` reads from outside (props, note lists): part of the cache key, like `useMemo`'s deps |
+| `seed` | `0` | Seed of `Math.random` during the render (an integer) |
+| `sampleRate` | `48000` | Fixed, so the samples do not depend on the device's rate (Tone's default) |
+| `channels` | `2` | 1 or 2 |
+| `volume`, `muted`, `name` | | As for `<Audio>` |
+
+- The result is cached by the source text of `render`, `deps` and the options (one render per sound per page; the same sound in another sequence or `FrameProvider` reuses it). A value `render` reads from outside that is not in `deps` is not part of the key: a changed value would play the cached sound.
+- While it renders it holds the render gate (inside a premounted sequence it does not, so `premountFor` renders it ahead); a failure (`render` throws, is async, Tone is missing) cancels the render. Renders run one at a time (Tone has one global context). Without an audio collector on the `FrameProvider` nothing is rendered.
+- `tone` is an optional peer dependency (tested with 15.1.22): it is imported when the first `ToneAudio` renders, and a missing package fails the render with `<ToneAudio> needs Tone.js, an optional peer dependency of motionforge: install it (npm install tone@15)`.
+
+**`<Sfx>`** plays a [ZzFX](https://github.com/KilledByAPixel/ZzFX) sound effect: paste the parameter array from the ZzFX designer.
+
+```tsx
+<Sequence from={60}>
+  <Sfx at={12} zzfx={[, , 925, 0.04, 0.3, 0.6, 1, 0.3, , 6.27, -184, 0.09, 0.17]} />
+</Sequence>
+```
+
+- `at` is a frame of the enclosing sequence (an integer ≥ 0, default 0; at or after the sequence's end throws); `seed` (default 0), `sampleRate` (default 44100, as ZzFX's), `volume`, `muted`, `name`. The samples are computed on mount (no gate needed).
+- `renderZzfx(params, sampleRate = 44100, seed = 0) → Float32Array` is the same as a pure function (no Web Audio needed): ZzFX's samples at the loudness `zzfx()` plays them (its master volume 0.3 applied).
+- ZzFX 1.4.0 (MIT, Frank Force) is vendored with its license header: only its sample generator, with the sample rate and the random number generator as arguments; the arithmetic is unchanged (a test compares it with the original).
+
+**Determinism.** ZzFX's randomness and Tone's noise, `Tone.Loop` probability/humanize, `Pattern` random modes and the scene's own `Math.random()` all draw from `Math.random`, so generated audio is seeded:
+
+- `renderZzfx` / `Sfx` draw from a seeded generator passed to the vendored code: the same parameters, sample rate and seed always give the same samples.
+- `ToneAudio` replaces `Math.random` with a generator seeded by `seed` only while its own code runs synchronously: the `render` call and each tick of the offline clock (where transport callbacks run). Between ticks the page gets its own `Math.random` back, so other code running meanwhile neither consumes nor sees the sequence, and `Math.random` is restored even when `render` throws. Tone's page-wide noise buffers are filled once, before the first render, from a fixed seed. So the same input gives the same samples on every render (tested with the real Tone.js: bit-identical buffers).
+- Not covered: code after an `await` (hence `render` must be synchronous); Tone noise used on the page outside MotionForge before the first `ToneAudio` (Tone keeps that noise buffer); and the audio engine itself: offline rendering is deterministic within one browser engine, but two engines (or versions) may differ in the last bits of floating-point arithmetic and resampling.
 
 ## 🧊 3D: `ThreeCanvas`
 

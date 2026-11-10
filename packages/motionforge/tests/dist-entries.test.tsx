@@ -41,9 +41,12 @@ import * as transitionsEntry from '../dist/transitions/index.js';
 import * as fadeEntry from '../dist/transitions/fade.js';
 // @ts-ignore
 import * as shapesEntry from '../dist/shapes/index.js';
+// @ts-ignore
+import * as audioEntry from '../dist/audio/index.js';
 const transitions: any = transitionsEntry;
 const fadeModule: any = fadeEntry;
 const shapes: any = shapesEntry;
+const audioModule: any = audioEntry;
 const PRESENTATIONS = ['fade', 'slide', 'wipe', 'flip', 'clock-wipe', 'iris', 'cube', 'none', 'push-cut'];
 
 const packageDir = fileURLToPath(new URL('..', import.meta.url));
@@ -152,7 +155,7 @@ describe('built entries', () => {
       for (const file of files) {
         const source = readFileSync(file, 'utf8');
         expect(source, relative(distDir, file)).not.toMatch(
-          /(?:from|import|require)\s*\(?\s*['"](three|@react-three\/fiber|@react-three\/drei|lottie-web|omggif)['"]/,
+          /(?:from|import|require)\s*\(?\s*['"](three|@react-three\/fiber|@react-three\/drei|lottie-web|omggif|tone)['"]/,
         );
       }
     }
@@ -162,6 +165,9 @@ describe('built entries', () => {
     expect(Object.keys(motionBlur).sort()).toEqual(['CameraMotionBlur', 'Trail']);
     expect(Object.keys(layoutUtils).sort()).toEqual(['fillTextBox', 'fitText', 'fitTextOnNLines', 'measureText']);
     expect(Object.keys(gif).sort()).toEqual(['Gif', 'getGifDurationInSeconds']);
+    expect(Object.keys(audioModule).sort()).toEqual(['Sfx', 'ToneAudio', 'renderZzfx']);
+    expect(main).toHaveProperty('createAudioCollector');
+    for (const name of ['ToneAudio', 'Sfx', 'renderZzfx']) expect(main, name).not.toHaveProperty(name);
     expect(Object.keys(mediaUtils).sort()).toEqual([
       'createSmoothSvgPath',
       'getAudioData',
@@ -173,6 +179,27 @@ describe('built entries', () => {
       'visualizeAudio',
       'visualizeAudioWaveform',
     ]);
+  });
+
+  it('imports the optional tone only when a ToneAudio renders, also from CommonJS', () => {
+    for (const entry of ['audio/index.js', 'audio/index.cjs']) {
+      const source = relativeImportClosure(join(distDir, entry)).map((file) => readFileSync(file, 'utf8')).join('\n');
+      expect(source, entry).toContain("import('tone')");
+      expect(source, entry).not.toMatch(/(?:from\s*|require\s*\(\s*)['"]tone['"]/);
+    }
+  });
+
+  it('lets motionforge/audio see the timeline of a FrameProvider from motionforge', () => {
+    // Sfx checks its frame against the end of the enclosing Sequence (from the main entry).
+    expect(() =>
+      renderToStaticMarkup(
+        <main.FrameProvider frame={10} durationInFrames={100} width={100} height={100}>
+          <main.Sequence from={10} durationInFrames={20}>
+            <audioModule.Sfx at={25} zzfx={[1, 0, 440]} />
+          </main.Sequence>
+        </main.FrameProvider>,
+      ),
+    ).toThrow(/at=\{25\} is not before the end of its sequence/);
   });
 
   it("starts every built file with the 'use client' directive", () => {
@@ -196,6 +223,7 @@ describe('built entries', () => {
       ['./transitions', 'transitions/index'],
       ...PRESENTATIONS.map((name) => [`./transitions/${name}`, `transitions/${name}`]),
       ['./shapes', 'shapes/index'],
+      ['./audio', 'audio/index'],
     ];
     expect(Object.keys(pkg.exports)).toEqual(entries.map(([subpath]) => subpath));
     for (const [subpath, base] of entries) {

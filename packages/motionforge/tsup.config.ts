@@ -47,6 +47,7 @@ export default defineConfig({
     'transitions/none': 'src/components/transitions/presentations/none.tsx',
     'transitions/push-cut': 'src/components/transitions/presentations/push-cut.tsx',
     'shapes/index': 'src/shapes.ts',
+    'audio/index': 'src/audio.ts',
   },
   format: ['esm', 'cjs'],
   dts: true,
