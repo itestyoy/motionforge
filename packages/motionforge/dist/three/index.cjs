@@ -1,11 +1,168 @@
 'use client';'use strict';
 
-var chunk64PBRZLD_cjs = require('../chunk-64PBRZLD.cjs');
-var fiber = require('@react-three/fiber');
-var drei = require('@react-three/drei');
-var jsxRuntime = require('react/jsx-runtime');
+var chunkJRWGLEMD_cjs = require('../chunk-JRWGLEMD.cjs');
+var chunkNS6WDBHG_cjs = require('../chunk-NS6WDBHG.cjs');
 var react = require('react');
+var fiber = require('@react-three/fiber');
+var jsxRuntime = require('react/jsx-runtime');
+var drei = require('@react-three/drei');
 
+var SEQUENCE_PROPS = [
+  "from",
+  "durationInFrames",
+  "trimBefore",
+  "playbackRate",
+  "loop",
+  "freeze",
+  "hidden",
+  "name",
+  "showInTimeline",
+  "premountFor",
+  "postmountFor",
+  "styleWhilePremounted",
+  "styleWhilePostmounted"
+];
+var validateDimension = (value, name) => {
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw new TypeError(`<ThreeCanvas>: "${name}" must be a positive integer (px), got ${JSON.stringify(value)}`);
+  }
+};
+var Scale = ({ width, height }) => {
+  const set = fiber.useThree((state) => state.set);
+  const threeSetSize = fiber.useThree((state) => state.setSize);
+  const [initialSetSize] = react.useState(() => threeSetSize);
+  react.useLayoutEffect(() => {
+    initialSetSize(width, height);
+    set({ setSize: () => null });
+    return () => set({ setSize: initialSetSize });
+  }, [initialSetSize, width, height, set]);
+  return null;
+};
+var FrameRenderer = ({ onRendered }) => {
+  const advance = fiber.useThree((state) => state.advance);
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  react.useLayoutEffect(() => {
+    advance(frame / fps);
+    onRendered(frame);
+  });
+  return null;
+};
+var SuspenseHold = () => {
+  const { delayRender, continueRender } = chunkNS6WDBHG_cjs.useDelayRender();
+  react.useLayoutEffect(() => {
+    const handle = delayRender("<ThreeCanvas> waiting for suspended scene content (textures, models) to load");
+    return () => continueRender(handle);
+  }, [delayRender, continueRender]);
+  return null;
+};
+var CanvasErrorBoundary = class extends react.Component {
+  constructor() {
+    super(...arguments);
+    this.state = { failed: false };
+  }
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error) {
+    this.props.onError(error);
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+};
+var ThreeCanvas = (props) => {
+  for (const name of SEQUENCE_PROPS) {
+    if (name in props) {
+      throw new Error(
+        `<ThreeCanvas> does not take the <Sequence> prop "${name}": put the canvas inside <Sequence layout="none" ${name}={...}> instead`
+      );
+    }
+  }
+  const { children, width, height, style, resize, frameloop, onCreated, ...rest } = props;
+  validateDimension(width, "width");
+  validateDimension(height, "height");
+  if (frameloop !== void 0 && frameloop !== "never") {
+    throw new Error(
+      `<ThreeCanvas>: frameloop must be 'never' or left out, got ${JSON.stringify(frameloop)}: the canvas is drawn once per frame; animate with useCurrentFrame() instead of useFrame()`
+    );
+  }
+  const frameValue = react.useContext(chunkNS6WDBHG_cjs.FrameContext);
+  if (!frameValue) {
+    throw new Error("<ThreeCanvas> must be used within a FrameProvider");
+  }
+  const gateValue = react.useContext(chunkNS6WDBHG_cjs.GateContext);
+  const sequenceValue = react.useContext(chunkJRWGLEMD_cjs.SequenceContext);
+  const hostValue = react.useContext(chunkNS6WDBHG_cjs.HostContext);
+  const timelineValue = react.useContext(chunkNS6WDBHG_cjs.TimelineContext);
+  const { frame } = frameValue;
+  const { delayRender, continueRender, cancelRender } = chunkNS6WDBHG_cjs.useDelayRender();
+  const created = react.useRef(false);
+  const createdHold = react.useRef(null);
+  react.useLayoutEffect(() => {
+    if (created.current) return;
+    const handle = delayRender("<ThreeCanvas> creating the WebGL renderer (the canvas needs a non-zero size)");
+    createdHold.current = handle;
+    return () => {
+      createdHold.current = null;
+      continueRender(handle);
+    };
+  }, [delayRender, continueRender]);
+  const handleCreated = react.useCallback(
+    (state) => {
+      created.current = true;
+      if (createdHold.current !== null) {
+        continueRender(createdHold.current);
+        createdHold.current = null;
+      }
+      onCreated?.(state);
+    },
+    [onCreated, continueRender]
+  );
+  const renderedFrame = react.useRef(null);
+  const frameHold = react.useRef(null);
+  const onRendered = react.useCallback(
+    (renderedAt) => {
+      renderedFrame.current = renderedAt;
+      const hold = frameHold.current;
+      if (hold && hold.frame === renderedAt) {
+        frameHold.current = null;
+        continueRender(hold.handle);
+      }
+    },
+    [continueRender]
+  );
+  react.useLayoutEffect(() => {
+    if (renderedFrame.current === frame) return;
+    const hold = { frame, handle: delayRender(`<ThreeCanvas> drawing frame ${frame}`) };
+    frameHold.current = hold;
+    return () => {
+      if (frameHold.current === hold) frameHold.current = null;
+      continueRender(hold.handle);
+    };
+  }, [frame, delayRender, continueRender]);
+  const onError = react.useCallback(
+    (error) => cancelRender(new Error(`<ThreeCanvas>: ${error instanceof Error ? error.message : String(error)}`)),
+    [cancelRender]
+  );
+  return /* @__PURE__ */ jsxRuntime.jsx(CanvasErrorBoundary, { onError, children: /* @__PURE__ */ jsxRuntime.jsx(
+    fiber.Canvas,
+    {
+      style: { width, height, ...style },
+      ...rest,
+      resize: { offsetSize: true, ...resize },
+      frameloop: "never",
+      onCreated: handleCreated,
+      children: /* @__PURE__ */ jsxRuntime.jsx(chunkNS6WDBHG_cjs.FrameContext.Provider, { value: frameValue, children: /* @__PURE__ */ jsxRuntime.jsx(chunkNS6WDBHG_cjs.GateContext.Provider, { value: gateValue, children: /* @__PURE__ */ jsxRuntime.jsx(chunkNS6WDBHG_cjs.HostContext.Provider, { value: hostValue, children: /* @__PURE__ */ jsxRuntime.jsx(chunkNS6WDBHG_cjs.TimelineContext.Provider, { value: timelineValue, children: /* @__PURE__ */ jsxRuntime.jsxs(chunkJRWGLEMD_cjs.SequenceContext.Provider, { value: sequenceValue, children: [
+        /* @__PURE__ */ jsxRuntime.jsx(Scale, { width, height }),
+        /* @__PURE__ */ jsxRuntime.jsxs(react.Suspense, { fallback: /* @__PURE__ */ jsxRuntime.jsx(SuspenseHold, {}), children: [
+          children,
+          /* @__PURE__ */ jsxRuntime.jsx(FrameRenderer, { onRendered })
+        ] })
+      ] }) }) }) }) })
+    }
+  ) });
+};
 var DeterministicScene = ({ images, captions, progress }) => {
   return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
     /* @__PURE__ */ jsxRuntime.jsx("ambientLight", { intensity: 0.5 }),
@@ -48,7 +205,7 @@ var DepthGallery3D = ({
   className = "",
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   const progress = Math.max(0, (frame - startFrame) / durationInFrames);
   return /* @__PURE__ */ jsxRuntime.jsx("div", { className, style: { width: "100%", height: "100%", backgroundColor: "#000", ...style }, children: /* @__PURE__ */ jsxRuntime.jsx(fiber.Canvas, { camera: { position: [0, 0, 5], fov: 75 }, children: /* @__PURE__ */ jsxRuntime.jsx(DeterministicScene, { images, captions, progress }) }) });
 };
@@ -115,7 +272,7 @@ var ShaderImageReveal = ({
   className = "",
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   const progress = Math.max(0, Math.min(1, (frame - startFrame) / durationInFrames));
   return /* @__PURE__ */ jsxRuntime.jsx("div", { className, style: { width: "100%", height: "100%", ...style }, children: /* @__PURE__ */ jsxRuntime.jsx(fiber.Canvas, { orthographic: true, camera: { zoom: 100 }, children: /* @__PURE__ */ jsxRuntime.jsx(react.Suspense, { fallback: null, children: /* @__PURE__ */ jsxRuntime.jsx(RevealPlane, { src, progress }) }) }) });
 };
@@ -186,5 +343,6 @@ var DitheringEffect = ({
 exports.DepthGallery3D = DepthGallery3D;
 exports.DitheringEffect = DitheringEffect;
 exports.ShaderImageReveal = ShaderImageReveal;
+exports.ThreeCanvas = ThreeCanvas;
 //# sourceMappingURL=index.cjs.map
 //# sourceMappingURL=index.cjs.map

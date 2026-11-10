@@ -1,7 +1,6 @@
 'use client';'use strict';
 
-var chunkC2TXLM7A_cjs = require('../chunk-C2TXLM7A.cjs');
-var chunk64PBRZLD_cjs = require('../chunk-64PBRZLD.cjs');
+var chunkNS6WDBHG_cjs = require('../chunk-NS6WDBHG.cjs');
 var react = require('react');
 var lottie = require('lottie-web');
 var jsxRuntime = require('react/jsx-runtime');
@@ -11,44 +10,76 @@ function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
 var lottie__default = /*#__PURE__*/_interopDefault(lottie);
 
 var jsonOfData = /* @__PURE__ */ new WeakMap();
-var sourceKey = (src) => {
-  if (typeof src === "string" && src !== "") return `url:${src}`;
-  if (typeof src === "object" && src !== null) {
-    let json = jsonOfData.get(src);
-    if (json === void 0) {
-      json = JSON.stringify(src);
-      jsonOfData.set(src, json);
-    }
-    return `data:${json}`;
+var jsonOf = (data) => {
+  let json = jsonOfData.get(data);
+  if (json === void 0) {
+    json = JSON.stringify(data);
+    jsonOfData.set(data, json);
   }
-  throw new Error(`Lottie: src must be a URL or animation data (an object), got ${JSON.stringify(src)}`);
+  return json;
 };
+var checkAnimationData = (component, animationData) => {
+  if (typeof animationData !== "object" || animationData === null || Array.isArray(animationData)) {
+    throw new Error(
+      `${component}: animationData must be the animation JSON as an object, got ${JSON.stringify(animationData)}. If you have the URL of the JSON file, fetch it and pass the result as animationData.`
+    );
+  }
+};
+var getLottieMetadata = (animationData) => {
+  checkAnimationData("getLottieMetadata", animationData);
+  const { w: width, h: height, fr: fps, op } = animationData;
+  if (![width, height, fps, op].every((value) => typeof value === "number" && Number.isFinite(value) && value > 0)) {
+    return null;
+  }
+  return { durationInFrames: Math.floor(op), durationInSeconds: op / fps, fps, height, width };
+};
+var RENDERERS = ["svg", "canvas", "html"];
 var Lottie = ({
-  src,
+  animationData,
+  direction = "forward",
+  loop = false,
+  playbackRate = 1,
+  renderer = "svg",
+  preserveAspectRatio,
+  assetsPath,
+  onAnimationLoaded,
   frameStart = 0,
   frameEnd,
-  playbackRate = 1,
-  loop = false,
   width,
   height,
   style,
   className
 }) => {
+  checkAnimationData("Lottie", animationData);
+  if (direction !== "forward" && direction !== "backward") {
+    throw new Error(`Lottie: direction must be 'forward' or 'backward', got ${JSON.stringify(direction)}`);
+  }
+  if (typeof loop !== "boolean") {
+    throw new Error(`Lottie: loop must be a boolean, got ${JSON.stringify(loop)}`);
+  }
+  if (typeof playbackRate !== "number" || !Number.isFinite(playbackRate) || playbackRate <= 0) {
+    throw new Error(`Lottie: playbackRate must be a finite number above 0, got ${playbackRate}`);
+  }
+  if (!RENDERERS.includes(renderer)) {
+    throw new Error(`Lottie: renderer must be one of ${RENDERERS.join(", ")}, got ${JSON.stringify(renderer)}`);
+  }
   const containerRef = react.useRef(null);
   const animationRef = react.useRef(null);
   const [isLoaded, setIsLoaded] = react.useState(false);
   const [error, setError] = react.useState(null);
-  const { delayRender, continueRender, cancelRender } = chunkC2TXLM7A_cjs.useDelayRender();
-  const srcKey = sourceKey(src);
+  const { delayRender, continueRender, cancelRender } = chunkNS6WDBHG_cjs.useDelayRender();
+  const dataKey = jsonOf(animationData);
+  const onLoadedRef = react.useRef(onAnimationLoaded);
+  onLoadedRef.current = onAnimationLoaded;
   const loadHandle = react.useRef(null);
-  const currentFrame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { fps } = chunk64PBRZLD_cjs.useVideoConfig();
+  const currentFrame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
   react.useEffect(() => {
     setIsLoaded(false);
     setError(null);
     if (typeof window === "undefined" || !containerRef.current) return;
     let isCancelled = false;
-    const handle = delayRender(`<Lottie> ${typeof src === "string" ? src : "animation data"}`);
+    const handle = delayRender("<Lottie> animation data");
     loadHandle.current = handle;
     const release = () => {
       continueRender(handle);
@@ -59,38 +90,30 @@ var Lottie = ({
       cancelRender(new Error(`<Lottie> ${message}`));
       release();
     };
-    const params = {
-      container: containerRef.current,
-      renderer: "svg",
-      loop: false,
-      autoplay: false,
-      rendererSettings: {
-        progressiveLoad: false,
-        hideOnTransparent: true
-      }
-    };
-    if (typeof src === "string") {
-      params.path = src;
-    } else {
-      params.animationData = src;
-    }
     try {
-      const anim = lottie__default.default.loadAnimation(params);
+      const anim = lottie__default.default.loadAnimation({
+        container: containerRef.current,
+        renderer,
+        loop: false,
+        autoplay: false,
+        animationData: JSON.parse(dataKey),
+        assetsPath,
+        rendererSettings: {
+          progressiveLoad: false,
+          hideOnTransparent: true,
+          ...preserveAspectRatio !== void 0 ? { preserveAspectRatio } : null
+        }
+      });
       animationRef.current = anim;
       const onLoaded = () => {
-        if (!isCancelled) {
-          setIsLoaded(true);
-        }
+        if (!isCancelled) setIsLoaded(true);
       };
       anim.addEventListener("DOMLoaded", onLoaded);
       anim.addEventListener("data_ready", onLoaded);
       anim.addEventListener("data_failed", () => {
-        if (!isCancelled) {
-          fail(
-            typeof src === "string" ? `failed to load animation data from ${src}` : "failed to load animation data"
-          );
-        }
+        if (!isCancelled) fail("failed to load animation data");
       });
+      onLoadedRef.current?.(anim);
       return () => {
         isCancelled = true;
         release();
@@ -102,17 +125,16 @@ var Lottie = ({
       return () => {
       };
     }
-  }, [srcKey, delayRender, continueRender, cancelRender]);
+  }, [dataKey, renderer, preserveAspectRatio, assetsPath, delayRender, continueRender, cancelRender]);
   react.useEffect(() => {
     if (!animationRef.current || !isLoaded) return;
     const anim = animationRef.current;
-    const totalLottieFrames = anim.totalFrames;
     const start = frameStart;
-    const end = frameEnd ?? totalLottieFrames;
+    const end = frameEnd ?? anim.totalFrames;
     const duration = end - start;
     if (duration <= 0) {
       cancelRender(
-        new Error(`<Lottie> frameEnd (${end}) must be greater than frameStart (${start}); the animation has ${totalLottieFrames} frames`)
+        new Error(`<Lottie> frameEnd (${end}) must be greater than frameStart (${start}); the animation has ${anim.totalFrames} frames`)
       );
       if (loadHandle.current !== null) {
         continueRender(loadHandle.current);
@@ -126,13 +148,13 @@ var Lottie = ({
     } else {
       targetFrame = Math.max(0, Math.min(targetFrame, duration - 0.01));
     }
-    const finalFrame = start + targetFrame;
+    const finalFrame = direction === "backward" ? start + (duration - targetFrame) : start + targetFrame;
     anim.goToAndStop(finalFrame, true);
     if (loadHandle.current !== null) {
       continueRender(loadHandle.current);
       loadHandle.current = null;
     }
-  }, [currentFrame, fps, isLoaded, frameStart, frameEnd, playbackRate, loop, continueRender, cancelRender]);
+  }, [currentFrame, fps, isLoaded, frameStart, frameEnd, playbackRate, loop, direction, continueRender, cancelRender]);
   const containerStyle = react.useMemo(() => ({
     width: width ?? "100%",
     height: height ?? "100%",
@@ -155,5 +177,6 @@ var Lottie = ({
 };
 
 exports.Lottie = Lottie;
+exports.getLottieMetadata = getLottieMetadata;
 //# sourceMappingURL=index.cjs.map
 //# sourceMappingURL=index.cjs.map

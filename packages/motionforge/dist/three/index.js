@@ -1,9 +1,166 @@
-'use client';import { useCurrentFrame } from '../chunk-SKDHOWVF.js';
-import { Canvas } from '@react-three/fiber';
-import { Image, Text, useTexture } from '@react-three/drei';
+'use client';import { SequenceContext } from '../chunk-POVQTMPB.js';
+import { FrameContext, GateContext, HostContext, TimelineContext, useDelayRender, useCurrentFrame, useVideoConfig } from '../chunk-L5HQH5HH.js';
+import { useContext, useRef, useLayoutEffect, useCallback, Suspense, Component, useState, useMemo } from 'react';
+import { Canvas, useThree } from '@react-three/fiber';
 import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
-import { Suspense, useMemo } from 'react';
+import { Image, Text, useTexture } from '@react-three/drei';
 
+var SEQUENCE_PROPS = [
+  "from",
+  "durationInFrames",
+  "trimBefore",
+  "playbackRate",
+  "loop",
+  "freeze",
+  "hidden",
+  "name",
+  "showInTimeline",
+  "premountFor",
+  "postmountFor",
+  "styleWhilePremounted",
+  "styleWhilePostmounted"
+];
+var validateDimension = (value, name) => {
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw new TypeError(`<ThreeCanvas>: "${name}" must be a positive integer (px), got ${JSON.stringify(value)}`);
+  }
+};
+var Scale = ({ width, height }) => {
+  const set = useThree((state) => state.set);
+  const threeSetSize = useThree((state) => state.setSize);
+  const [initialSetSize] = useState(() => threeSetSize);
+  useLayoutEffect(() => {
+    initialSetSize(width, height);
+    set({ setSize: () => null });
+    return () => set({ setSize: initialSetSize });
+  }, [initialSetSize, width, height, set]);
+  return null;
+};
+var FrameRenderer = ({ onRendered }) => {
+  const advance = useThree((state) => state.advance);
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  useLayoutEffect(() => {
+    advance(frame / fps);
+    onRendered(frame);
+  });
+  return null;
+};
+var SuspenseHold = () => {
+  const { delayRender, continueRender } = useDelayRender();
+  useLayoutEffect(() => {
+    const handle = delayRender("<ThreeCanvas> waiting for suspended scene content (textures, models) to load");
+    return () => continueRender(handle);
+  }, [delayRender, continueRender]);
+  return null;
+};
+var CanvasErrorBoundary = class extends Component {
+  constructor() {
+    super(...arguments);
+    this.state = { failed: false };
+  }
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error) {
+    this.props.onError(error);
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+};
+var ThreeCanvas = (props) => {
+  for (const name of SEQUENCE_PROPS) {
+    if (name in props) {
+      throw new Error(
+        `<ThreeCanvas> does not take the <Sequence> prop "${name}": put the canvas inside <Sequence layout="none" ${name}={...}> instead`
+      );
+    }
+  }
+  const { children, width, height, style, resize, frameloop, onCreated, ...rest } = props;
+  validateDimension(width, "width");
+  validateDimension(height, "height");
+  if (frameloop !== void 0 && frameloop !== "never") {
+    throw new Error(
+      `<ThreeCanvas>: frameloop must be 'never' or left out, got ${JSON.stringify(frameloop)}: the canvas is drawn once per frame; animate with useCurrentFrame() instead of useFrame()`
+    );
+  }
+  const frameValue = useContext(FrameContext);
+  if (!frameValue) {
+    throw new Error("<ThreeCanvas> must be used within a FrameProvider");
+  }
+  const gateValue = useContext(GateContext);
+  const sequenceValue = useContext(SequenceContext);
+  const hostValue = useContext(HostContext);
+  const timelineValue = useContext(TimelineContext);
+  const { frame } = frameValue;
+  const { delayRender, continueRender, cancelRender } = useDelayRender();
+  const created = useRef(false);
+  const createdHold = useRef(null);
+  useLayoutEffect(() => {
+    if (created.current) return;
+    const handle = delayRender("<ThreeCanvas> creating the WebGL renderer (the canvas needs a non-zero size)");
+    createdHold.current = handle;
+    return () => {
+      createdHold.current = null;
+      continueRender(handle);
+    };
+  }, [delayRender, continueRender]);
+  const handleCreated = useCallback(
+    (state) => {
+      created.current = true;
+      if (createdHold.current !== null) {
+        continueRender(createdHold.current);
+        createdHold.current = null;
+      }
+      onCreated?.(state);
+    },
+    [onCreated, continueRender]
+  );
+  const renderedFrame = useRef(null);
+  const frameHold = useRef(null);
+  const onRendered = useCallback(
+    (renderedAt) => {
+      renderedFrame.current = renderedAt;
+      const hold = frameHold.current;
+      if (hold && hold.frame === renderedAt) {
+        frameHold.current = null;
+        continueRender(hold.handle);
+      }
+    },
+    [continueRender]
+  );
+  useLayoutEffect(() => {
+    if (renderedFrame.current === frame) return;
+    const hold = { frame, handle: delayRender(`<ThreeCanvas> drawing frame ${frame}`) };
+    frameHold.current = hold;
+    return () => {
+      if (frameHold.current === hold) frameHold.current = null;
+      continueRender(hold.handle);
+    };
+  }, [frame, delayRender, continueRender]);
+  const onError = useCallback(
+    (error) => cancelRender(new Error(`<ThreeCanvas>: ${error instanceof Error ? error.message : String(error)}`)),
+    [cancelRender]
+  );
+  return /* @__PURE__ */ jsx(CanvasErrorBoundary, { onError, children: /* @__PURE__ */ jsx(
+    Canvas,
+    {
+      style: { width, height, ...style },
+      ...rest,
+      resize: { offsetSize: true, ...resize },
+      frameloop: "never",
+      onCreated: handleCreated,
+      children: /* @__PURE__ */ jsx(FrameContext.Provider, { value: frameValue, children: /* @__PURE__ */ jsx(GateContext.Provider, { value: gateValue, children: /* @__PURE__ */ jsx(HostContext.Provider, { value: hostValue, children: /* @__PURE__ */ jsx(TimelineContext.Provider, { value: timelineValue, children: /* @__PURE__ */ jsxs(SequenceContext.Provider, { value: sequenceValue, children: [
+        /* @__PURE__ */ jsx(Scale, { width, height }),
+        /* @__PURE__ */ jsxs(Suspense, { fallback: /* @__PURE__ */ jsx(SuspenseHold, {}), children: [
+          children,
+          /* @__PURE__ */ jsx(FrameRenderer, { onRendered })
+        ] })
+      ] }) }) }) }) })
+    }
+  ) });
+};
 var DeterministicScene = ({ images, captions, progress }) => {
   return /* @__PURE__ */ jsxs(Fragment, { children: [
     /* @__PURE__ */ jsx("ambientLight", { intensity: 0.5 }),
@@ -181,6 +338,6 @@ var DitheringEffect = ({
   return /* @__PURE__ */ jsx("div", { className, style: { width: "100%", height: "100%", ...style }, children: /* @__PURE__ */ jsx(Canvas, { orthographic: true, camera: { zoom: 100 }, children: /* @__PURE__ */ jsx(Suspense, { fallback: null, children: /* @__PURE__ */ jsx(DitheringPlane, { src, intensity }) }) }) });
 };
 
-export { DepthGallery3D, DitheringEffect, ShaderImageReveal };
+export { DepthGallery3D, DitheringEffect, ShaderImageReveal, ThreeCanvas };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

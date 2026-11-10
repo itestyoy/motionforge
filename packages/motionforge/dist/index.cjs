@@ -1,117 +1,116 @@
 'use client';'use strict';
 
-var chunkC2TXLM7A_cjs = require('./chunk-C2TXLM7A.cjs');
-var chunk64PBRZLD_cjs = require('./chunk-64PBRZLD.cjs');
-var React2 = require('react');
+var chunk37ZW67WK_cjs = require('./chunk-37ZW67WK.cjs');
+var chunkNJNXF7ZR_cjs = require('./chunk-NJNXF7ZR.cjs');
+var chunkWEQRPTIM_cjs = require('./chunk-WEQRPTIM.cjs');
+var chunkWQ6AZCZD_cjs = require('./chunk-WQ6AZCZD.cjs');
+require('./chunk-SW2AKXWG.cjs');
+var chunkJRWGLEMD_cjs = require('./chunk-JRWGLEMD.cjs');
+var chunk5SQGQMYR_cjs = require('./chunk-5SQGQMYR.cjs');
+var chunkNS6WDBHG_cjs = require('./chunk-NS6WDBHG.cjs');
+var React5 = require('react');
 var jsxRuntime = require('react/jsx-runtime');
+var simplexNoise = require('simplex-noise');
 
 function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
 
-var React2__default = /*#__PURE__*/_interopDefault(React2);
+var React5__default = /*#__PURE__*/_interopDefault(React5);
 
-var requireDom = (fn) => {
+var requireDom = () => {
   if (typeof document === "undefined") {
-    throw new Error(`${fn} needs a browser DOM (document is not defined)`);
+    throw new Error("usePreloadAssets needs a browser DOM (document is not defined)");
   }
 };
-var checkSrc = (fn, src) => {
+var checkSrc2 = (src, index) => {
   if (typeof src !== "string" || src === "") {
-    throw new Error(`${fn}: src must be a non-empty string, got ${JSON.stringify(src)}`);
+    throw new Error(`usePreloadAssets: assets[${index}].src must be a non-empty string, got ${JSON.stringify(src)}`);
   }
 };
-var preloadImage = (src) => {
-  checkSrc("preloadImage", src);
-  requireDom("preloadImage");
+var loadImage = (src) => {
   const image = new Image();
   image.src = src;
   return image.decode().then(
-    () => image,
+    () => void 0,
     () => {
-      throw new Error(`preloadImage: could not load or decode ${src}`);
+      throw new Error(`usePreloadAssets: could not load or decode ${src}`);
     }
   );
 };
-var preloadMedia = (fn, element, src) => {
-  return new Promise((resolve, reject) => {
-    const cleanup = () => {
-      element.removeEventListener("loadeddata", onLoaded);
-      element.removeEventListener("error", onError);
-    };
-    const onLoaded = () => {
-      cleanup();
-      resolve(element);
-    };
-    const onError = () => {
-      cleanup();
-      const detail = element.error ? `: ${element.error.message || `media error code ${element.error.code}`}` : "";
-      reject(new Error(`${fn}: could not load ${src}${detail}`));
-    };
-    element.addEventListener("loadeddata", onLoaded);
-    element.addEventListener("error", onError);
-    element.preload = "auto";
-    element.src = src;
-    element.load();
-  });
-};
-var preloadVideo = (src) => {
-  checkSrc("preloadVideo", src);
-  requireDom("preloadVideo");
+var loadMedia = (element, src) => new Promise((resolve, reject) => {
+  const cleanup = () => {
+    element.removeEventListener("loadeddata", onLoaded);
+    element.removeEventListener("error", onError);
+  };
+  const onLoaded = () => {
+    cleanup();
+    resolve();
+  };
+  const onError = () => {
+    cleanup();
+    const detail = element.error ? `: ${element.error.message || `media error code ${element.error.code}`}` : "";
+    reject(new Error(`usePreloadAssets: could not load ${src}${detail}`));
+  };
+  element.addEventListener("loadeddata", onLoaded);
+  element.addEventListener("error", onError);
+  element.preload = "auto";
+  element.src = src;
+  element.load();
+});
+var loadVideo = (src) => {
   const video = document.createElement("video");
   video.muted = true;
   video.playsInline = true;
-  return preloadMedia("preloadVideo", video, src);
+  return loadMedia(video, src);
 };
-var preloadAudio = (src) => {
-  checkSrc("preloadAudio", src);
-  requireDom("preloadAudio");
-  return preloadMedia("preloadAudio", document.createElement("audio"), src);
+var WEIGHTS = { normal: 400, bold: 700 };
+var toWeight = (weight) => {
+  const value = typeof weight === "number" ? weight : WEIGHTS[weight.trim().toLowerCase()] ?? Number(weight);
+  if (!Number.isFinite(value)) throw new Error(`usePreloadAssets: font weight must be a number, 'normal' or 'bold', got ${JSON.stringify(weight)}`);
+  return value;
 };
-var preloadFont = (family, options = {}) => {
-  if (typeof family !== "string" || family.trim() === "") {
-    throw new Error(`preloadFont: family must be a non-empty string, got ${JSON.stringify(family)}`);
+var coversWeight = (descriptor, weight) => {
+  const [low, high = low] = descriptor.trim().split(/\s+/).map(toWeight);
+  return weight >= low && weight <= high;
+};
+var unquote = (family) => family.trim().replace(/^(['"])(.*)\1$/, "$2").toLowerCase();
+var loadFontFaces = (family, weight, style) => {
+  if (!document.fonts || typeof document.fonts.forEach !== "function") {
+    throw new Error("usePreloadAssets: fonts need the CSS Font Loading API (document.fonts)");
   }
-  requireDom("preloadFont");
-  if (!document.fonts) {
-    throw new Error("preloadFont needs the CSS Font Loading API (document.fonts)");
-  }
-  const weight = String(options.weight ?? 400);
-  const style = options.style ?? "normal";
-  const describe = `${family} ${weight} ${style}`;
-  if (options.source !== void 0) {
-    checkSrc("preloadFont", options.source);
-    const face = new FontFace(family, `url(${JSON.stringify(options.source)})`, { weight, style });
-    return face.load().then(
-      (loaded) => {
-        document.fonts.add(loaded);
-      },
-      () => {
-        throw new Error(`preloadFont: could not load ${describe} from ${options.source}`);
-      }
+  const wanted = unquote(family);
+  const wantedWeight = weight === void 0 ? void 0 : toWeight(weight);
+  const wantedStyle = style?.trim().toLowerCase();
+  const faces = [];
+  document.fonts.forEach((face) => {
+    if (unquote(face.family) !== wanted) return;
+    if (wantedWeight !== void 0 && !coversWeight(face.weight, wantedWeight)) return;
+    if (wantedStyle !== void 0 && face.style.trim().toLowerCase().split(/\s+/)[0] !== wantedStyle) return;
+    faces.push(face);
+  });
+  const describe3 = [family, weight, style].filter((part) => part !== void 0).join(" ");
+  if (faces.length === 0) {
+    return Promise.reject(
+      new Error(`usePreloadAssets: no font face matches ${describe3}; declare it with @font-face or load it with loadFont()`)
     );
   }
-  return document.fonts.load(`${style} ${weight} 16px ${JSON.stringify(family)}`).then(
-    (faces) => {
-      if (faces.length === 0) {
-        throw new Error(`preloadFont: no font face matches ${describe}; declare it with @font-face or pass source`);
-      }
-    },
+  return Promise.all(faces.map((face) => face.load())).then(
+    () => void 0,
     () => {
-      throw new Error(`preloadFont: could not load ${describe}`);
+      throw new Error(`usePreloadAssets: could not load the font ${describe3}`);
     }
   );
 };
-var preloadAsset = (asset) => {
+var loadAsset = (asset) => {
+  requireDom();
   switch (asset.type) {
     case "image":
-      return preloadImage(asset.src);
+      return loadImage(asset.src);
     case "video":
-      return preloadVideo(asset.src);
+      return loadVideo(asset.src);
     case "audio":
-      return preloadAudio(asset.src);
-    case "font": {
-      const { family, ...options } = asset;
-      return preloadFont(family, options);
-    }
+      return loadMedia(document.createElement("audio"), asset.src);
+    case "font":
+      return loadFontFaces(asset.family, asset.weight, asset.style);
   }
 };
 var ASSET_TYPES = ["image", "video", "audio", "font"];
@@ -125,20 +124,27 @@ var checkAssets = (assets) => {
         `usePreloadAssets: assets[${i}] must be { type: 'image' | 'video' | 'audio' | 'font', ... }, got ${JSON.stringify(asset)}`
       );
     }
+    if (asset.type === "font") {
+      if (typeof asset.family !== "string" || asset.family.trim() === "") {
+        throw new Error(`usePreloadAssets: assets[${i}].family must be a non-empty string, got ${JSON.stringify(asset.family)}`);
+      }
+    } else {
+      checkSrc2(asset.src, i);
+    }
   });
 };
 var usePreloadAssets = (assets) => {
   checkAssets(assets);
   const key = JSON.stringify(assets);
-  const { delayRender, continueRender, cancelRender } = chunkC2TXLM7A_cjs.useDelayRender();
-  const [loadedKey, setLoadedKey] = React2.useState(null);
-  const handle = React2.useRef(null);
-  React2.useEffect(() => {
+  const { delayRender, continueRender, cancelRender } = chunkNS6WDBHG_cjs.useDelayRender();
+  const [loadedKey, setLoadedKey] = React5.useState(null);
+  const handle = React5.useRef(null);
+  React5.useEffect(() => {
     const list = JSON.parse(key);
     const current = delayRender(`usePreloadAssets ${list.map((a) => a.type === "font" ? a.family : a.src).join(", ")}`);
     handle.current = current;
     let active = true;
-    Promise.resolve().then(() => Promise.all(list.map(preloadAsset))).then(
+    Promise.resolve().then(() => Promise.all(list.map(loadAsset))).then(
       () => {
         if (active) setLoadedKey(key);
       },
@@ -154,7 +160,7 @@ var usePreloadAssets = (assets) => {
       handle.current = null;
     };
   }, [key, delayRender, continueRender, cancelRender]);
-  React2.useEffect(() => {
+  React5.useEffect(() => {
     if (loadedKey === key && handle.current !== null) {
       continueRender(handle.current);
       handle.current = null;
@@ -162,15 +168,208 @@ var usePreloadAssets = (assets) => {
   }, [loadedKey, key, continueRender]);
   return loadedKey === key;
 };
-var CompositionContext = React2.createContext(null);
+
+// src/core/fonts.ts
+var FORMATS = ["woff2", "woff", "opentype", "truetype"];
+var DESCRIPTORS = [
+  "ascentOverride",
+  "descentOverride",
+  "display",
+  "featureSettings",
+  "lineGapOverride",
+  "stretch",
+  "style",
+  "unicodeRange",
+  "variant",
+  "weight"
+];
+var loads = /* @__PURE__ */ new Map();
+var handled = (promise) => {
+  promise.catch(() => void 0);
+  return promise;
+};
+var loadFont = (options) => {
+  if (typeof options !== "object" || options === null) {
+    throw new TypeError(`loadFont: expects an options object { family, url, ... }, got ${JSON.stringify(options)}`);
+  }
+  const { family, url, format: format2 } = options;
+  if (typeof family !== "string" || family.trim() === "") {
+    throw new TypeError(`loadFont: family must be a non-empty string, got ${JSON.stringify(family)}`);
+  }
+  if (typeof url !== "string" || url === "") {
+    throw new TypeError(`loadFont: url must be a non-empty string, got ${JSON.stringify(url)}`);
+  }
+  if (format2 !== void 0 && !FORMATS.includes(format2)) {
+    throw new TypeError(`loadFont: format must be one of ${FORMATS.join(", ")}, got ${JSON.stringify(format2)}`);
+  }
+  for (const key2 of DESCRIPTORS) {
+    if (options[key2] !== void 0 && typeof options[key2] !== "string") {
+      throw new TypeError(`loadFont: ${key2} must be a string (a CSS @font-face value), got ${JSON.stringify(options[key2])}`);
+    }
+  }
+  if (typeof document === "undefined" || !document.fonts || typeof FontFace === "undefined") {
+    return handled(Promise.reject(new Error("loadFont needs a browser DOM with the CSS Font Loading API (document.fonts)")));
+  }
+  const key = JSON.stringify([family, url, format2, ...DESCRIPTORS.map((d) => options[d])]);
+  const existing = loads.get(key);
+  if (existing) return existing;
+  const descriptors = {};
+  for (const name of DESCRIPTORS) {
+    if (options[name] !== void 0) descriptors[name] = options[name];
+  }
+  const source = `url(${JSON.stringify(url)})${format2 ? ` format(${JSON.stringify(format2)})` : ""}`;
+  const hold = chunkNS6WDBHG_cjs.holdAllGates(`loadFont() ${family} from ${url}`);
+  const load = Promise.resolve().then(() => new FontFace(family, source, descriptors).load()).then(
+    (face) => {
+      document.fonts.add(face);
+      hold.release();
+    },
+    (cause) => {
+      const error = new Error(
+        `loadFont: could not load ${family} from ${url}${cause instanceof Error && cause.message ? `: ${cause.message}` : ""}`
+      );
+      hold.fail(error);
+      throw error;
+    }
+  );
+  loads.set(key, load);
+  return handled(load);
+};
+var useInputWindow = (hook) => {
+  const host = React5.useContext(chunkNS6WDBHG_cjs.HostContext);
+  const timeline = React5.useContext(chunkNS6WDBHG_cjs.TimelineContext);
+  const frameContext = React5.useContext(chunkNS6WDBHG_cjs.FrameContext);
+  if (!host || !timeline || !frameContext) {
+    throw new Error(`${hook} must be used within a FrameProvider`);
+  }
+  const log = host.input;
+  const { offset } = timeline;
+  const { frame } = frameContext;
+  const first = chunkNS6WDBHG_cjs.firstAtOrAfter(log, offset);
+  const end = Math.max(first, chunkNS6WDBHG_cjs.firstAfter(log, offset + frame));
+  return { log, offset, first, end, frame };
+};
+var toLocal = (event, offset) => offset === 0 ? event : { ...event, frame: event.frame - offset };
+var useInputEvents = () => {
+  const { log, offset, first, end } = useInputWindow("useInputEvents");
+  return React5.useMemo(
+    () => Object.freeze(log.slice(first, end).map((event) => toLocal(event, offset))),
+    [log, offset, first, end]
+  );
+};
+var useEmitInput = () => {
+  const host = React5.useContext(chunkNS6WDBHG_cjs.HostContext);
+  if (!host) {
+    throw new Error("useEmitInput must be used within a FrameProvider");
+  }
+  return host.emit;
+};
+var useReducedState = (reducer, initialState) => {
+  if (typeof reducer !== "function") {
+    throw new Error(`useReducedState: reducer must be a function (state, event) => state, got ${JSON.stringify(reducer)}`);
+  }
+  const { log, offset, first, end } = useInputWindow("useReducedState");
+  const cache = React5.useRef(null);
+  let current = cache.current;
+  const folded = current ? current.states.length - 1 : 0;
+  const valid = current !== null && current.offset === offset && current.first === first && (current.log === log || chunkNS6WDBHG_cjs.isAppendOf(current.log, log) && (folded === 0 || log[first + folded - 1] === current.log[first + folded - 1]));
+  if (!valid || current === null) {
+    current = { log, offset, first, states: [initialState] };
+    cache.current = current;
+  }
+  current.log = log;
+  const { states } = current;
+  while (states.length - 1 < end - first) {
+    const index = first + states.length - 1;
+    states.push(reducer(states[states.length - 1], toLocal(log[index], offset)));
+  }
+  return states[end - first];
+};
+var useLastEvent = (predicate) => {
+  if (predicate !== void 0 && typeof predicate !== "function") {
+    throw new Error(`useLastEvent: predicate must be a function (event) => boolean, got ${JSON.stringify(predicate)}`);
+  }
+  const { log, offset, first, end, frame } = useInputWindow("useLastEvent");
+  for (let i = end - 1; i >= first; i--) {
+    const event = toLocal(log[i], offset);
+    if (!predicate || predicate(event)) return { event, framesSince: frame - event.frame };
+  }
+  return null;
+};
+var useStaticFile = () => {
+  const host = React5.useContext(chunkNS6WDBHG_cjs.HostContext);
+  if (!host) {
+    throw new Error("useStaticFile must be used within a FrameProvider");
+  }
+  return host.staticFiles ?? chunkNS6WDBHG_cjs.noStaticFiles;
+};
+
+// src/utils/fit-rect.ts
+var FITS = ["contain", "cover", "fill", "none", "scale-down"];
+var describe = (value) => {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
+};
+var checkSize = (name, size) => {
+  const { width, height } = size ?? {};
+  for (const [key, value] of [["width", width], ["height", height]]) {
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+      throw new Error(`fitRect: ${name}.${key} must be a positive number, got ${describe(value)}`);
+    }
+  }
+};
+var checkFinite = (name, value) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`fitRect: ${name} must be a finite number, got ${describe(value)}`);
+  }
+};
+var fitRect = (container, content, fit, anchor = { x: 0.5, y: 0.5 }) => {
+  checkSize("container", container);
+  checkSize("content", content);
+  if (!FITS.includes(fit)) {
+    throw new Error(`fitRect: fit must be one of ${FITS.map((f) => `'${f}'`).join(", ")}, got ${describe(fit)}`);
+  }
+  const { x: left = 0, y: top = 0 } = container;
+  checkFinite("container.x", left);
+  checkFinite("container.y", top);
+  if (typeof anchor !== "object" || anchor === null) {
+    throw new Error(`fitRect: anchor must be { x, y } (0 left/top, 0.5 centre, 1 right/bottom), got ${describe(anchor)}`);
+  }
+  checkFinite("anchor.x", anchor.x);
+  checkFinite("anchor.y", anchor.y);
+  let scaleX2;
+  let scaleY2;
+  if (fit === "fill") {
+    scaleX2 = container.width / content.width;
+    scaleY2 = container.height / content.height;
+  } else {
+    const contain = Math.min(container.width / content.width, container.height / content.height);
+    const scale2 = fit === "contain" ? contain : fit === "cover" ? Math.max(container.width / content.width, container.height / content.height) : fit === "none" ? 1 : Math.min(1, contain);
+    scaleX2 = scale2;
+    scaleY2 = scale2;
+  }
+  const width = scaleX2 === container.width / content.width ? container.width : content.width * scaleX2;
+  const height = scaleY2 === container.height / content.height ? container.height : content.height * scaleY2;
+  return {
+    x: left + (container.width - width) * anchor.x,
+    y: top + (container.height - height) * anchor.y,
+    width,
+    height,
+    scaleX: scaleX2,
+    scaleY: scaleY2
+  };
+};
+var CompositionContext = React5.createContext(null);
 var useComposition = () => {
-  const context = React2.useContext(CompositionContext);
+  const context = React5.useContext(CompositionContext);
   if (!context) {
     throw new Error("useComposition must be used within a Composition");
   }
   return context;
 };
-var useVideoConfig2 = () => chunk64PBRZLD_cjs.useVideoConfig();
 var Composition = ({
   id,
   component: Component,
@@ -180,7 +379,11 @@ var Composition = ({
   fps = 30,
   durationInFrames,
   defaultProps = {},
-  gate
+  gate,
+  audio,
+  staticFiles,
+  input,
+  onInput
 }) => {
   return /* @__PURE__ */ jsxRuntime.jsx(
     CompositionContext.Provider,
@@ -190,7 +393,7 @@ var Composition = ({
         config: { width, height, fps, durationInFrames }
       },
       children: /* @__PURE__ */ jsxRuntime.jsx(
-        chunk64PBRZLD_cjs.FrameProvider,
+        chunkNS6WDBHG_cjs.FrameProvider,
         {
           frame,
           fps,
@@ -198,613 +401,201 @@ var Composition = ({
           width,
           height,
           gate,
+          audio,
+          staticFiles,
+          input,
+          onInput,
           children: /* @__PURE__ */ jsxRuntime.jsx(Component, { ...defaultProps })
         }
       )
     }
   );
 };
-var SequenceContext = React2.createContext({
-  relativeFrom: 0,
-  isActive: true,
-  isPremounted: false,
-  startFrame: 0,
-  endFrame: Infinity
-});
-var useSequence = () => React2.useContext(SequenceContext);
-var Sequence = ({
-  from,
-  durationInFrames,
-  offset = 0,
-  name,
-  children,
-  layout = "absolute-fill",
-  premountFor = 0
-}) => {
-  const currentFrame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const parent = React2.useContext(chunk64PBRZLD_cjs.FrameContext);
-  const parentGate = React2.useContext(chunk64PBRZLD_cjs.GateContext);
-  if (!Number.isInteger(from)) {
-    throw new Error(`Sequence: from must be an integer, got ${from}`);
-  }
-  if (!Number.isInteger(offset)) {
-    throw new Error(`Sequence: offset must be an integer, got ${offset}`);
-  }
-  if (durationInFrames !== void 0 && (!Number.isInteger(durationInFrames) || durationInFrames <= 0)) {
+
+// src/components/animated-image/decoder.ts
+var COMPONENT = "<AnimatedImage>";
+var openAnimatedImage = async (src, requestInit, signal) => {
+  if (typeof ImageDecoder === "undefined") {
     throw new Error(
-      `Sequence: durationInFrames must be a positive integer (leave it out to run to the end), got ${durationInFrames}`
+      `${COMPONENT} needs the WebCodecs ImageDecoder API, which this browser does not have (Chromium-based browsers and Firefox have it, Safari does not). For a GIF, use <Gif> from 'motionforge/gif', which decodes in JavaScript.`
     );
   }
-  if (!Number.isInteger(premountFor) || premountFor < 0) {
-    throw new Error(`Sequence: premountFor must be a non-negative integer, got ${premountFor}`);
+  const response = await chunk5SQGQMYR_cjs.fetchAsset(COMPONENT, src, requestInit, signal);
+  const type = response.headers.get("Content-Type")?.split(";")[0].trim() || "image/gif";
+  if (!await ImageDecoder.isTypeSupported(type)) {
+    throw new Error(`${COMPONENT} cannot decode ${src}: this browser's ImageDecoder does not support "${type}"`);
   }
-  if (premountFor > 0 && layout === "none") {
-    throw new Error('Sequence: premountFor needs layout="absolute-fill" (the wrapper hides the premounted content)');
-  }
-  const startFrame = from + offset;
-  const endFrame = durationInFrames !== void 0 ? startFrame + durationInFrames : Infinity;
-  const isActive = currentFrame >= startFrame && currentFrame < endFrame;
-  const isPremounted = !isActive && currentFrame >= startFrame - premountFor && currentFrame < startFrame;
-  const relativeFrame = isPremounted ? 0 : currentFrame - startFrame;
-  const [scope] = React2.useState(() => ({ visible: !isPremounted, parent: parentGate?.scope ?? null }));
-  React2.useEffect(() => {
-    if (!parentGate || scope.visible === !isPremounted) return;
-    scope.visible = !isPremounted;
-    chunk64PBRZLD_cjs.getGateInternals(parentGate.gate).changed();
-  }, [isPremounted, parentGate, scope]);
-  const gateValue = React2.useMemo(
-    () => parentGate && premountFor > 0 ? { gate: parentGate.gate, scope } : parentGate,
-    [parentGate, premountFor, scope]
-  );
-  const contextValue = {
-    relativeFrom: startFrame,
-    durationInFrames,
-    isActive,
-    isPremounted,
-    startFrame,
-    endFrame
-  };
-  if (!isActive && !isPremounted) {
-    return null;
-  }
-  const localDuration = durationInFrames ?? (parent ? parent.durationInFrames - startFrame : void 0);
-  const content = /* @__PURE__ */ jsxRuntime.jsx(chunk64PBRZLD_cjs.GateContext.Provider, { value: gateValue, children: /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame, durationInFrames: localDuration, children }) });
-  if (layout === "none") {
-    return /* @__PURE__ */ jsxRuntime.jsx(SequenceContext.Provider, { value: contextValue, children: content });
-  }
-  return /* @__PURE__ */ jsxRuntime.jsx(SequenceContext.Provider, { value: contextValue, children: /* @__PURE__ */ jsxRuntime.jsx(
-    "div",
-    {
-      "data-sequence-name": name,
-      "data-sequence-from": startFrame,
-      "data-sequence-duration": durationInFrames,
-      style: {
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        display: "flex",
-        flexDirection: "column",
-        ...isPremounted ? { opacity: 0, pointerEvents: "none" } : null
-      },
-      children: content
+  const decoder = new ImageDecoder({ data: response.body ?? await response.arrayBuffer(), type });
+  try {
+    await Promise.all([decoder.completed, decoder.tracks.ready]);
+    const track = decoder.tracks.selectedTrack;
+    if (!track || track.frameCount < 1) {
+      throw new Error(`${COMPONENT} found no image frames in ${src}`);
     }
-  ) });
-};
-var SequenceFrameProvider = ({
-  relativeFrame,
-  durationInFrames,
-  children
-}) => {
-  const parent = React2.useContext(chunk64PBRZLD_cjs.FrameContext);
-  const frameValue = React2.useMemo(
-    () => parent ? {
-      ...parent,
-      frame: relativeFrame,
-      durationInFrames: durationInFrames ?? parent.durationInFrames
-    } : null,
-    [parent, relativeFrame, durationInFrames]
-  );
-  return /* @__PURE__ */ jsxRuntime.jsx(chunk64PBRZLD_cjs.FrameContext.Provider, { value: frameValue, children: /* @__PURE__ */ jsxRuntime.jsx(RelativeFrameContext.Provider, { value: relativeFrame, children }) });
-};
-var RelativeFrameContext = React2.createContext(null);
-var useRelativeCurrentFrame = () => React2.useContext(RelativeFrameContext);
-var checkFrameNotNegative = (component, frame) => {
-  if (frame < 0) {
-    throw new Error(`${component}: the current frame must be >= 0, got ${frame} (a parent shifted it below 0)`);
-  }
-};
-var Loop = ({
-  durationInFrames,
-  times = Infinity,
-  children
-}) => {
-  const currentFrame = chunk64PBRZLD_cjs.useCurrentFrame();
-  if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
-    throw new Error(`Loop: durationInFrames must be a positive integer, got ${durationInFrames}`);
-  }
-  if (times !== Infinity && (!Number.isInteger(times) || times <= 0)) {
-    throw new Error(`Loop: times must be a positive integer or Infinity, got ${times}`);
-  }
-  checkFrameNotNegative("Loop", currentFrame);
-  const totalFrames = times === Infinity ? durationInFrames : durationInFrames * times;
-  const loopedFrame = currentFrame % durationInFrames;
-  const currentLoop = Math.floor(currentFrame / durationInFrames);
-  if (times !== Infinity && currentFrame >= totalFrames) {
-    return null;
-  }
-  return /* @__PURE__ */ jsxRuntime.jsx(LoopContext.Provider, { value: { loopedFrame, currentLoop, durationInFrames }, children: /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame: loopedFrame, durationInFrames, children }) });
-};
-var LoopContext = React2.createContext({
-  loopedFrame: 0,
-  currentLoop: 0,
-  durationInFrames: 0
-});
-var useLoopInfo = () => React2.useContext(LoopContext);
-var Freeze = ({
-  frame: frozenFrame,
-  active = true,
-  children
-}) => {
-  const currentFrame = chunk64PBRZLD_cjs.useCurrentFrame();
-  if (!Number.isInteger(frozenFrame)) {
-    throw new Error(`Freeze: frame must be an integer, got ${frozenFrame}`);
-  }
-  if (typeof active !== "boolean" && typeof active !== "function") {
-    throw new Error(`Freeze: active must be a boolean or a function of the frame, got ${active}`);
-  }
-  const isActive = typeof active === "function" ? active(currentFrame) : active;
-  if (typeof isActive !== "boolean") {
-    throw new Error(`Freeze: active(${currentFrame}) must return a boolean, got ${isActive}`);
-  }
-  return /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame: isActive ? frozenFrame : currentFrame, children });
-};
-var checkRate = (rate, frame) => {
-  if (typeof rate !== "number" || !Number.isFinite(rate)) {
-    throw new Error(`Retiming: playbackRate must be a finite number, got ${rate} at frame ${frame}`);
-  }
-  return rate;
-};
-var cumulativeTables = /* @__PURE__ */ new WeakMap();
-var cumulativeRate = (rate, frame) => {
-  const whole = Math.floor(frame);
-  const partial = frame - whole === 0 ? 0 : (frame - whole) * checkRate(rate(whole), whole);
-  if (whole < 0) {
-    let sum = 0;
-    for (let i = whole; i < 0; i++) sum -= checkRate(rate(i), i);
-    return sum + partial;
-  }
-  let table = cumulativeTables.get(rate);
-  if (!table) {
-    table = [0];
-    cumulativeTables.set(rate, table);
-  }
-  for (let n = table.length; n <= whole; n++) {
-    table.push(table[n - 1] + checkRate(rate(n - 1), n - 1));
-  }
-  return table[whole] + partial;
-};
-var Retiming = ({
-  children,
-  playbackRate
-}) => {
-  const currentFrame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const retimedFrame = typeof playbackRate === "function" ? Math.floor(cumulativeRate(playbackRate, currentFrame)) : Math.floor(currentFrame * checkRate(playbackRate, currentFrame));
-  return /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame: retimedFrame, children });
-};
-var Reverse = ({
-  children,
-  durationInFrames
-}) => {
-  const currentFrame = chunk64PBRZLD_cjs.useCurrentFrame();
-  if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
-    throw new Error(`Reverse: durationInFrames must be a positive integer, got ${durationInFrames}`);
-  }
-  checkFrameNotNegative("Reverse", currentFrame);
-  const reversedFrame = durationInFrames - 1 - currentFrame % durationInFrames;
-  return /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame: reversedFrame, durationInFrames, children });
-};
-var SeriesSequence = () => {
-  throw new Error("<Series.Sequence> must be a direct child of <Series>");
-};
-var describeChild = (child) => {
-  if (typeof child === "string") return `the string ${JSON.stringify(child)}`;
-  if (React2__default.default.isValidElement(child)) {
-    const type = child.type;
-    const name = typeof type === "string" ? type : type.displayName ?? type.name ?? "Component";
-    return `<${name}>`;
-  }
-  return String(child);
-};
-var flattenChildren = (children, prefix = "") => React2__default.default.Children.toArray(children).flatMap((child, index) => {
-  const key = `${prefix}${React2__default.default.isValidElement(child) && child.key !== null ? child.key : index}`;
-  if (React2__default.default.isValidElement(child) && child.type === React2__default.default.Fragment) {
-    return flattenChildren(child.props.children, `${key}/`);
-  }
-  return [{ key, child }];
-});
-var SeriesRoot = ({ children }) => {
-  let start = 0;
-  const sequences = flattenChildren(children).map(({ key, child }, index) => {
-    if (typeof child === "string" && child.trim() === "") return null;
-    if (!React2__default.default.isValidElement(child) || child.type !== SeriesSequence) {
-      throw new Error(`Series: children must be <Series.Sequence> elements, got ${describeChild(child)} at index ${index}`);
+    const starts = [];
+    let durationUs = 0;
+    for (let frameIndex = 0; frameIndex < track.frameCount; frameIndex++) {
+      const { image } = await decoder.decode({ frameIndex, completeFramesOnly: true });
+      starts.push(image.timestamp);
+      if (!image.duration) durationUs = null;
+      else if (durationUs !== null) durationUs = image.timestamp + image.duration;
+      image.close();
     }
-    const { durationInFrames, offset = 0, name, layout, premountFor, children: content } = child.props;
-    if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
-      throw new Error(
-        `Series.Sequence: durationInFrames must be a positive integer, got ${durationInFrames} at index ${index}`
-      );
-    }
-    if (!Number.isInteger(offset)) {
-      throw new Error(`Series.Sequence: offset must be an integer, got ${offset} at index ${index}`);
-    }
-    const from = start + offset;
-    start = from + durationInFrames;
-    return /* @__PURE__ */ jsxRuntime.jsx(
-      Sequence,
-      {
-        from,
-        durationInFrames,
-        name,
-        layout,
-        premountFor,
-        children: content
-      },
-      key
-    );
-  });
-  return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: sequences });
-};
-var Series = Object.assign(SeriesRoot, { Sequence: SeriesSequence });
-var AbsoluteFill = ({
-  children,
-  style,
-  className
-}) => {
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    "div",
-    {
-      className,
-      style: {
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        ...style
-      },
-      children
-    }
-  );
-};
-var useElementRef = (callerRef) => {
-  const ref = React2.useRef(null);
-  const setRef = React2.useCallback(
-    (element) => {
-      ref.current = element;
-      if (typeof callerRef === "function") callerRef(element);
-      else if (callerRef && typeof callerRef === "object") callerRef.current = element;
-    },
-    [callerRef]
-  );
-  return [ref, setRef];
-};
-var getMediaTime = (frame, fps, startFrom, playbackRate) => (startFrom + frame * playbackRate) / fps;
-var needsSeek = (currentTime, targetTime, fps) => Math.abs(currentTime - targetTime) > 0.5 / fps;
-var Video = ({
-  src,
-  startFrom = 0,
-  endAt,
-  volume = 1,
-  playbackRate = 1,
-  muted = true,
-  style,
-  pauseOnFrame = true,
-  ...props
-}) => {
-  const [videoRef, setVideoRef] = useElementRef(props.ref);
-  const currentFrame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { fps } = chunk64PBRZLD_cjs.useVideoConfig();
-  const { delayRender, continueRender, cancelRender } = chunkC2TXLM7A_cjs.useDelayRender();
-  React2.useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const handle = delayRender(`<Video> ${src} at frame ${currentFrame}`);
-    let settled = false;
-    const removeListeners = () => {
-      video.removeEventListener("loadeddata", sync);
-      video.removeEventListener("seeked", done);
-      video.removeEventListener("error", fail);
+    return {
+      frameCount: track.frameCount,
+      starts,
+      durationUs: track.frameCount > 1 ? durationUs : null,
+      decode: (frameIndex) => decoder.decode({ frameIndex, completeFramesOnly: true }).then((result) => result.image),
+      close: () => decoder.close()
     };
-    function done() {
-      if (settled) return;
-      settled = true;
-      removeListeners();
-      continueRender(handle);
-    }
-    function fail() {
-      if (settled) return;
-      settled = true;
-      removeListeners();
-      const detail = video.error ? `: ${video.error.message || `media error code ${video.error.code}`}` : "";
-      cancelRender(new Error(`<Video> could not load ${src}${detail}`));
-      continueRender(handle);
-    }
-    function sync() {
-      video.removeEventListener("loadeddata", sync);
-      const time = getMediaTime(currentFrame, fps, startFrom, playbackRate);
-      if (needsSeek(video.currentTime, time, fps)) {
-        video.addEventListener("seeked", done);
-        video.currentTime = time;
-      } else {
-        done();
-      }
-    }
-    video.addEventListener("error", fail);
-    if (video.error) {
-      fail();
-    } else if (video.readyState >= 2) {
-      sync();
-    } else {
-      video.addEventListener("loadeddata", sync);
-    }
-    return () => {
-      removeListeners();
-      if (!settled) {
-        settled = true;
+  } catch (error) {
+    decoder.close();
+    if (error instanceof Error && (error.name === "AbortError" || error.message.startsWith(COMPONENT))) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${COMPONENT} could not decode ${src}: ${message}`);
+  }
+};
+var getAnimatedImageFrameIndex = (track, timeInSeconds, loopBehavior) => {
+  const { starts, durationUs } = track;
+  if (durationUs === null || starts.length === 1) return 0;
+  let time = timeInSeconds * 1e6;
+  if (loopBehavior === "loop") {
+    time = (time % durationUs + durationUs) % durationUs;
+  } else if (time >= durationUs) {
+    return loopBehavior === "pause-after-finish" ? starts.length - 1 : null;
+  }
+  let low = 0;
+  let high = starts.length - 1;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (starts[mid] <= time) low = mid;
+    else high = mid - 1;
+  }
+  return low;
+};
+var LOOP_BEHAVIORS = ["loop", "pause-after-finish", "clear-after-finish"];
+var AnimatedImage = React5.forwardRef((props, ref) => {
+  chunk5SQGQMYR_cjs.rejectProps("<AnimatedImage>", props, { ...chunk5SQGQMYR_cjs.SEQUENCE_PROPS, ...chunk5SQGQMYR_cjs.CROP_AND_EFFECT_PROPS });
+  const {
+    src,
+    width,
+    height,
+    onError,
+    fit = "fill",
+    playbackRate = 1,
+    loopBehavior = "loop",
+    requestInit,
+    ...canvasProps
+  } = props;
+  chunk5SQGQMYR_cjs.checkSrc("<AnimatedImage>", src);
+  chunkNJNXF7ZR_cjs.checkImageProps("<AnimatedImage>", { fit, width, height, playbackRate });
+  if (!LOOP_BEHAVIORS.includes(loopBehavior)) {
+    throw new Error(
+      `<AnimatedImage>: loopBehavior must be 'loop', 'pause-after-finish' or 'clear-after-finish', got ${JSON.stringify(loopBehavior)}`
+    );
+  }
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const time = chunkNJNXF7ZR_cjs.mediaTimeInSeconds(frame, fps, playbackRate);
+  const { delayRender, continueRender, cancelRender } = chunkNS6WDBHG_cjs.useDelayRender();
+  const canvasRef = React5.useRef(null);
+  React5.useImperativeHandle(ref, () => canvasRef.current, []);
+  const requestInitRef = React5.useRef(requestInit);
+  requestInitRef.current = requestInit;
+  const onErrorRef = React5.useRef(onError);
+  onErrorRef.current = onError;
+  const fail = React5.useCallback(
+    (error) => {
+      const asError = error instanceof Error ? error : new Error(String(error));
+      if (onErrorRef.current) onErrorRef.current(asError);
+      else cancelRender(asError);
+    },
+    [cancelRender]
+  );
+  const resolvedSrc = chunk5SQGQMYR_cjs.resolveSrc(src);
+  const key = `${resolvedSrc} ${chunk5SQGQMYR_cjs.serializeRequestInit(requestInit)}`;
+  const [loaded, setLoaded] = React5.useState(null);
+  const current = loaded !== null && loaded.key === key ? loaded : null;
+  React5.useEffect(() => {
+    const handle = delayRender(`<AnimatedImage> loading ${src}`);
+    const controller = new AbortController();
+    let active = true;
+    let track = null;
+    openAnimatedImage(resolvedSrc, requestInitRef.current, controller.signal).then(
+      (opened) => {
+        if (!active) {
+          opened.close();
+          return;
+        }
+        track = opened;
+        setLoaded({ key, track: opened, handle });
+      },
+      (error) => {
+        if (!active) return;
+        fail(error);
         continueRender(handle);
       }
-    };
-  }, [currentFrame, fps, startFrom, playbackRate, src, delayRender, continueRender, cancelRender]);
-  React2.useEffect(() => {
-    if (videoRef.current) {
-      const vol = typeof volume === "function" ? volume(currentFrame) : volume;
-      videoRef.current.volume = Math.max(0, Math.min(1, vol));
-    }
-  }, [currentFrame, volume]);
-  React2.useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.playbackRate = playbackRate;
-    }
-  }, [playbackRate]);
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    "video",
-    {
-      src,
-      muted,
-      playsInline: true,
-      style: {
-        width: "100%",
-        height: "100%",
-        objectFit: "cover",
-        ...style
-      },
-      ...props,
-      ref: setVideoRef
-    }
-  );
-};
-var Audio = ({
-  src,
-  startFrom = 0,
-  endAt,
-  volume = 1,
-  playbackRate = 1,
-  muted = false,
-  onLoadedData,
-  ...props
-}) => {
-  const audioRef = React2.useRef(null);
-  const currentFrame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { fps } = chunk64PBRZLD_cjs.useVideoConfig();
-  const [loaded, setLoaded] = React2.useState(false);
-  React2.useEffect(() => {
-    if (audioRef.current && loaded) {
-      const time = getMediaTime(currentFrame, fps, startFrom, playbackRate);
-      if (needsSeek(audioRef.current.currentTime, time, fps)) {
-        audioRef.current.currentTime = time;
-      }
-    }
-  }, [currentFrame, fps, startFrom, playbackRate, loaded]);
-  React2.useEffect(() => {
-    if (audioRef.current) {
-      const vol = typeof volume === "function" ? volume(currentFrame) : volume;
-      audioRef.current.volume = Math.max(0, Math.min(1, vol));
-    }
-  }, [currentFrame, volume]);
-  React2.useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.playbackRate = playbackRate;
-    }
-  }, [playbackRate]);
-  const handleLoadedData = (event) => {
-    setLoaded(true);
-    onLoadedData?.(event);
-  };
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    "audio",
-    {
-      ref: audioRef,
-      src,
-      muted,
-      ...props,
-      onLoadedData: handleLoadedData
-    }
-  );
-};
-var Img = ({
-  src,
-  style,
-  startFrom,
-  endAt,
-  ...props
-}) => {
-  const currentFrame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const [imageRef, setImageRef] = useElementRef(props.ref);
-  const { delayRender, continueRender, cancelRender } = chunkC2TXLM7A_cjs.useDelayRender();
-  const shown = !(startFrom !== void 0 && currentFrame < startFrom) && !(endAt !== void 0 && currentFrame > endAt);
-  React2.useEffect(() => {
-    const image = imageRef.current;
-    if (!shown || !image) return;
-    const handle = delayRender(`<Img> ${src}`);
-    let active = true;
-    const settle = (error) => {
-      if (!active) return;
+    );
+    return () => {
       active = false;
-      if (error) cancelRender(error);
+      controller.abort();
+      track?.close();
       continueRender(handle);
     };
-    if (typeof image.decode !== "function") {
-      settle(new Error("<Img> needs HTMLImageElement.decode() to know when the image is ready"));
-    } else {
-      image.decode().then(
-        () => settle(),
-        () => settle(new Error(`<Img> could not load or decode ${src}`))
-      );
+  }, [key, delayRender, continueRender, fail]);
+  React5.useEffect(() => {
+    if (!current) return;
+    const handle = delayRender(`<AnimatedImage> ${src} at ${time}s`);
+    continueRender(current.handle);
+    let active = true;
+    const canvas = canvasRef.current;
+    const index = getAnimatedImageFrameIndex(current.track, time, loopBehavior);
+    if (index === null || !canvas) {
+      canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+      continueRender(handle);
+      return;
     }
-    return () => settle();
-  }, [src, shown, delayRender, continueRender, cancelRender]);
-  if (!shown) {
-    return null;
-  }
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    "img",
-    {
-      src,
-      alt: "",
-      style: {
-        width: "100%",
-        height: "100%",
-        objectFit: "cover",
-        ...style
+    current.track.decode(index).then(
+      (image) => {
+        try {
+          if (!active) return;
+          const context = canvas.getContext("2d");
+          if (!context) throw new Error("<AnimatedImage> could not get a 2D context for its canvas");
+          const canvasWidth = width ?? image.displayWidth;
+          const canvasHeight = height ?? image.displayHeight;
+          if (canvas.width !== canvasWidth) canvas.width = canvasWidth;
+          if (canvas.height !== canvasHeight) canvas.height = canvasHeight;
+          context.clearRect(0, 0, canvasWidth, canvasHeight);
+          context.drawImage(
+            image,
+            ...chunkNJNXF7ZR_cjs.calculateImageFit(
+              fit,
+              { width: image.displayWidth, height: image.displayHeight },
+              { width: canvasWidth, height: canvasHeight }
+            )
+          );
+          continueRender(handle);
+        } catch (error) {
+          fail(error);
+          continueRender(handle);
+        } finally {
+          image.close();
+        }
       },
-      ...props,
-      ref: setImageRef
-    }
-  );
-};
-var staticFile = (path) => {
-  return `/static/${path}`;
-};
-var Text = ({
-  children,
-  style,
-  className
-}) => {
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    "div",
-    {
-      className,
-      style: {
-        display: "inline-block",
-        ...style
-      },
-      children
-    }
-  );
-};
-var SVG = ({
-  width = "100%",
-  height = "100%",
-  viewBox = "0 0 100 100",
-  children,
-  style
-}) => {
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    "svg",
-    {
-      width,
-      height,
-      viewBox,
-      style: {
-        overflow: "visible",
-        ...style
-      },
-      children
-    }
-  );
-};
-var Rect = ({
-  width,
-  height,
-  x = 0,
-  y = 0,
-  rx = 0,
-  ry = 0,
-  fill = "black",
-  stroke,
-  strokeWidth,
-  style
-}) => {
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    "rect",
-    {
-      x,
-      y,
-      width,
-      height,
-      rx,
-      ry,
-      fill,
-      stroke,
-      strokeWidth,
-      style
-    }
-  );
-};
-var Circle = ({
-  r,
-  cx = 0,
-  cy = 0,
-  fill = "black",
-  stroke,
-  strokeWidth,
-  style
-}) => {
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    "circle",
-    {
-      cx,
-      cy,
-      r,
-      fill,
-      stroke,
-      strokeWidth,
-      style
-    }
-  );
-};
-var Path = ({
-  d,
-  fill = "black",
-  stroke,
-  strokeWidth,
-  style
-}) => {
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    "path",
-    {
-      d,
-      fill,
-      stroke,
-      strokeWidth,
-      style
-    }
-  );
-};
-var G = ({
-  children,
-  transform,
-  style
-}) => {
-  return /* @__PURE__ */ jsxRuntime.jsx("g", { transform, style, children });
-};
+      (error) => {
+        if (!active) return;
+        fail(new Error(`<AnimatedImage> could not decode frame ${index} of ${src}: ${error instanceof Error ? error.message : error}`));
+        continueRender(handle);
+      }
+    );
+    return () => {
+      active = false;
+      continueRender(handle);
+    };
+  }, [current, time, loopBehavior, fit, width, height, src, delayRender, continueRender, fail]);
+  return /* @__PURE__ */ jsxRuntime.jsx("canvas", { ref: canvasRef, width, height, ...canvasProps });
+});
+AnimatedImage.displayName = "AnimatedImage";
 var HyperFrame = ({
   html,
   css,
@@ -813,11 +604,11 @@ var HyperFrame = ({
   className,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { width, height, fps } = chunk64PBRZLD_cjs.useVideoConfig();
-  const iframeRef = React2.useRef(null);
-  const isLoadedRef = React2.useRef(false);
-  React2.useEffect(() => {
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { width, height, fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const iframeRef = React5.useRef(null);
+  const isLoadedRef = React5.useRef(false);
+  React5.useEffect(() => {
     if (!iframeRef.current) return;
     const doc = `
       <!DOCTYPE html>
@@ -863,7 +654,7 @@ var HyperFrame = ({
     iframeRef.current.srcdoc = doc;
     isLoadedRef.current = false;
   }, [html, css, js, width, height, frameVariableName]);
-  React2.useEffect(() => {
+  React5.useEffect(() => {
     const handleMessage = (event) => {
       if (event.data === "hyperframe-ready") {
         isLoadedRef.current = true;
@@ -888,7 +679,7 @@ var HyperFrame = ({
       }
     }
   };
-  React2.useEffect(() => {
+  React5.useEffect(() => {
     updateIframeFrame(frame);
   }, [frame, fps, width, height]);
   return /* @__PURE__ */ jsxRuntime.jsx(
@@ -918,518 +709,6 @@ var HyperFrame = ({
   );
 };
 
-// src/utils/animation.ts
-var pinned = (fn) => (t) => t === 0 ? 0 : t === 1 ? 1 : fn(t);
-var clampUnit = (t) => Math.min(1, Math.max(0, t));
-var easeOutBounce = (t) => {
-  const n1 = 7.5625;
-  const d1 = 2.75;
-  if (t < 1 / d1) {
-    return n1 * t * t;
-  } else if (t < 2 / d1) {
-    return n1 * (t -= 1.5 / d1) * t + 0.75;
-  } else if (t < 2.5 / d1) {
-    return n1 * (t -= 2.25 / d1) * t + 0.9375;
-  } else {
-    return n1 * (t -= 2.625 / d1) * t + 0.984375;
-  }
-};
-var cubicBezier = (x1, y1, x2, y2) => {
-  if (![x1, y1, x2, y2].every(Number.isFinite) || x1 < 0 || x1 > 1 || x2 < 0 || x2 > 1) {
-    throw new Error(
-      `Easing.bezier: control points must be finite and x1, x2 must be in [0, 1], got (${x1}, ${y1}, ${x2}, ${y2})`
-    );
-  }
-  if (x1 === y1 && x2 === y2) return (t) => t;
-  const coefficients = (p1, p2) => [1 - 3 * p2 + 3 * p1, 3 * p2 - 6 * p1, 3 * p1];
-  const [ax, bx, cx] = coefficients(x1, x2);
-  const [ay, by, cy] = coefficients(y1, y2);
-  const curveX = (t) => ((ax * t + bx) * t + cx) * t;
-  const curveY = (t) => ((ay * t + by) * t + cy) * t;
-  const slopeX = (t) => (3 * ax * t + 2 * bx) * t + cx;
-  const samples = 11;
-  const step = 1 / (samples - 1);
-  const table = Array.from({ length: samples }, (_, i) => curveX(i * step));
-  const solveT = (x) => {
-    let i = 0;
-    while (i < samples - 2 && table[i + 1] <= x) i++;
-    const lo = i * step;
-    const hi = lo + step;
-    const span = table[i + 1] - table[i];
-    let t = span > 0 ? lo + (x - table[i]) / span * step : lo;
-    for (let k = 0; k < 8; k++) {
-      const error = curveX(t) - x;
-      if (Math.abs(error) < 1e-12) return t;
-      const slope = slopeX(t);
-      if (Math.abs(slope) < 1e-9) break;
-      t -= error / slope;
-    }
-    if (x < 0 || x > 1) return t;
-    if (t >= lo && t <= hi && Math.abs(curveX(t) - x) < 1e-12) return t;
-    let a = lo;
-    let b = hi;
-    for (let k = 0; k < 60; k++) {
-      t = (a + b) / 2;
-      if (curveX(t) < x) a = t;
-      else b = t;
-      if (b - a < 1e-12) break;
-    }
-    return (a + b) / 2;
-  };
-  return (x) => x === 0 ? 0 : x === 1 ? 1 : curveY(solveT(x));
-};
-var pinAll = (fns) => Object.fromEntries(Object.entries(fns).map(([name, fn]) => [name, pinned(fn)]));
-var namedEasings = pinAll({
-  easeInQuad: (t) => t * t,
-  easeOutQuad: (t) => t * (2 - t),
-  easeInOutQuad: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
-  easeInCubic: (t) => t * t * t,
-  easeOutCubic: (t) => --t * t * t + 1,
-  easeInOutCubic: (t) => t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1,
-  easeInQuart: (t) => t * t * t * t,
-  easeOutQuart: (t) => 1 - --t * t * t * t,
-  easeInOutQuart: (t) => t < 0.5 ? 8 * t * t * t * t : 1 - 8 * --t * t * t * t,
-  easeInQuint: (t) => t * t * t * t * t,
-  easeOutQuint: (t) => 1 + --t * t * t * t * t,
-  easeInOutQuint: (t) => t < 0.5 ? 16 * t * t * t * t * t : 1 + 16 * --t * t * t * t * t,
-  easeInSine: (t) => 1 - Math.cos(t * Math.PI / 2),
-  easeOutSine: (t) => Math.sin(t * Math.PI / 2),
-  easeInOutSine: (t) => -(Math.cos(Math.PI * t) - 1) / 2,
-  easeInExpo: (t) => t === 0 ? 0 : Math.pow(2, 10 * (t - 1)),
-  easeOutExpo: (t) => t === 1 ? 1 : 1 - Math.pow(2, -10 * t),
-  easeInOutExpo: (t) => {
-    if (t === 0) return 0;
-    if (t === 1) return 1;
-    if (t < 0.5) return Math.pow(2, 20 * t - 10) / 2;
-    return (2 - Math.pow(2, -20 * t + 10)) / 2;
-  },
-  easeInCirc: (t) => 1 - Math.sqrt(1 - t * t),
-  easeOutCirc: (t) => Math.sqrt(1 - --t * t),
-  easeInOutCirc: (t) => t < 0.5 ? (1 - Math.sqrt(1 - 4 * t * t)) / 2 : (Math.sqrt(1 - Math.pow(-2 * t + 2, 2)) + 1) / 2,
-  easeInBack: (t) => {
-    const c1 = 1.70158;
-    const c3 = c1 + 1;
-    return c3 * t * t * t - c1 * t * t;
-  },
-  easeOutBack: (t) => {
-    const c1 = 1.70158;
-    const c3 = c1 + 1;
-    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-  },
-  easeInOutBack: (t) => {
-    const c1 = 1.70158;
-    const c2 = c1 * 1.525;
-    return t < 0.5 ? Math.pow(2 * t, 2) * ((c2 + 1) * 2 * t - c2) / 2 : (Math.pow(2 * t - 2, 2) * ((c2 + 1) * (t * 2 - 2) + c2) + 2) / 2;
-  },
-  easeInElastic: (t) => {
-    const c4 = 2 * Math.PI / 3;
-    return t === 0 ? 0 : t === 1 ? 1 : -Math.pow(2, 10 * t - 10) * Math.sin((t * 10 - 10.75) * c4);
-  },
-  easeOutElastic: (t) => {
-    const c4 = 2 * Math.PI / 3;
-    return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
-  },
-  easeInOutElastic: (t) => {
-    const c5 = 2 * Math.PI / 4.5;
-    if (t === 0) return 0;
-    if (t === 1) return 1;
-    if (t < 0.5) return -(Math.pow(2, 20 * t - 10) * Math.sin((20 * t - 11.125) * c5)) / 2;
-    return Math.pow(2, -20 * t + 10) * Math.sin((20 * t - 11.125) * c5) / 2 + 1;
-  },
-  easeInBounce: (t) => 1 - easeOutBounce(1 - t),
-  easeOutBounce,
-  easeInOutBounce: (t) => t < 0.5 ? (1 - easeOutBounce(1 - 2 * t)) / 2 : (1 + easeOutBounce(2 * t - 1)) / 2
-});
-var checkEasing = (name, easing) => {
-  if (typeof easing !== "function") {
-    throw new Error(`Easing.${name}: expects an easing function, got ${easing}`);
-  }
-  return easing;
-};
-var checkNumber = (name, value, min = -Infinity) => {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < min) {
-    throw new Error(`Easing.${name}: expects a finite number${min > -Infinity ? ` >= ${min}` : ""}, got ${value}`);
-  }
-  return value;
-};
-var easeCurve = cubicBezier(0.42, 0, 1, 1);
-var Easing = {
-  ...namedEasings,
-  linear: (t) => t,
-  /** Remotion's `ease`: bezier(0.42, 0, 1, 1). */
-  ease: easeCurve,
-  quad: pinned((t) => t * t),
-  cubic: pinned((t) => t * t * t),
-  /** t to the power n (n > 0). */
-  poly: (n) => {
-    const power = checkNumber("poly", n);
-    if (power <= 0) throw new Error(`Easing.poly: expects n > 0, got ${n}`);
-    return pinned((t) => t ** power);
-  },
-  sin: pinned((t) => 1 - Math.cos(t * Math.PI / 2)),
-  circle: pinned((t) => {
-    const u = clampUnit(t);
-    return 1 - Math.sqrt(1 - u * u);
-  }),
-  exp: pinned((t) => 2 ** (10 * (t - 1))),
-  /** Springy overshoot; `bounciness` (default 1) sets how many times it goes back and forth. */
-  elastic: (bounciness = 1) => {
-    const p = checkNumber("elastic", bounciness, 0) * Math.PI;
-    return pinned((t) => 1 - Math.cos(t * Math.PI / 2) ** 3 * Math.cos(t * p));
-  },
-  /** Pulls back before moving; `s` (default 1.70158) sets how far. */
-  back: (s = 1.70158) => {
-    const overshoot = checkNumber("back", s);
-    return pinned((t) => t * t * ((overshoot + 1) * t - overshoot));
-  },
-  bounce: pinned((t) => easeOutBounce(clampUnit(t))),
-  bezier: cubicBezier,
-  /** Runs the easing forwards (returns it as is). */
-  in: (easing) => pinned(checkEasing("in", easing)),
-  /** Runs the easing backwards: out(f)(t) = 1 - f(1 - t). */
-  out: (easing) => {
-    const fn = checkEasing("out", easing);
-    return pinned((t) => 1 - fn(1 - t));
-  },
-  /** Symmetric: the easing for the first half, mirrored for the second. */
-  inOut: (easing) => {
-    const fn = checkEasing("inOut", easing);
-    return pinned((t) => t < 0.5 ? fn(t * 2) / 2 : 1 - fn((1 - t) * 2) / 2);
-  }
-};
-var isPositive = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
-var resolveSpringConfig = (fn, config = {}) => {
-  const { damping = 10, mass = 1, stiffness = 100, overshootClamping = false } = config;
-  if (!isPositive(mass) || !isPositive(stiffness) || !Number.isFinite(damping) || damping < 0) {
-    throw new Error(
-      `${fn}: config needs mass > 0, stiffness > 0 and damping >= 0, got mass ${mass}, stiffness ${stiffness}, damping ${damping}`
-    );
-  }
-  return {
-    omega: Math.sqrt(stiffness / mass),
-    zeta: damping / (2 * Math.sqrt(stiffness * mass)),
-    overshootClamping
-  };
-};
-var springStep = (time, omega, zeta) => {
-  if (zeta < 1 - 1e-6) {
-    const omegaD = omega * Math.sqrt(1 - zeta * zeta);
-    return 1 - Math.exp(-zeta * omega * time) * (Math.cos(omegaD * time) + zeta * omega / omegaD * Math.sin(omegaD * time));
-  }
-  if (zeta <= 1 + 1e-6) {
-    return 1 - (1 + omega * time) * Math.exp(-omega * time);
-  }
-  const root = Math.sqrt(zeta * zeta - 1);
-  const r1 = -omega * (zeta - root);
-  const r2 = -omega * (zeta + root);
-  const c1 = r2 / (r2 - r1);
-  const c2 = -r1 / (r2 - r1);
-  return 1 - c1 * Math.exp(r1 * time) - c2 * Math.exp(r2 * time);
-};
-var settleFrame = (fps, omega, zeta, threshold) => {
-  const off = (n) => Math.abs(springStep(n / fps, omega, zeta) - 1);
-  if (zeta >= 1 - 1e-6) {
-    let hi = 1;
-    while (off(hi) >= threshold) hi *= 2;
-    let lo = 0;
-    while (hi - lo > 1) {
-      const mid = Math.floor((lo + hi) / 2);
-      if (off(mid) >= threshold) lo = mid;
-      else hi = mid;
-    }
-    return hi;
-  }
-  if (zeta === 0) {
-    throw new Error("measureSpring: a spring with damping 0 oscillates forever and never comes to rest");
-  }
-  const envelopeTime = Math.log(1 / (threshold * Math.sqrt(1 - zeta * zeta))) / (zeta * omega);
-  for (let n = Math.ceil(envelopeTime * fps); n >= 0; n--) {
-    if (off(n) >= threshold) return n + 1;
-  }
-  return 0;
-};
-var spring = ({
-  frame,
-  fps,
-  config = {},
-  from = 0,
-  to = 1,
-  durationInFrames,
-  durationRestThreshold = 5e-3,
-  delay = 0,
-  reverse = false
-}) => {
-  if (!isPositive(fps)) {
-    throw new Error(`spring: fps must be a positive number (use useVideoConfig().fps), got ${fps}`);
-  }
-  if (typeof frame !== "number" || Number.isNaN(frame)) {
-    throw new Error(`spring: frame must be a number, got ${frame}`);
-  }
-  if (!Number.isFinite(from) || !Number.isFinite(to)) {
-    throw new Error(`spring: from and to must be finite numbers, got ${from} and ${to}`);
-  }
-  if (durationInFrames !== void 0 && !isPositive(durationInFrames)) {
-    throw new Error(`spring: durationInFrames must be a positive number, got ${durationInFrames}`);
-  }
-  if (typeof delay !== "number" || !Number.isFinite(delay)) {
-    throw new Error(`spring: delay must be a finite number of frames, got ${delay}`);
-  }
-  if (typeof reverse !== "boolean") {
-    throw new Error(`spring: reverse must be a boolean, got ${reverse}`);
-  }
-  const { omega, zeta, overshootClamping } = resolveSpringConfig("spring", config);
-  const naturalDuration = reverse || durationInFrames !== void 0 ? measureSpring({ fps, config, threshold: durationRestThreshold }) : 0;
-  const elapsed = frame - delay;
-  const local = reverse ? (durationInFrames ?? naturalDuration) - elapsed : elapsed;
-  if (local <= 0) return from;
-  if (reverse && local >= (durationInFrames ?? naturalDuration)) return to;
-  let time = local / fps;
-  if (durationInFrames !== void 0) {
-    if (local >= durationInFrames) return to;
-    time = local * naturalDuration / durationInFrames / fps;
-  }
-  let value = springStep(time, omega, zeta);
-  if (overshootClamping) {
-    value = Math.max(0, Math.min(1, value));
-  }
-  return from + (to - from) * value;
-};
-var findSegment = (input, inputRange) => {
-  for (let i = 1; i < inputRange.length - 1; i++) {
-    if (input <= inputRange[i]) return i - 1;
-  }
-  return inputRange.length - 2;
-};
-var checkRanges = (fn, input, inputRange, outputLength) => {
-  if (typeof input !== "number" || Number.isNaN(input)) {
-    throw new Error(`${fn}: input must be a number, got ${input}`);
-  }
-  if (inputRange.length !== outputLength) {
-    throw new Error(`${fn}: inputRange and outputRange must have the same length`);
-  }
-  if (inputRange.length < 2) {
-    throw new Error(`${fn}: inputRange must have at least 2 elements`);
-  }
-  for (let i = 0; i < inputRange.length; i++) {
-    if (typeof inputRange[i] !== "number" || Number.isNaN(inputRange[i])) {
-      throw new Error(`${fn}: inputRange must contain numbers, got [${inputRange.join(", ")}]`);
-    }
-    if (i > 0 && inputRange[i] < inputRange[i - 1]) {
-      throw new Error(`${fn}: inputRange must be ascending, got [${inputRange.join(", ")}]`);
-    }
-  }
-};
-var segmentProgress = (input, start, end) => end === start ? input >= end ? 1 : 0 : (input - start) / (end - start);
-var EXTRAPOLATE = ["clamp", "extend", "identity", "wrap"];
-var interpolate = (input, inputRange, outputRange, options = {}) => {
-  const {
-    extrapolateLeft = "clamp",
-    extrapolateRight = "clamp",
-    easing
-  } = options;
-  checkRanges("interpolate", input, inputRange, outputRange.length);
-  outputRange.forEach((value) => {
-    if (typeof value !== "number" || Number.isNaN(value)) {
-      throw new Error(`interpolate: outputRange must contain numbers, got [${outputRange.join(", ")}]`);
-    }
-  });
-  for (const [name, value] of [["extrapolateLeft", extrapolateLeft], ["extrapolateRight", extrapolateRight]]) {
-    if (!EXTRAPOLATE.includes(value)) {
-      throw new Error(`interpolate: ${name} must be one of ${EXTRAPOLATE.join(", ")}, got ${JSON.stringify(value)}`);
-    }
-  }
-  const segments = inputRange.length - 1;
-  if (Array.isArray(easing)) {
-    if (easing.length !== segments) {
-      throw new Error(
-        `interpolate: an easing array needs one easing per segment (inputRange.length - 1 = ${segments}), got ${easing.length}`
-      );
-    }
-    easing.forEach((fn, i) => {
-      if (typeof fn !== "function") throw new Error(`interpolate: easing[${i}] must be a function, got ${fn}`);
-    });
-  } else if (easing !== void 0 && typeof easing !== "function") {
-    throw new Error(`interpolate: easing must be a function or an array of functions, got ${easing}`);
-  }
-  const first = inputRange[0];
-  const last = inputRange[inputRange.length - 1];
-  if (input < first && extrapolateLeft === "wrap" || input > last && extrapolateRight === "wrap") {
-    const span = last - first;
-    if (span === 0) {
-      throw new Error(`interpolate: extrapolate 'wrap' needs an inputRange that spans more than one value, got [${inputRange.join(", ")}]`);
-    }
-    input = ((input - first) % span + span) % span + first;
-  }
-  if (input < first) {
-    if (extrapolateLeft === "clamp") {
-      return outputRange[0];
-    } else if (extrapolateLeft === "identity") {
-      return input;
-    }
-  }
-  if (input > last) {
-    if (extrapolateRight === "clamp") {
-      return outputRange[outputRange.length - 1];
-    } else if (extrapolateRight === "identity") {
-      return input;
-    }
-  }
-  const segmentIndex = findSegment(input, inputRange);
-  const inputStart = inputRange[segmentIndex];
-  const inputEnd = inputRange[segmentIndex + 1];
-  const outputStart = outputRange[segmentIndex];
-  const outputEnd = outputRange[segmentIndex + 1];
-  if (inputEnd === inputStart) {
-    return segmentProgress(input, inputStart, inputEnd) === 1 ? outputEnd : outputStart;
-  }
-  let progress = segmentProgress(input, inputStart, inputEnd);
-  const segmentEasing = Array.isArray(easing) ? easing[segmentIndex] : easing;
-  if (segmentEasing) {
-    progress = segmentEasing(progress);
-  }
-  return outputStart + progress * (outputEnd - outputStart);
-};
-var NUMBER = "[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:e[+-]?\\d+)?%?";
-var COMMA_RGB = new RegExp(
-  `^rgba?\\(\\s*(${NUMBER})\\s*,\\s*(${NUMBER})\\s*,\\s*(${NUMBER})\\s*(?:,\\s*(${NUMBER})\\s*)?\\)$`,
-  "i"
-);
-var SPACE_RGB = new RegExp(
-  `^rgba?\\(\\s*(${NUMBER})\\s+(${NUMBER})\\s+(${NUMBER})\\s*(?:\\/\\s*(${NUMBER})\\s*)?\\)$`,
-  "i"
-);
-var HEX = /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
-var parseColor = (color) => {
-  const value = typeof color === "string" ? color.trim() : "";
-  const hex = value.match(HEX)?.[1];
-  if (hex) {
-    const digits = hex.length <= 4 ? hex.split("").map((d) => d + d) : hex.match(/../g);
-    const [r, g, b] = digits.map((d) => parseInt(d, 16));
-    return [r, g, b, digits.length === 4 ? parseInt(digits[3], 16) / 255 : 1];
-  }
-  const rgb = value.match(COMMA_RGB) ?? value.match(SPACE_RGB);
-  if (rgb) {
-    const channel = (part) => part.endsWith("%") ? parseFloat(part) / 100 * 255 : parseFloat(part);
-    const alpha = (part) => part === void 0 ? 1 : part.endsWith("%") ? parseFloat(part) / 100 : parseFloat(part);
-    return [
-      channel(rgb[1]),
-      channel(rgb[2]),
-      channel(rgb[3]),
-      Math.max(0, Math.min(1, alpha(rgb[4])))
-    ];
-  }
-  throw new Error(
-    `interpolateColors: unsupported color "${color}" (use #rgb, #rgba, #rrggbb, #rrggbbaa, rgb() or rgba())`
-  );
-};
-var formatColor = ([r, g, b, a]) => {
-  const channel = (x) => Math.round(Math.max(0, Math.min(255, x)));
-  if (a >= 1) {
-    return "#" + [r, g, b].map((x) => channel(x).toString(16).padStart(2, "0")).join("");
-  }
-  const alpha = Math.round(Math.max(0, a) * 1e3) / 1e3;
-  return `rgba(${channel(r)}, ${channel(g)}, ${channel(b)}, ${alpha})`;
-};
-var interpolateColors = (input, inputRange, outputRange) => {
-  checkRanges("interpolateColors", input, inputRange, outputRange.length);
-  const clamped = Math.max(inputRange[0], Math.min(inputRange[inputRange.length - 1], input));
-  const segmentIndex = findSegment(clamped, inputRange);
-  const inputStart = inputRange[segmentIndex];
-  const inputEnd = inputRange[segmentIndex + 1];
-  const colorStart = parseColor(outputRange[segmentIndex]);
-  const colorEnd = parseColor(outputRange[segmentIndex + 1]);
-  const progress = segmentProgress(clamped, inputStart, inputEnd);
-  const mix = (i) => colorStart[i] + progress * (colorEnd[i] - colorStart[i]);
-  return formatColor([mix(0), mix(1), mix(2), mix(3)]);
-};
-var useKeyframes = (keyframes, frame) => {
-  if (keyframes.length === 0) return 0;
-  if (keyframes.length === 1) return keyframes[0].value;
-  const sorted = [...keyframes].sort((a, b) => a.frame - b.frame);
-  let prev = sorted[0];
-  let next = sorted[sorted.length - 1];
-  for (let i = 0; i < sorted.length - 1; i++) {
-    if (frame >= sorted[i].frame && frame <= sorted[i + 1].frame) {
-      prev = sorted[i];
-      next = sorted[i + 1];
-      break;
-    }
-  }
-  if (frame <= prev.frame) return prev.value;
-  if (frame >= next.frame) return next.value;
-  let progress = (frame - prev.frame) / (next.frame - prev.frame);
-  if (next.easing) {
-    progress = next.easing(progress);
-  } else if (prev.easing) {
-    progress = prev.easing(progress);
-  }
-  if (typeof prev.value === "number" && typeof next.value === "number") {
-    return prev.value + progress * (next.value - prev.value);
-  }
-  return progress < 0.5 ? prev.value : next.value;
-};
-var measureSpring = ({
-  fps,
-  config = {},
-  threshold = 5e-3
-}) => {
-  if (!isPositive(fps)) {
-    throw new Error(`measureSpring: fps must be a positive number, got ${fps}`);
-  }
-  if (!isPositive(threshold) || threshold >= 1) {
-    throw new Error(`measureSpring: threshold must be between 0 and 1, got ${threshold}`);
-  }
-  const { omega, zeta } = resolveSpringConfig("measureSpring", config);
-  return settleFrame(fps, omega, zeta, threshold);
-};
-var getFramesFromSeconds = (seconds, fps) => {
-  return Math.round(seconds * fps);
-};
-var getSecondsFromFrames = (frames, fps) => {
-  return frames / fps;
-};
-var range = (start, end, step = 1) => {
-  const result = [];
-  for (let i = start; i < end; i += step) {
-    result.push(i);
-  }
-  return result;
-};
-var random = (seed, min = 0, max = 1) => {
-  const str = typeof seed === "number" ? seed.toString() : seed;
-  let hash = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    hash ^= str.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  hash ^= hash >>> 16;
-  hash = Math.imul(hash, 2246822507);
-  hash ^= hash >>> 13;
-  hash = Math.imul(hash, 3266489909);
-  hash ^= hash >>> 16;
-  const normalized = (hash >>> 0) / 4294967296;
-  return min + normalized * (max - min);
-};
-var noise2D = (x, y) => {
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    throw new Error(`noise2D: x and y must be finite numbers, got ${x}, ${y}`);
-  }
-  const X = Math.floor(x);
-  const Y = Math.floor(y);
-  const fx = x - X;
-  const fy = y - Y;
-  const u = fx * fx * (3 - 2 * fx);
-  const v = fy * fy * (3 - 2 * fy);
-  const lattice = (i, j) => random(`noise2D:${i}:${j}`);
-  const a = lattice(X, Y);
-  const b = lattice(X + 1, Y);
-  const c = lattice(X, Y + 1);
-  const d = lattice(X + 1, Y + 1);
-  const top = a + (b - a) * u;
-  const bottom = c + (d - c) * u;
-  return top + (bottom - top) * v;
-};
-
 // src/utils/particles.ts
 var finite = (value) => typeof value === "number" && Number.isFinite(value);
 var checkRange = (name, range2, values) => {
@@ -1442,9 +721,9 @@ var checkRange = (name, range2, values) => {
     );
   }
 };
-var pick = (range2, key) => typeof range2 === "number" ? range2 : range2[0] + random(key) * (range2[1] - range2[0]);
+var pick = (range2, key) => typeof range2 === "number" ? range2 : range2[0] + chunkWEQRPTIM_cjs.random(key) * (range2[1] - range2[0]);
 var checkOptions = (options) => {
-  const { seed, origin, area, startFrame = 0, count, emitDuration = 0, lifetime, speed, angle = -90, spread = 360 } = options;
+  const { seed, origin, area, startFrame = 0, count, emitDuration = 0, lifetime, speed, angle: angle2 = -90, spread = 360 } = options;
   const { gravity = 0, drag = 0, size, colors = ["#ffffff"], rotation = 0, spin = 0, fadeOut = true, frame, fps } = options;
   if (!finite(frame)) throw new Error(`getParticles: frame must be a finite number, got ${frame}`);
   if (!finite(fps) || fps <= 0) throw new Error(`getParticles: fps must be a positive number, got ${fps}`);
@@ -1469,7 +748,7 @@ var checkOptions = (options) => {
   checkRange("size", size, "non-negative");
   checkRange("rotation", rotation, "finite");
   checkRange("spin", spin, "finite");
-  if (!finite(angle)) throw new Error(`getParticles: angle must be a finite number of degrees, got ${angle}`);
+  if (!finite(angle2)) throw new Error(`getParticles: angle must be a finite number of degrees, got ${angle2}`);
   if (!finite(spread) || spread < 0 || spread > 360) {
     throw new Error(`getParticles: spread must be between 0 and 360 degrees, got ${spread}`);
   }
@@ -1491,7 +770,7 @@ var getParticles = (options) => {
     emitDuration = 0,
     lifetime,
     speed,
-    angle = -90,
+    angle: angle2 = -90,
     spread = 360,
     gravity = 0,
     drag = 0,
@@ -1516,9 +795,9 @@ var getParticles = (options) => {
     if (typeof birthOrigin !== "object" || birthOrigin === null || !finite(birthOrigin.x) || !finite(birthOrigin.y)) {
       throw new Error(`getParticles: origin(${startFrame + birth * fps}) must return { x, y } with finite numbers, got ${JSON.stringify(birthOrigin)}`);
     }
-    const x0 = birthOrigin.x + (random(key("x")) - 0.5) * area.width;
-    const y0 = birthOrigin.y + (random(key("y")) - 0.5) * area.height;
-    const direction = (angle + (random(key("angle")) - 0.5) * spread) * Math.PI / 180;
+    const x0 = birthOrigin.x + (chunkWEQRPTIM_cjs.random(key("x")) - 0.5) * area.width;
+    const y0 = birthOrigin.y + (chunkWEQRPTIM_cjs.random(key("y")) - 0.5) * area.height;
+    const direction = (angle2 + (chunkWEQRPTIM_cjs.random(key("angle")) - 0.5) * spread) * Math.PI / 180;
     const v0 = pick(speed, key("speed"));
     const vx0 = Math.cos(direction) * v0;
     const vy0 = Math.sin(direction) * v0;
@@ -1548,7 +827,7 @@ var getParticles = (options) => {
       vy,
       size: pick(size, key("size")),
       rotation: pick(rotation, key("rotation")) + pick(spin, key("spin")) * age,
-      color: colors[Math.min(colors.length - 1, Math.floor(random(key("color")) * colors.length))],
+      color: colors[Math.min(colors.length - 1, Math.floor(chunkWEQRPTIM_cjs.random(key("color")) * colors.length))],
       opacity: fadeOut ? 1 - progress : 1,
       age,
       lifetime: life,
@@ -1564,8 +843,8 @@ var SHAPES = {
   star: "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)"
 };
 var Particles = ({ shape = "circle", render, style, className, ...options }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { fps } = chunk64PBRZLD_cjs.useVideoConfig();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
   if (!(shape in SHAPES)) {
     throw new Error(`Particles: shape must be one of ${Object.keys(SHAPES).join(", ")}, got ${JSON.stringify(shape)}`);
   }
@@ -1574,7 +853,7 @@ var Particles = ({ shape = "circle", render, style, className, ...options }) => 
   }
   const particles = getParticles({ ...options, frame, fps });
   return /* @__PURE__ */ jsxRuntime.jsx("div", { className, style: { position: "absolute", inset: 0, pointerEvents: "none", ...style }, children: particles.map(
-    (particle) => render ? /* @__PURE__ */ jsxRuntime.jsx(React2__default.default.Fragment, { children: render(particle) }, particle.index) : /* @__PURE__ */ jsxRuntime.jsx(
+    (particle) => render ? /* @__PURE__ */ jsxRuntime.jsx(React5__default.default.Fragment, { children: render(particle) }, particle.index) : /* @__PURE__ */ jsxRuntime.jsx(
       "div",
       {
         style: {
@@ -1610,8 +889,8 @@ var Fade = ({
   startFrame = 0,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const opacity = interpolate(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const opacity = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
     [0, 1],
@@ -1625,11 +904,11 @@ var Scale = ({
   to = 1,
   durationInFrames = 30,
   startFrame = 0,
-  easing = Easing.easeOutCubic,
+  easing = chunkWEQRPTIM_cjs.Easing.easeOutCubic,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const progress = interpolate(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
     [0, 1],
@@ -1644,11 +923,11 @@ var Slide = ({
   distance = 100,
   durationInFrames = 30,
   startFrame = 0,
-  easing = Easing.easeOutCubic,
+  easing = chunkWEQRPTIM_cjs.Easing.easeOutCubic,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const progress = interpolate(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
     [0, 1],
@@ -1677,11 +956,11 @@ var Rotate = ({
   degrees = 360,
   durationInFrames = 60,
   startFrame = 0,
-  easing = Easing.linear,
+  easing = chunkWEQRPTIM_cjs.Easing.linear,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const rotation = interpolate(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const rotation = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
     [0, degrees],
@@ -1697,9 +976,9 @@ var Typewriter = ({
   cursor = true,
   cursorChar = "|"
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   const characters = splitGraphemes(text);
-  const progress = interpolate(
+  const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
     [0, characters.length],
@@ -1717,17 +996,17 @@ var Counter = ({
   to,
   durationInFrames = 60,
   startFrame = 0,
-  easing = Easing.easeOutCubic,
+  easing = chunkWEQRPTIM_cjs.Easing.easeOutCubic,
   style,
   locale = "en-US",
   format: format2
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const numberFormat = React2__default.default.useMemo(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const numberFormat = React5__default.default.useMemo(
     () => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }),
     [locale]
   );
-  const value = interpolate(
+  const value = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
     [from, to],
@@ -1773,9 +1052,9 @@ var Glitch = ({
   intensity = 10,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   const shouldGlitch = frame % 10 < 3;
-  const offset = shouldGlitch ? random(`glitch-${frame}-offset`) * intensity : 0;
+  const offset = shouldGlitch ? chunkWEQRPTIM_cjs.random(`glitch-${frame}-offset`) * intensity : 0;
   return /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { position: "relative", ...style }, children: [
     /* @__PURE__ */ jsxRuntime.jsx(
       "div",
@@ -1808,42 +1087,13 @@ var Glitch = ({
     /* @__PURE__ */ jsxRuntime.jsx("div", { style: { position: "relative" }, children })
   ] });
 };
-var Trail = ({
-  children,
-  trailLength = 5,
-  opacityDecay = 0.2,
-  style
-}) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  return /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { position: "relative", ...style }, children: [
-    Array.from({ length: trailLength }, (_, i) => {
-      const trailFrame = frame - i * 2;
-      if (trailFrame < 0) return null;
-      return /* @__PURE__ */ jsxRuntime.jsx(
-        "div",
-        {
-          style: {
-            position: "absolute",
-            top: 0,
-            left: 0,
-            opacity: 1 - i * opacityDecay,
-            pointerEvents: "none"
-          },
-          children
-        },
-        i
-      );
-    }),
-    /* @__PURE__ */ jsxRuntime.jsx("div", { style: { position: "relative" }, children })
-  ] });
-};
 var ShakeEffect = ({
   children,
   intensity = 5,
   active = true,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   if (!active) {
     return /* @__PURE__ */ jsxRuntime.jsx("div", { style, children });
   }
@@ -1897,7 +1147,7 @@ var NeonGlow = ({
   intensity = 1,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   const pulseIntensity = 0.8 + Math.sin(frame * 0.1) * 0.2;
   return /* @__PURE__ */ jsxRuntime.jsx(
     "div",
@@ -1918,26 +1168,26 @@ var NeonGlow = ({
 };
 var Rotate3D = ({
   children,
-  rotateX = 0,
-  rotateY = 360,
-  rotateZ = 0,
+  rotateX: rotateX2 = 0,
+  rotateY: rotateY2 = 360,
+  rotateZ: rotateZ2 = 0,
   durationInFrames = 60,
   startFrame = 0,
-  perspective = 1e3,
-  easing = Easing.easeInOutCubic,
+  perspective: perspective2 = 1e3,
+  easing = chunkWEQRPTIM_cjs.Easing.easeInOutCubic,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const progress = interpolate(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
     [0, 1],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing }
   );
-  const rx = rotateX * progress;
-  const ry = rotateY * progress;
-  const rz = rotateZ * progress;
-  return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { perspective, ...style }, children: /* @__PURE__ */ jsxRuntime.jsx(
+  const rx = rotateX2 * progress;
+  const ry = rotateY2 * progress;
+  const rz = rotateZ2 * progress;
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { perspective: perspective2, ...style }, children: /* @__PURE__ */ jsxRuntime.jsx(
     "div",
     {
       style: {
@@ -1954,18 +1204,18 @@ var Flip3D = ({
   durationInFrames = 60,
   startFrame = 0,
   direction = "horizontal",
-  perspective = 1e3,
+  perspective: perspective2 = 1e3,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const progress = interpolate(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
     [0, 180],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeInOutCubic }
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: chunkWEQRPTIM_cjs.Easing.easeInOutCubic }
   );
   const rotateAxis = direction === "horizontal" ? "rotateY" : "rotateX";
-  return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { perspective, ...style }, children: /* @__PURE__ */ jsxRuntime.jsxs(
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { perspective: perspective2, ...style }, children: /* @__PURE__ */ jsxRuntime.jsxs(
     "div",
     {
       style: {
@@ -2007,25 +1257,25 @@ var Flip3D = ({
 };
 var Perspective3D = ({
   children,
-  rotateX = 20,
-  rotateY = 20,
-  perspective = 800,
+  rotateX: rotateX2 = 20,
+  rotateY: rotateY2 = 20,
+  perspective: perspective2 = 800,
   durationInFrames = 60,
   startFrame = 0,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const progress = interpolate(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
     [0, 1],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeOutCubic }
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: chunkWEQRPTIM_cjs.Easing.easeOutCubic }
   );
-  return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { perspective, ...style }, children: /* @__PURE__ */ jsxRuntime.jsx(
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { perspective: perspective2, ...style }, children: /* @__PURE__ */ jsxRuntime.jsx(
     "div",
     {
       style: {
-        transform: `rotateX(${rotateX * progress}deg) rotateY(${rotateY * progress}deg)`,
+        transform: `rotateX(${rotateX2 * progress}deg) rotateY(${rotateY2 * progress}deg)`,
         transformStyle: "preserve-3d"
       },
       children
@@ -2045,11 +1295,11 @@ var Cube3D = ({
   },
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const rotateY = interpolate(frame, [0, durationInFrames], [0, 360], {
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const rotateY2 = chunkWEQRPTIM_cjs.interpolate(frame, [0, durationInFrames], [0, 360], {
     extrapolateRight: "extend"
   });
-  const rotateX = interpolate(frame, [0, durationInFrames], [0, 360], {
+  const rotateX2 = chunkWEQRPTIM_cjs.interpolate(frame, [0, durationInFrames], [0, 360], {
     extrapolateRight: "extend"
   });
   const halfSize = size / 2;
@@ -2074,7 +1324,7 @@ var Cube3D = ({
         height: size,
         position: "relative",
         transformStyle: "preserve-3d",
-        transform: `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`
+        transform: `rotateX(${rotateX2}deg) rotateY(${rotateY2}deg)`
       },
       children: [
         /* @__PURE__ */ jsxRuntime.jsx("div", { style: { ...faceStyle, backgroundColor: colors.front, transform: `translateZ(${halfSize}px)` }, children: "Front" }),
@@ -2099,14 +1349,14 @@ var ParticleSystem = ({
   particleShape = "circle",
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { width, height } = chunk64PBRZLD_cjs.useVideoConfig();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { width, height } = chunkNS6WDBHG_cjs.useVideoConfig();
   if (!PARTICLE_DIRECTIONS.includes(direction)) {
     throw new Error(
       `ParticleSystem: direction must be one of ${PARTICLE_DIRECTIONS.join(", ")}, got ${JSON.stringify(direction)} (for bursts use <Particles>)`
     );
   }
-  const particles = React2__default.default.useMemo(() => {
+  const particles = React5__default.default.useMemo(() => {
     const seed = (n) => {
       const x = Math.sin(n * 9999) * 1e4;
       return x - Math.floor(x);
@@ -2188,15 +1438,15 @@ var LetterByLetter = ({
   startFrame = 0,
   delayPerLetter = 2,
   animation = "fade",
-  easing = Easing.easeOutCubic,
+  easing = chunkWEQRPTIM_cjs.Easing.easeOutCubic,
   style,
   letterStyle
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   const letters = splitGraphemes(text);
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexWrap: "wrap", ...style }, children: letters.map((char, index) => {
     const letterStart = startFrame + index * delayPerLetter;
-    const progress = interpolate(
+    const progress = chunkWEQRPTIM_cjs.interpolate(
       frame,
       [letterStart, letterStart + durationInFrames / letters.length],
       [0, 1],
@@ -2215,8 +1465,8 @@ var LetterByLetter = ({
         transform = `rotate(${(1 - progress) * 90}deg)`;
         break;
       case "bounce":
-        const bounce2 = progress < 0.5 ? progress * 2 : 2 - progress * 2;
-        transform = `scale(${0.5 + bounce2 * 0.5})`;
+        const bounce = progress < 0.5 ? progress * 2 : 2 - progress * 2;
+        transform = `scale(${0.5 + bounce * 0.5})`;
         break;
     }
     return /* @__PURE__ */ jsxRuntime.jsx(
@@ -2243,15 +1493,15 @@ var WordByWord = ({
   style,
   wordStyle
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   const words = text.split(" ");
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexWrap: "wrap", gap: "0.3em", ...style }, children: words.map((word, index) => {
     const wordStart = startFrame + index * delayPerWord;
-    const progress = interpolate(
+    const progress = chunkWEQRPTIM_cjs.interpolate(
       frame,
       [wordStart, wordStart + durationInFrames / words.length],
       [0, 1],
-      { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeOutBack }
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: chunkWEQRPTIM_cjs.Easing.easeOutBack }
     );
     let transform = "";
     switch (animation) {
@@ -2289,7 +1539,7 @@ var WaveText = ({
   style,
   letterStyle
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", alignItems: "center", ...style }, children: splitGraphemes(text).map((char, index) => {
     const offset = Math.sin(frame * speed + index * frequency) * amplitude;
     return /* @__PURE__ */ jsxRuntime.jsx(
@@ -2314,7 +1564,7 @@ var RainbowText = ({
   style,
   letterStyle
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexWrap: "wrap", ...style }, children: splitGraphemes(text).map((char, index) => {
     const hue = (frame * speed + index * 20) % 360;
     const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
@@ -2336,10 +1586,10 @@ var GradientText = ({
   text,
   colors = ["#10b981", "#34d399", "#6ee7b7", "#14b8a6", "#10b981"],
   speed = 2,
-  angle = 90,
+  angle: angle2 = 90,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   if (colors.length === 0) {
     throw new Error("GradientText: colors must contain at least one color");
   }
@@ -2350,7 +1600,7 @@ var GradientText = ({
     "span",
     {
       style: {
-        background: `linear-gradient(${angle}deg, ${gradientStops})`,
+        background: `linear-gradient(${angle2}deg, ${gradientStops})`,
         backgroundSize: "200% 100%",
         backgroundPosition: `${position}% 50%`,
         WebkitBackgroundClip: "text",
@@ -2370,14 +1620,14 @@ var Blur = ({
   startFrame = 0,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const blur2 = interpolate(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const blur = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
     [from, to],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
-  return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { filter: `blur(${blur2}px)`, ...style }, children });
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { filter: `blur(${blur}px)`, ...style }, children });
 };
 var Bounce = ({
   children,
@@ -2388,9 +1638,9 @@ var Bounce = ({
   damping = 0.7,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { fps } = chunk64PBRZLD_cjs.useVideoConfig();
-  const progress = interpolate(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
     [0, 1],
@@ -2409,21 +1659,21 @@ var Pulse = ({
   speed = 0.1,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   const scale2 = minScale + (maxScale - minScale) * (0.5 + Math.sin(frame * speed) * 0.5);
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { transform: `scale(${scale2})`, ...style }, children });
 };
 var Swing = ({
   children,
-  angle = 30,
+  angle: angle2 = 30,
   speed = 0.15,
   damping = 0.995,
   durationInFrames = 120,
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   const dampFactor = Math.pow(damping, frame);
-  const rotation = Math.sin(frame * speed) * angle * dampFactor;
+  const rotation = Math.sin(frame * speed) * angle2 * dampFactor;
   return /* @__PURE__ */ jsxRuntime.jsx(
     "div",
     {
@@ -2441,9 +1691,9 @@ var Confetti = ({
   colors = ["#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#ec4899"],
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { width, height } = chunk64PBRZLD_cjs.useVideoConfig();
-  const confettiPieces = React2__default.default.useMemo(() => {
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { width, height } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const confettiPieces = React5__default.default.useMemo(() => {
     const seed = (n) => {
       const x = Math.sin(n * 9999) * 1e4;
       return x - Math.floor(x);
@@ -2496,8 +1746,8 @@ var KineticTypography = ({
   type = "velocity",
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { fps } = chunk64PBRZLD_cjs.useVideoConfig();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
   const characters = splitGraphemes(text);
   return /* @__PURE__ */ jsxRuntime.jsx(
     "div",
@@ -2515,27 +1765,27 @@ var KineticTypography = ({
       children: characters.map((char, i) => {
         const relativeStart = startFrame + i * stagger;
         const charFrame = frame - relativeStart;
-        const progress = interpolate(
+        const progress = chunkWEQRPTIM_cjs.interpolate(
           charFrame,
           [0, durationInFrames],
           [0, 1],
-          { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeOutExpo }
+          { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: chunkWEQRPTIM_cjs.Easing.easeOutExpo }
         );
         let charStyle = {
           display: "inline-block",
           whiteSpace: "pre"
         };
         if (type === "velocity") {
-          const y = interpolate(charFrame, [0, 20], [100, 0], {
+          const y = chunkWEQRPTIM_cjs.interpolate(charFrame, [0, 20], [100, 0], {
             extrapolateLeft: "clamp",
             extrapolateRight: "clamp",
-            easing: Easing.easeOutBack
+            easing: chunkWEQRPTIM_cjs.Easing.easeOutBack
           });
-          const opacity = interpolate(charFrame, [0, 15], [0, 1], {
+          const opacity = chunkWEQRPTIM_cjs.interpolate(charFrame, [0, 15], [0, 1], {
             extrapolateLeft: "clamp",
             extrapolateRight: "clamp"
           });
-          const blur2 = interpolate(charFrame, [0, 10], [20, 0], {
+          const blur = chunkWEQRPTIM_cjs.interpolate(charFrame, [0, 10], [20, 0], {
             extrapolateLeft: "clamp",
             extrapolateRight: "clamp"
           });
@@ -2543,17 +1793,17 @@ var KineticTypography = ({
             ...charStyle,
             transform: `translateY(${y}px)`,
             opacity,
-            filter: `blur(${blur2}px)`
+            filter: `blur(${blur}px)`
           };
         } else if (type === "stretching") {
-          const scaleY = spring({
+          const scaleY2 = chunkWEQRPTIM_cjs.spring({
             frame: charFrame,
             fps,
             config: { damping: 12, stiffness: 200 },
             from: 0,
             to: 1
           });
-          const scaleX = spring({
+          const scaleX2 = chunkWEQRPTIM_cjs.spring({
             frame: charFrame,
             fps,
             config: { damping: 15, stiffness: 150 },
@@ -2562,7 +1812,7 @@ var KineticTypography = ({
           });
           charStyle = {
             ...charStyle,
-            transform: `scale(${scaleX}, ${scaleY})`,
+            transform: `scale(${scaleX2}, ${scaleY2})`,
             transformOrigin: "bottom",
             opacity: progress
           };
@@ -2579,7 +1829,7 @@ var KineticTypography = ({
             opacity: progress
           };
         } else if (type === "reveal") {
-          const clipWidth = interpolate(charFrame, [0, 20], [0, 100], {
+          const clipWidth = chunkWEQRPTIM_cjs.interpolate(charFrame, [0, 20], [0, 100], {
             extrapolateLeft: "clamp",
             extrapolateRight: "clamp"
           });
@@ -2609,9 +1859,9 @@ var LiquidText = ({
   className = "",
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const id = React2__default.default.useId().replace(/:/g, "");
-  const wavePath = React2__default.default.useMemo(() => {
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const id = React5__default.default.useId().replace(/:/g, "");
+  const wavePath = React5__default.default.useMemo(() => {
     let path = `M 0 ${height}`;
     for (let x = 0; x <= width; x += 10) {
       const y = Math.sin(frame * speed + x * 0.02) * amplitude + amplitude;
@@ -2695,15 +1945,15 @@ var TextStack3D = ({
   className = "",
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const progress = interpolate(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const progress = chunkWEQRPTIM_cjs.interpolate(
     frame - startFrame,
     [0, durationInFrames],
     [0, 1],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeInOutCubic }
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: chunkWEQRPTIM_cjs.Easing.easeInOutCubic }
   );
-  const rotateX = interpolate(progress, [0, 1], [0, 25]);
-  const rotateY = interpolate(progress, [0, 1], [0, -25]);
+  const rotateX2 = chunkWEQRPTIM_cjs.interpolate(progress, [0, 1], [0, 25]);
+  const rotateY2 = chunkWEQRPTIM_cjs.interpolate(progress, [0, 1], [0, -25]);
   return /* @__PURE__ */ jsxRuntime.jsx(
     "div",
     {
@@ -2721,7 +1971,7 @@ var TextStack3D = ({
           style: {
             position: "relative",
             transformStyle: "preserve-3d",
-            transform: `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
+            transform: `rotateX(${rotateX2}deg) rotateY(${rotateY2}deg)`,
             fontSize,
             fontWeight,
             fontFamily,
@@ -2766,13 +2016,13 @@ var StickyGridScroll = ({
   className = "",
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { height } = chunk64PBRZLD_cjs.useVideoConfig();
-  const progress = interpolate(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { height } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const progress = chunkWEQRPTIM_cjs.interpolate(
     frame - startFrame,
     [0, scrollDuration],
     [0, 1],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.linear }
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: chunkWEQRPTIM_cjs.Easing.linear }
   );
   const totalHeight = Math.ceil(items.length / columns) * (height / 2) + padding * 2;
   const scrollY = progress * (totalHeight - height);
@@ -2802,7 +2052,7 @@ var StickyGridScroll = ({
             const itemRow = Math.floor(i / columns);
             const itemY = itemRow * (height / 2) + padding;
             const relativeY = itemY - scrollY;
-            const viewportProgress = interpolate(
+            const viewportProgress = chunkWEQRPTIM_cjs.interpolate(
               relativeY,
               [0, height * 0.2, height * 0.8, height],
               [0, 1, 1, 0],
@@ -2837,20 +2087,20 @@ var FlipImageReveal = ({
   className = "",
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { width: videoWidth, height: videoHeight } = chunk64PBRZLD_cjs.useVideoConfig();
-  const progress = interpolate(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { width: videoWidth, height: videoHeight } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const progress = chunkWEQRPTIM_cjs.interpolate(
     frame - startFrame,
     [0, durationInFrames],
     [0, 1],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeInOutQuart }
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: chunkWEQRPTIM_cjs.Easing.easeInOutQuart }
   );
-  const x = interpolate(progress, [0, 1], [thumbnailRect.x, 0]);
-  const y = interpolate(progress, [0, 1], [thumbnailRect.y, 0]);
-  const width = interpolate(progress, [0, 1], [thumbnailRect.width, videoWidth]);
-  const height = interpolate(progress, [0, 1], [thumbnailRect.height, videoHeight]);
-  const borderRadius = interpolate(progress, [0, 1], [12, 0]);
-  const opacity = interpolate(progress, [0, 0.2], [0, 1]);
+  const x = chunkWEQRPTIM_cjs.interpolate(progress, [0, 1], [thumbnailRect.x, 0]);
+  const y = chunkWEQRPTIM_cjs.interpolate(progress, [0, 1], [thumbnailRect.y, 0]);
+  const width = chunkWEQRPTIM_cjs.interpolate(progress, [0, 1], [thumbnailRect.width, videoWidth]);
+  const height = chunkWEQRPTIM_cjs.interpolate(progress, [0, 1], [thumbnailRect.height, videoHeight]);
+  const borderRadius = chunkWEQRPTIM_cjs.interpolate(progress, [0, 1], [12, 0]);
+  const opacity = chunkWEQRPTIM_cjs.interpolate(progress, [0, 0.2], [0, 1]);
   return /* @__PURE__ */ jsxRuntime.jsxs(
     "div",
     {
@@ -2890,8 +2140,8 @@ var FlipImageReveal = ({
               right: 0,
               padding: "40px",
               background: "linear-gradient(transparent, rgba(0,0,0,0.8))",
-              opacity: interpolate(progress, [0.8, 1], [0, 1]),
-              transform: `translateY(${interpolate(progress, [0.8, 1], [20, 0])}px)`
+              opacity: chunkWEQRPTIM_cjs.interpolate(progress, [0.8, 1], [0, 1]),
+              transform: `translateY(${chunkWEQRPTIM_cjs.interpolate(progress, [0.8, 1], [20, 0])}px)`
             },
             children: [
               title && /* @__PURE__ */ jsxRuntime.jsx("h2", { style: { color: "white", fontSize: "48px", fontWeight: "bold" }, children: title }),
@@ -2914,13 +2164,13 @@ var CardExpansionMask = ({
   className = "",
   style
 }) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  React2__default.default.useId().replace(/:/g, "");
-  const progress = interpolate(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  React5__default.default.useId().replace(/:/g, "");
+  const progress = chunkWEQRPTIM_cjs.interpolate(
     frame - startFrame,
     [0, durationInFrames],
     [0, 1],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeInOutCubic }
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: chunkWEQRPTIM_cjs.Easing.easeInOutCubic }
   );
   const radius = progress * 150;
   return /* @__PURE__ */ jsxRuntime.jsx(
@@ -2938,388 +2188,605 @@ var CardExpansionMask = ({
     }
   );
 };
-
-// src/utils/path.ts
-var GAUSS_ORDER = 12;
-var [GAUSS_X, GAUSS_W] = (() => {
-  const xs = [];
-  const ws = [];
-  for (let i = 1; i <= GAUSS_ORDER; i++) {
-    let x = Math.cos(Math.PI * (i - 0.25) / (GAUSS_ORDER + 0.5));
-    let derivative = 0;
-    for (let iteration = 0; iteration < 100; iteration++) {
-      let p0 = 1;
-      let p1 = x;
-      for (let k = 2; k <= GAUSS_ORDER; k++) {
-        const p2 = ((2 * k - 1) * x * p1 - (k - 1) * p0) / k;
-        p0 = p1;
-        p1 = p2;
-      }
-      derivative = GAUSS_ORDER * (x * p1 - p0) / (x * x - 1);
-      const step = p1 / derivative;
-      x -= step;
-      if (Math.abs(step) < 1e-16) break;
-    }
-    xs.push(x);
-    ws.push(2 / ((1 - x * x) * derivative * derivative));
-  }
-  return [xs, ws];
-})();
-var integrate = (speed, a, b) => {
-  const half = (b - a) / 2;
-  const mid = (a + b) / 2;
-  let sum = 0;
-  for (let i = 0; i < GAUSS_ORDER; i++) sum += GAUSS_W[i] * speed(mid + half * GAUSS_X[i]);
-  return sum * half;
-};
-var PIECES = 16;
-var curveSegment = (point, derivative) => {
-  const speed = (t) => {
-    const d = derivative(t);
-    return Math.hypot(d.x, d.y);
-  };
-  const cumulative = [0];
-  for (let k = 0; k < PIECES; k++) {
-    cumulative.push(cumulative[k] + integrate(speed, k / PIECES, (k + 1) / PIECES));
-  }
-  const length = cumulative[PIECES];
-  return {
-    length,
-    point,
-    derivative,
-    tAtLength(s) {
-      if (s <= 0) return 0;
-      if (s >= length) return 1;
-      let k = 0;
-      while (k < PIECES - 1 && cumulative[k + 1] < s) k++;
-      const a = k / PIECES;
-      const target = s - cumulative[k];
-      const pieceLength = cumulative[k + 1] - cumulative[k];
-      let lo = a;
-      let hi = (k + 1) / PIECES;
-      let t = pieceLength > 0 ? a + target / pieceLength * (hi - lo) : a;
-      for (let iteration = 0; iteration < 60; iteration++) {
-        const error = integrate(speed, a, t) - target;
-        if (Math.abs(error) <= 1e-12 * Math.max(1, length)) break;
-        if (error > 0) hi = t;
-        else lo = t;
-        const v = speed(t);
-        const next = v > 0 ? t - error / v : NaN;
-        t = next > lo && next < hi ? next : (lo + hi) / 2;
-        if (hi - lo < 1e-15) break;
-      }
-      return t;
-    }
-  };
-};
-var lineSegment = (p0, p1) => {
-  const length = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-  return {
-    length,
-    point: (t) => ({ x: p0.x + (p1.x - p0.x) * t, y: p0.y + (p1.y - p0.y) * t }),
-    derivative: () => ({ x: p1.x - p0.x, y: p1.y - p0.y }),
-    tAtLength: (s) => length === 0 ? 0 : Math.max(0, Math.min(1, s / length))
-  };
-};
-var quadSegment = (p0, p1, p2) => curveSegment(
-  (t) => {
-    const u = 1 - t;
-    return {
-      x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x,
-      y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y
-    };
-  },
-  (t) => ({
-    x: 2 * (1 - t) * (p1.x - p0.x) + 2 * t * (p2.x - p1.x),
-    y: 2 * (1 - t) * (p1.y - p0.y) + 2 * t * (p2.y - p1.y)
-  })
-);
-var cubicSegment = (p0, p1, p2, p3) => curveSegment(
-  (t) => {
-    const u = 1 - t;
-    const a = u * u * u;
-    const b = 3 * u * u * t;
-    const c = 3 * u * t * t;
-    const d = t * t * t;
-    return {
-      x: a * p0.x + b * p1.x + c * p2.x + d * p3.x,
-      y: a * p0.y + b * p1.y + c * p2.y + d * p3.y
-    };
-  },
-  (t) => {
-    const u = 1 - t;
-    return {
-      x: 3 * u * u * (p1.x - p0.x) + 6 * u * t * (p2.x - p1.x) + 3 * t * t * (p3.x - p2.x),
-      y: 3 * u * u * (p1.y - p0.y) + 6 * u * t * (p2.y - p1.y) + 3 * t * t * (p3.y - p2.y)
-    };
-  }
-);
-var arcSegment = (p0, radiusX, radiusY, rotationDegrees, largeArc, sweep, p1) => {
-  if (p0.x === p1.x && p0.y === p1.y) return null;
-  let rx = Math.abs(radiusX);
-  let ry = Math.abs(radiusY);
-  if (rx === 0 || ry === 0) return lineSegment(p0, p1);
-  const phi = rotationDegrees * Math.PI / 180;
-  const cos = Math.cos(phi);
-  const sin = Math.sin(phi);
-  const dx = (p0.x - p1.x) / 2;
-  const dy = (p0.y - p1.y) / 2;
-  const x1 = cos * dx + sin * dy;
-  const y1 = -sin * dx + cos * dy;
-  const lambda = x1 * x1 / (rx * rx) + y1 * y1 / (ry * ry);
-  if (lambda > 1) {
-    rx *= Math.sqrt(lambda);
-    ry *= Math.sqrt(lambda);
-  }
-  const numerator = rx * rx * ry * ry - rx * rx * y1 * y1 - ry * ry * x1 * x1;
-  const denominator = rx * rx * y1 * y1 + ry * ry * x1 * x1;
-  const coefficient = (largeArc !== sweep ? 1 : -1) * Math.sqrt(Math.max(0, numerator / denominator));
-  const cxPrime = coefficient * rx * y1 / ry;
-  const cyPrime = -coefficient * ry * x1 / rx;
-  const cx = cos * cxPrime - sin * cyPrime + (p0.x + p1.x) / 2;
-  const cy = sin * cxPrime + cos * cyPrime + (p0.y + p1.y) / 2;
-  const angle = (ux2, uy2, vx2, vy2) => Math.atan2(ux2 * vy2 - uy2 * vx2, ux2 * vx2 + uy2 * vy2);
-  const ux = (x1 - cxPrime) / rx;
-  const uy = (y1 - cyPrime) / ry;
-  const vx = (-x1 - cxPrime) / rx;
-  const vy = (-y1 - cyPrime) / ry;
-  const theta1 = angle(1, 0, ux, uy);
-  let delta = angle(ux, uy, vx, vy);
-  if (!sweep && delta > 0) delta -= 2 * Math.PI;
-  if (sweep && delta < 0) delta += 2 * Math.PI;
-  return curveSegment(
-    (t) => {
-      if (t === 1) return { x: p1.x, y: p1.y };
-      const theta = theta1 + delta * t;
-      const c = Math.cos(theta);
-      const s = Math.sin(theta);
-      return { x: cx + rx * cos * c - ry * sin * s, y: cy + rx * sin * c + ry * cos * s };
-    },
-    (t) => {
-      const theta = theta1 + delta * t;
-      const c = Math.cos(theta);
-      const s = Math.sin(theta);
-      return { x: delta * (-rx * cos * s - ry * sin * c), y: delta * (-rx * sin * s + ry * cos * c) };
-    }
-  );
-};
-var COMMANDS = "MmLlHhVvCcSsQqTtAaZz";
-var NUMBER2 = /[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/y;
-var parsePath = (d) => {
-  if (typeof d !== "string") {
-    throw new Error(`path: d must be a string, got ${JSON.stringify(d)}`);
-  }
+var streamOf = (seed, dimensions) => {
   let i = 0;
-  const fail = (message) => {
-    throw new Error(`path: ${message} at position ${i} of "${d.length > 80 ? d.slice(0, 77) + "..." : d}"`);
-  };
-  const skipSeparators = () => {
-    while (i < d.length && (d[i] === "," || d[i] === " " || d[i] === "	" || d[i] === "\n" || d[i] === "\r" || d[i] === "\f")) i++;
-  };
-  const number = () => {
-    skipSeparators();
-    NUMBER2.lastIndex = i;
-    const match = NUMBER2.exec(d);
-    if (!match) return fail("expected a number");
-    i = NUMBER2.lastIndex;
-    return parseFloat(match[0]);
-  };
-  const flag = () => {
-    skipSeparators();
-    if (d[i] === "0" || d[i] === "1") return d[i++] === "1";
-    return fail("expected an arc flag (0 or 1)");
-  };
-  const numberAhead = () => {
-    skipSeparators();
-    return i < d.length && /[0-9.+-]/.test(d[i]);
-  };
-  const segments = [];
-  let start = null;
-  let current = { x: 0, y: 0 };
-  let subpathStart = { x: 0, y: 0 };
-  let lastCubicControl = null;
-  let lastQuadControl = null;
-  let command = null;
-  const add = (segment) => {
-    if (segment) segments.push(segment);
-  };
-  for (; ; ) {
-    skipSeparators();
-    if (i >= d.length) break;
-    const char = d[i];
-    if (COMMANDS.includes(char)) {
-      command = char;
-      i++;
-    } else if (command === null) {
-      fail("a path must start with M or m");
-    } else if (command === "Z" || command === "z") {
-      fail("expected a command after Z");
-    } else if (!/[0-9.+-]/.test(char)) {
-      fail(`unexpected "${char}"`);
-    }
-    if (start === null && command !== "M" && command !== "m") fail("a path must start with M or m");
-    const relative = command === command.toLowerCase();
-    const base = relative ? current : { x: 0, y: 0 };
-    const at = (x, y) => ({ x: base.x + x, y: base.y + y });
-    let cubicControl = null;
-    let quadControl = null;
-    switch (command.toUpperCase()) {
-      case "M": {
-        const p = at(number(), number());
-        current = p;
-        subpathStart = p;
-        if (start === null) start = p;
-        command = relative ? "l" : "L";
-        break;
-      }
-      case "L": {
-        const p = at(number(), number());
-        add(lineSegment(current, p));
-        current = p;
-        break;
-      }
-      case "H": {
-        const p = { x: base.x + number(), y: current.y };
-        add(lineSegment(current, p));
-        current = p;
-        break;
-      }
-      case "V": {
-        const p = { x: current.x, y: base.y + number() };
-        add(lineSegment(current, p));
-        current = p;
-        break;
-      }
-      case "C": {
-        const c1 = at(number(), number());
-        const c2 = at(number(), number());
-        const p = at(number(), number());
-        add(cubicSegment(current, c1, c2, p));
-        cubicControl = c2;
-        current = p;
-        break;
-      }
-      case "S": {
-        const c1 = lastCubicControl ? { x: 2 * current.x - lastCubicControl.x, y: 2 * current.y - lastCubicControl.y } : current;
-        const c2 = at(number(), number());
-        const p = at(number(), number());
-        add(cubicSegment(current, c1, c2, p));
-        cubicControl = c2;
-        current = p;
-        break;
-      }
-      case "Q": {
-        const c = at(number(), number());
-        const p = at(number(), number());
-        add(quadSegment(current, c, p));
-        quadControl = c;
-        current = p;
-        break;
-      }
-      case "T": {
-        const c = lastQuadControl ? { x: 2 * current.x - lastQuadControl.x, y: 2 * current.y - lastQuadControl.y } : current;
-        const p = at(number(), number());
-        add(quadSegment(current, c, p));
-        quadControl = c;
-        current = p;
-        break;
-      }
-      case "A": {
-        const rx = number();
-        const ry = number();
-        const rotation = number();
-        const largeArc = flag();
-        const sweep = flag();
-        const p = at(number(), number());
-        add(arcSegment(current, rx, ry, rotation, largeArc, sweep, p));
-        current = p;
-        break;
-      }
-      case "Z": {
-        add(lineSegment(current, subpathStart));
-        current = subpathStart;
-        break;
-      }
-    }
-    lastCubicControl = cubicControl;
-    lastQuadControl = quadControl;
-    if (command !== "Z" && command !== "z" && !numberAhead() && i < d.length && !COMMANDS.includes(d[i])) {
-      fail(`unexpected "${d[i]}"`);
-    }
-  }
-  if (start === null) {
-    throw new Error("path: d is empty; a path must start with M or m");
-  }
-  const cumulative = [0];
-  for (const segment of segments) {
-    if (!Number.isFinite(segment.length)) {
-      throw new Error(`path: "${d}" has a segment of non-finite length`);
-    }
-    cumulative.push(cumulative[cumulative.length - 1] + segment.length);
-  }
-  return { start, segments, cumulative };
+  return () => chunkWEQRPTIM_cjs.random(`noise${dimensions}D:${seed}:${i++}`);
 };
 var CACHE_SIZE = 64;
-var cache = /* @__PURE__ */ new Map();
-var getParsed = (d) => {
-  const cached = cache.get(d);
-  if (cached) {
-    cache.delete(d);
-    cache.set(d, cached);
-    return cached;
-  }
-  const parsed = parsePath(d);
-  cache.set(d, parsed);
-  if (cache.size > CACHE_SIZE) cache.delete(cache.keys().next().value);
-  return parsed;
-};
-var totalLength = (path) => path.cumulative[path.cumulative.length - 1];
-var locate = (fn, d, length) => {
-  if (typeof length !== "number" || !Number.isFinite(length)) {
-    throw new Error(`${fn}: length must be a finite number, got ${length}`);
-  }
-  const path = getParsed(d);
-  const total = totalLength(path);
-  const s = Math.max(0, Math.min(total, length));
-  let index = -1;
-  for (let k = 0; k < path.segments.length; k++) {
-    if (path.segments[k].length > 0) {
-      index = k;
-      if (s <= path.cumulative[k + 1]) break;
+var cached = (create, dimensions) => {
+  const cache = /* @__PURE__ */ new Map();
+  return (seed) => {
+    const key = String(seed);
+    let noise = cache.get(key);
+    if (noise === void 0) {
+      if (cache.size >= CACHE_SIZE) cache.delete(cache.keys().next().value);
+      noise = create(streamOf(key, dimensions));
+      cache.set(key, noise);
     }
-  }
-  if (index === -1) return { path, segment: null, t: 0 };
-  const segment = path.segments[index];
-  return { path, segment, t: segment.tAtLength(s - path.cumulative[index]) };
-};
-var getLength = (d) => totalLength(getParsed(d));
-var getPointAtLength = (d, length) => {
-  const { path, segment, t } = locate("getPointAtLength", d, length);
-  if (!segment) return { x: path.start.x, y: path.start.y };
-  return segment.point(t);
-};
-var getTangentAtLength = (d, length) => {
-  const { segment, t } = locate("getTangentAtLength", d, length);
-  if (!segment) {
-    throw new Error(`getTangentAtLength: the path "${d}" has no length, so it has no direction`);
-  }
-  let v = segment.derivative(t);
-  for (let step = 1e-9; Math.hypot(v.x, v.y) < 1e-12 && step <= 1e-3; step *= 10) {
-    v = segment.derivative(t < 0.5 ? t + step : t - step);
-  }
-  const norm = Math.hypot(v.x, v.y);
-  return { x: v.x / norm, y: v.y / norm };
-};
-var evolvePath = (progress, d) => {
-  if (typeof progress !== "number" || !Number.isFinite(progress)) {
-    throw new Error(`evolvePath: progress must be a finite number, got ${progress}`);
-  }
-  const length = getLength(d);
-  return {
-    strokeDasharray: `${length} ${length}`,
-    strokeDashoffset: length - progress * length
+    return noise;
   };
 };
+var noise2DOf = cached(simplexNoise.createNoise2D, 2);
+var noise3DOf = cached(simplexNoise.createNoise3D, 3);
+var noise4DOf = cached(simplexNoise.createNoise4D, 4);
+var check = (fn, seed, coordinates) => {
+  if (!(typeof seed === "string" || typeof seed === "number" && Number.isFinite(seed))) {
+    throw new Error(`${fn}: seed must be a string or a finite number, got ${JSON.stringify(seed)}`);
+  }
+  for (const [name, value] of Object.entries(coordinates)) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new Error(`${fn}: ${name} must be a finite number, got ${value}`);
+    }
+  }
+};
+var noise2D = (seed, x, y) => {
+  check("noise2D", seed, { x, y });
+  return noise2DOf(seed)(x, y);
+};
+var noise3D = (seed, x, y, z) => {
+  check("noise3D", seed, { x, y, z });
+  return noise3DOf(seed)(x, y, z);
+};
+var noise4D = (seed, x, y, z, w) => {
+  check("noise4D", seed, { x, y, z, w });
+  return noise4DOf(seed)(x, y, z, w);
+};
+
+// src/utils/transform.ts
+var lengthUnits = [
+  "px",
+  "em",
+  "rem",
+  "pt",
+  "cap",
+  "ch",
+  "ex",
+  "ic",
+  "lh",
+  "rlh",
+  "vmax",
+  "vmin",
+  "vb",
+  "vi",
+  "cqw",
+  "vh",
+  "vw",
+  "cqh",
+  "cqi",
+  "cqb",
+  "cqmin",
+  "cqmax",
+  "cm",
+  "mm",
+  "Q",
+  "in",
+  "pc"
+];
+var angleUnits = ["rad", "deg", "grad", "turn"];
+var lengthPercentageUnits = ["%", ...lengthUnits];
+var NUMBER_WITH_UNIT = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)([a-zA-Z%]+)$/;
+var checkNumber = (api, param, value) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new TypeError(`${api}: ${param} must be a finite number, got ${JSON.stringify(value)}`);
+  }
+  return value;
+};
+var checkUnit = (api, param, unit, units) => {
+  if (typeof unit !== "string" || !units.includes(unit)) {
+    throw new TypeError(`${api}: ${param} unit must be one of ${units.join(", ")}, got ${JSON.stringify(unit)}`);
+  }
+  return unit;
+};
+var withUnit = (api, param, value, units, unit) => {
+  if (typeof value === "string") {
+    const match = value.match(NUMBER_WITH_UNIT);
+    if (!match || !units.includes(match[2])) {
+      throw new TypeError(
+        `${api}: ${param} ${JSON.stringify(value)} must be a number or a string ending in one of ${units.join(", ")}`
+      );
+    }
+    if (unit !== void 0) {
+      throw new TypeError(`${api}: ${param} ${JSON.stringify(value)} already has a unit; pass a number to give one`);
+    }
+    return value;
+  }
+  return `${checkNumber(api, param, value)}${checkUnit(api, param, unit, units)}`;
+};
+var length = (api, param, value, unit = "px") => withUnit(api, param, value, lengthPercentageUnits, typeof value === "string" ? void 0 : unit);
+var angle = (api, param, value, unit = "deg") => withUnit(api, param, value, angleUnits, typeof value === "string" ? void 0 : unit);
+var signatures = (api, list) => new TypeError([`${api}() supports only the following signatures:`, ...list.map((s) => `${api}(${s})`)].join("\n"));
+var makeTransform = (transforms) => {
+  if (!Array.isArray(transforms) || transforms.some((t) => typeof t !== "string")) {
+    throw new TypeError(`makeTransform: expects an array of transform strings, got ${JSON.stringify(transforms)}`);
+  }
+  return transforms.join(" ");
+};
+function matrix(a, b, c, d, tx, ty) {
+  const values = { a, b, c, d, tx, ty };
+  Object.entries(values).forEach(([name, value]) => checkNumber("matrix", name, value));
+  return `matrix(${a}, ${b}, ${c}, ${d}, ${tx}, ${ty})`;
+}
+function matrix3d(...values) {
+  if (values.length !== 16) throw new TypeError(`matrix3d: expects 16 numbers, got ${values.length}`);
+  values.forEach((value, i) => checkNumber("matrix3d", `argument ${i + 1}`, value));
+  return `matrix3d(${values.join(", ")})`;
+}
+function perspective(value, unit = "px") {
+  if (typeof value === "string") return `perspective(${withUnit("perspective", "length", value, lengthUnits)})`;
+  return `perspective(${withUnit("perspective", "length", value, lengthUnits, unit)})`;
+}
+function rotate(value, unit) {
+  return `rotate(${angle("rotate", "angle", value, unit)})`;
+}
+function rotate3d(x, y, z, value, unit) {
+  checkNumber("rotate3d", "x", x);
+  checkNumber("rotate3d", "y", y);
+  checkNumber("rotate3d", "z", z);
+  return `rotate3d(${x}, ${y}, ${z}, ${angle("rotate3d", "angle", value, unit)})`;
+}
+function rotateX(value, unit) {
+  return `rotateX(${angle("rotateX", "angle", value, unit)})`;
+}
+function rotateY(value, unit) {
+  return `rotateY(${angle("rotateY", "angle", value, unit)})`;
+}
+function rotateZ(value, unit) {
+  return `rotateZ(${angle("rotateZ", "angle", value, unit)})`;
+}
+function scale(x, y = x) {
+  checkNumber("scale", "x", x);
+  checkNumber("scale", "y", y);
+  return `scale(${x}, ${y})`;
+}
+function scale3d(x, y, z) {
+  checkNumber("scale3d", "x", x);
+  checkNumber("scale3d", "y", y);
+  checkNumber("scale3d", "z", z);
+  return `scale3d(${x}, ${y}, ${z})`;
+}
+function scaleX(x) {
+  return `scaleX(${checkNumber("scaleX", "x", x)})`;
+}
+function scaleY(y) {
+  return `scaleY(${checkNumber("scaleY", "y", y)})`;
+}
+function scaleZ(z) {
+  return `scaleZ(${checkNumber("scaleZ", "z", z)})`;
+}
+function skew(...args) {
+  const [a, b, c, d] = args;
+  if (args.length === 1) {
+    const value = angle("skew", "angle", a);
+    return `skew(${value}, ${value})`;
+  }
+  if (args.length === 2) {
+    if (typeof a === "string" && typeof b === "string") {
+      return `skew(${angle("skew", "angleX", a)}, ${angle("skew", "angleY", b)})`;
+    }
+    if (typeof a === "number" && typeof b === "number") {
+      return `skew(${angle("skew", "angleX", a)}, ${angle("skew", "angleY", b)})`;
+    }
+    if (typeof a === "number" && typeof b === "string") {
+      const value = angle("skew", "angle", a, b);
+      return `skew(${value}, ${value})`;
+    }
+  }
+  if (args.length === 4 && typeof a === "number" && typeof c === "number") {
+    return `skew(${angle("skew", "angleX", a, b)}, ${angle("skew", "angleY", c, d)})`;
+  }
+  throw signatures("skew", [
+    "angle: number | AngleUnitString",
+    "angle: AngleUnitString, angle2: AngleUnitString",
+    "angle: number, unit: AngleUnit",
+    "angleX: number, angleY: number",
+    "angleX: number, unitX: AngleUnit, angleY: number, unitY: AngleUnit"
+  ]);
+}
+function skewX(value, unit) {
+  return `skewX(${angle("skewX", "angle", value, unit)})`;
+}
+function skewY(value, unit) {
+  return `skewY(${angle("skewY", "angle", value, unit)})`;
+}
+function translate(...args) {
+  const [a, b, c, d] = args;
+  if (args.length === 1) return `translate(${length("translate", "x", a)})`;
+  if (args.length === 2) {
+    if (typeof a === "number" && typeof b === "number" || typeof a === "string" && typeof b === "string") {
+      return `translate(${length("translate", "x", a)}, ${length("translate", "y", b)})`;
+    }
+    if (typeof a === "number" && typeof b === "string") return `translate(${length("translate", "x", a, b)})`;
+  }
+  if (args.length === 4 && typeof a === "number" && typeof c === "number") {
+    return `translate(${length("translate", "x", a, b)}, ${length("translate", "y", c, d)})`;
+  }
+  throw signatures("translate", [
+    "x: number | LengthPercentageUnitString",
+    "x: number, y: number",
+    "x: LengthPercentageUnitString, y: LengthPercentageUnitString",
+    "translation: number, unit: LengthPercentageUnit",
+    "x: number, unitX: LengthPercentageUnit, y: number, unitY: LengthPercentageUnit"
+  ]);
+}
+function translate3d(...args) {
+  if (args.length === 3) {
+    const [x, y, z] = args;
+    const zValue = typeof z === "string" ? withUnit("translate3d", "z", z, lengthUnits) : withUnit("translate3d", "z", z, lengthUnits, "px");
+    return `translate3d(${length("translate3d", "x", x)}, ${length("translate3d", "y", y)}, ${zValue})`;
+  }
+  if (args.length === 6) {
+    const [x, unitX, y, unitY, z, unitZ] = args;
+    if (typeof x === "number" && typeof y === "number" && typeof z === "number") {
+      return `translate3d(${length("translate3d", "x", x, unitX)}, ${length("translate3d", "y", y, unitY)}, ${withUnit("translate3d", "z", z, lengthUnits, unitZ)})`;
+    }
+  }
+  throw signatures("translate3d", [
+    "x: number | LengthPercentageUnitString, y: number | LengthPercentageUnitString, z: number | LengthUnitString",
+    "x: number, unitX: LengthPercentageUnit, y: number, unitY: LengthPercentageUnit, z: number, unitZ: LengthUnit"
+  ]);
+}
+function translateX(value, unit) {
+  return `translateX(${length("translateX", "x", value, unit)})`;
+}
+function translateY(value, unit) {
+  return `translateY(${length("translateY", "y", value, unit)})`;
+}
+function translateZ(value, unit = "px") {
+  if (typeof value === "string") return `translateZ(${withUnit("translateZ", "z", value, lengthUnits)})`;
+  return `translateZ(${withUnit("translateZ", "z", value, lengthUnits, unit)})`;
+}
+
+// src/utils/interpolate-styles.ts
+var NUMBER = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)([a-zA-Z%]*)$/;
+var FUNCTION = /^([a-zA-Z-][a-zA-Z0-9-]*)\(([\s\S]*)\)$/;
+var split = (text, commas = false) => {
+  const tokens = [];
+  let depth = 0;
+  let current = "";
+  const flush = () => {
+    if (current.trim() !== "") tokens.push(current.trim());
+    current = "";
+  };
+  for (const ch of text) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (depth === 0 && ch === ",") {
+      flush();
+      if (!commas) tokens.push(",");
+    } else if (depth === 0 && !commas && /\s/.test(ch)) {
+      flush();
+    } else {
+      current += ch;
+    }
+  }
+  flush();
+  return tokens;
+};
+var parseToken = (token) => {
+  const call = token.match(FUNCTION);
+  if (call) {
+    if (chunkWEQRPTIM_cjs.COLOR_FUNCTIONS.includes(call[1].toLowerCase())) {
+      chunkWEQRPTIM_cjs.parseColor(token, "interpolateStyles");
+      return { kind: "color", text: token };
+    }
+    return { kind: "function", name: call[1], args: split(call[2], true).map(parseValue) };
+  }
+  if (token.startsWith("#") || chunkWEQRPTIM_cjs.isNamedColor(token)) {
+    chunkWEQRPTIM_cjs.parseColor(token, "interpolateStyles");
+    return { kind: "color", text: token };
+  }
+  const number = token.match(NUMBER);
+  if (number) return { kind: "number", value: parseFloat(number[1]), unit: number[2] };
+  return { kind: "word", text: token };
+};
+var parseValue = (value) => typeof value === "number" ? [{ kind: "number", value, unit: "" }] : split(value).map(parseToken);
+var serialize = (parts) => parts.reduce((out, part) => part === "," ? `${out},` : out === "" ? `${part}` : `${out} ${part}`, "");
+var describe2 = (value) => JSON.stringify(value);
+var interpolateParts = (property, start, end, segment, values) => {
+  const mismatch2 = () => new TypeError(
+    `interpolateStyles: ${property} cannot be interpolated from ${describe2(values[0])} to ${describe2(values[1])}: the values must have the same structure`
+  );
+  if (start.length !== end.length) throw mismatch2();
+  return start.map((a, i) => {
+    const b = end[i];
+    if (a.kind === "number" && b.kind === "number") {
+      if (a.unit !== b.unit && a.value !== 0 && b.value !== 0) {
+        throw new TypeError(
+          `interpolateStyles: ${property} cannot be interpolated from ${describe2(values[0])} to ${describe2(values[1])}: the units must match`
+        );
+      }
+      const n = chunkWEQRPTIM_cjs.interpolate(segment.input, segment.range, [a.value, b.value], segment.options);
+      const unit = a.unit || b.unit;
+      return unit ? `${n}${unit}` : n;
+    }
+    if (a.kind === "color" && b.kind === "color") {
+      return chunkWEQRPTIM_cjs.interpolateColors(segment.input, segment.range, [a.text, b.text], { easing: segment.options.easing });
+    }
+    if (a.kind === "function" && b.kind === "function") {
+      if (a.name !== b.name || a.args.length !== b.args.length) throw mismatch2();
+      const args = a.args.map((arg, j) => serialize(interpolateParts(property, arg, b.args[j], segment, values)));
+      return `${a.name}(${args.join(", ")})`;
+    }
+    if (a.kind === "word" && b.kind === "word" && a.text === b.text) return a.text;
+    throw mismatch2();
+  });
+};
+var checkStyles = (outputStylesRange, length2) => {
+  if (!Array.isArray(outputStylesRange)) {
+    throw new Error("interpolateStyles: outputStylesRange must be an array of style objects");
+  }
+  if (outputStylesRange.length !== length2) {
+    throw new Error(
+      `interpolateStyles: inputRange (${length2}) and outputStylesRange (${outputStylesRange.length}) must have the same length`
+    );
+  }
+  outputStylesRange.forEach((style, i) => {
+    if (typeof style !== "object" || style === null || Array.isArray(style)) {
+      throw new Error(`interpolateStyles: outputStylesRange[${i}] must be a style object, got ${describe2(style)}`);
+    }
+  });
+};
+var interpolateStyles = (input, inputRange, outputStylesRange, options = {}) => {
+  checkStyles(outputStylesRange, inputRange.length);
+  chunkWEQRPTIM_cjs.checkInterpolateArgs("interpolateStyles", input, inputRange, outputStylesRange.length, options);
+  if (inputRange.length < 2) {
+    throw new Error("interpolateStyles: inputRange must have at least 2 elements");
+  }
+  for (let i = 1; i < inputRange.length; i++) {
+    if (!(inputRange[i] > inputRange[i - 1])) {
+      throw new Error(`interpolateStyles: inputRange must be strictly increasing, got [${inputRange.join(", ")}]`);
+    }
+  }
+  const { posterize, easing, extrapolateLeft = "extend", extrapolateRight = "extend" } = options;
+  const x = posterize === void 0 ? input : Math.floor(input / posterize) * posterize;
+  let index = inputRange.findIndex((step) => x < step) - 1;
+  if (index === -1) index = 0;
+  if (index === -2) index = inputRange.length - 2;
+  const segment = {
+    input: x,
+    range: [inputRange[index], inputRange[index + 1]],
+    options: {
+      easing: Array.isArray(easing) ? easing[index] : easing,
+      extrapolateLeft,
+      extrapolateRight
+    }
+  };
+  const startStyle = outputStylesRange[index];
+  const endStyle = outputStylesRange[index + 1];
+  const result = {};
+  for (const property of Object.keys(startStyle)) {
+    const from = startStyle[property];
+    const to = endStyle[property];
+    if (to === void 0 || to === null) {
+      result[property] = from;
+      continue;
+    }
+    if (typeof from !== "string" && typeof from !== "number" || typeof to !== "string" && typeof to !== "number") {
+      throw new TypeError(
+        `interpolateStyles: ${property} must be a number or a string in both styles, got ${describe2(from)} and ${describe2(to)}`
+      );
+    }
+    const value = serialize(interpolateParts(property, parseValue(from), parseValue(to), segment, [from, to]));
+    result[property] = value !== "" && !Number.isNaN(Number(value)) ? Number(value) : value;
+  }
+  return result;
+};
+
+// src/utils/path/interpolate.ts
+var decasteljau = (points, t) => {
+  const left = [];
+  const right = [];
+  const recurse = (level) => {
+    if (level.length === 1) {
+      left.push(level[0]);
+      right.push(level[0]);
+      return;
+    }
+    const next = [];
+    for (let i = 0; i < level.length - 1; i++) {
+      if (i === 0) left.push(level[0]);
+      if (i === level.length - 2) right.push(level[i + 1]);
+      next.push([(1 - t) * level[i][0] + t * level[i + 1][0], (1 - t) * level[i][1] + t * level[i + 1][1]]);
+    }
+    recurse(next);
+  };
+  if (points.length) recurse(points);
+  return { left, right: right.reverse() };
+};
+var splitCurveAsPoints = (points, count) => {
+  const pieces = [];
+  let remaining = points;
+  const increment = 1 / count;
+  for (let i = 0; i < count - 1; i++) {
+    const { left, right } = decasteljau(remaining, increment / (1 - increment * i));
+    pieces.push(left);
+    remaining = right;
+  }
+  pieces.push(remaining);
+  return pieces;
+};
+var pointsToInstruction = (points) => {
+  const [x, y] = points[points.length - 1];
+  if (points.length === 4) {
+    return { type: "C", cp1x: points[1][0], cp1y: points[1][1], cp2x: points[2][0], cp2y: points[2][1], x, y };
+  }
+  if (points.length === 3) {
+    return chunk37ZW67WK_cjs.quadToCubic({ x: points[0][0], y: points[0][1] }, points[1][0], points[1][1], x, y);
+  }
+  return { type: "L", x, y };
+};
+var splitSegment = (start, end, count) => {
+  if (end.type === "L" || end.type === "C") {
+    if (start.type === "Z") return [];
+    const points = [[start.x, start.y]];
+    if (end.type === "C") points.push([end.cp1x, end.cp1y], [end.cp2x, end.cp2y]);
+    points.push([end.x, end.y]);
+    return splitCurveAsPoints(points, count).map(pointsToInstruction);
+  }
+  const copy = start.type === "M" ? { type: "L", x: start.x, y: start.y } : start;
+  return [...new Array(count - 1).fill(copy), end];
+};
+var extendInstructions = (commands, reference) => {
+  const segments = commands.length - 1;
+  const referenceSegments = reference.length - 1;
+  const ratio = segments / referenceSegments;
+  const counts = [];
+  for (let i = 0; i < referenceSegments; i++) {
+    const index = Math.floor(ratio * i);
+    counts[index] = (counts[index] ?? 0) + 1;
+  }
+  const extended = [commands[0]];
+  counts.forEach((count, i) => {
+    if (count === void 0) return;
+    if (i === commands.length - 1) {
+      const last = commands[commands.length - 1];
+      const copy = last.type === "M" ? { type: "L", x: last.x, y: last.y } : { ...last };
+      for (let k = 0; k < count; k++) extended.push(copy);
+      return;
+    }
+    extended.push(...splitSegment(commands[i], commands[i + 1], count));
+  });
+  return extended;
+};
+var toSameType = (command, target, current) => {
+  if (command.type === "M" || target.type === "M" || command.type === target.type) return { ...command };
+  if (target.type === "C" && command.type === "L") {
+    return { type: "C", cp1x: current.x, cp1y: current.y, cp2x: command.x, cp2y: command.y, x: command.x, y: command.y };
+  }
+  if (target.type === "L" && command.type === "C") return { type: "L", x: command.x, y: command.y };
+  if (target.type === "Z") return { type: "Z" };
+  throw new Error(`interpolatePath: cannot turn a ${command.type} instruction into a ${target.type} instruction`);
+};
+var mismatch = (fn) => {
+  throw new Error(`${fn}: the paths have different subpath structures (a move or a close where the other path draws)`);
+};
+var mix = (t, a, b) => {
+  if (a.type !== b.type) mismatch("interpolatePath");
+  const lerp = (p, q) => (1 - t) * p + t * q;
+  switch (a.type) {
+    case "Z":
+      return a;
+    case "C": {
+      const c = b;
+      return {
+        type: "C",
+        cp1x: lerp(a.cp1x, c.cp1x),
+        cp2x: lerp(a.cp2x, c.cp2x),
+        cp1y: lerp(a.cp1y, c.cp1y),
+        cp2y: lerp(a.cp2y, c.cp2y),
+        x: lerp(a.x, c.x),
+        y: lerp(a.y, c.y)
+      };
+    }
+    default: {
+      const p = b;
+      return { type: a.type, x: lerp(a.x, p.x), y: lerp(a.y, p.y) };
+    }
+  }
+};
+var reducedOf = (fn, path) => {
+  if (typeof path !== "string") {
+    throw new Error(`${fn}: paths must be strings, got ${JSON.stringify(path)}`);
+  }
+  return chunk37ZW67WK_cjs.reduceInstructions(chunk37ZW67WK_cjs.parsePath(path));
+};
+var checkFinite2 = (fn, name, value) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${fn}: ${name} must be a finite number, got ${value}`);
+  }
+};
+var interpolatePath = (value, firstPath, secondPath) => {
+  checkFinite2("interpolatePath", "value", value);
+  const a = reducedOf("interpolatePath", firstPath);
+  const b = reducedOf("interpolatePath", secondPath);
+  if (value === 1) return secondPath;
+  if (value === 0) return firstPath;
+  let aCommands = a.slice();
+  let bCommands = b.slice();
+  const addZ = aCommands[aCommands.length - 1].type === "Z" && bCommands[bCommands.length - 1].type === "Z";
+  if (aCommands[aCommands.length - 1].type === "Z") aCommands.pop();
+  if (bCommands[bCommands.length - 1].type === "Z") bCommands.pop();
+  if (aCommands.length === 0) aCommands.push(bCommands[0]);
+  else if (bCommands.length === 0) bCommands.push(aCommands[0]);
+  if (bCommands.length > aCommands.length) aCommands = extendInstructions(aCommands, bCommands);
+  else if (aCommands.length > bCommands.length) bCommands = extendInstructions(bCommands, aCommands);
+  const aSameType = aCommands.map(
+    (command, i) => toSameType(command, bCommands[i], chunk37ZW67WK_cjs.getEndPosition(aCommands.slice(0, i)))
+  );
+  if (addZ) {
+    aSameType.push({ type: "Z" });
+    bCommands.push({ type: "Z" });
+  }
+  return chunk37ZW67WK_cjs.serializeInstructions(aSameType.map((command, i) => mix(value, command, bCommands[i])));
+};
+var tidyNumbers = (path) => path.replace(/-?\d*\.?\d+(?:e[+-]?\d+)?/gi, (value) => {
+  const number = Number(value);
+  return Number.isInteger(number) ? value : String(Number(number.toPrecision(15)));
+});
+var interpolatePaths = (input, inputRange, outputRange, options) => {
+  const fn = "interpolatePaths";
+  if (!Array.isArray(outputRange)) {
+    throw new Error(`${fn}: outputRange must be an array of SVG path strings, got ${JSON.stringify(outputRange)}`);
+  }
+  for (const path of outputRange) {
+    if (typeof path !== "string") {
+      throw new Error(`${fn}: outputRange must contain only SVG path strings, got ${JSON.stringify(path)}`);
+    }
+  }
+  for (const side of ["extrapolateLeft", "extrapolateRight"]) {
+    const extrapolation = options?.[side];
+    if (extrapolation !== void 0 && extrapolation !== "extend" && extrapolation !== "clamp" && extrapolation !== "wrap") {
+      throw new Error(`${fn}: ${side} must be "extend", "clamp" or "wrap", got ${JSON.stringify(extrapolation)}`);
+    }
+  }
+  const weights = outputRange.map(
+    (_, pathIndex) => chunkWEQRPTIM_cjs.interpolate(
+      input,
+      inputRange,
+      outputRange.map((__, index) => index === pathIndex ? 1 : 0),
+      options
+    )
+  );
+  const exact = weights.findIndex(
+    (weight, index) => weight === 1 && weights.every((other, otherIndex) => otherIndex === index || other === 0)
+  );
+  if (exact !== -1) return outputRange[exact];
+  const contributing = outputRange.map((path, index) => ({ path, weight: weights[index] })).filter(({ weight }) => weight !== 0);
+  const paths = contributing.map(({ path }) => reducedOf(fn, path));
+  const closed = paths.every((commands) => commands[commands.length - 1].type === "Z");
+  const open = paths.map((commands) => commands[commands.length - 1].type === "Z" ? commands.slice(0, -1) : commands);
+  const reference = open.reduce((longest, commands) => commands.length > longest.length ? commands : longest);
+  const extended = open.map(
+    (commands) => commands.length < reference.length ? extendInstructions(commands, reference) : commands
+  );
+  const result = reference.map((_, index) => {
+    const commands = extended.map((path) => path[index]);
+    if (commands.some((command) => command.type === "Z")) {
+      if (commands.every((command) => command.type === "Z")) return { type: "Z" };
+      return mismatch(fn);
+    }
+    const target = commands.find((command) => command.type === "C") ?? commands[0];
+    const coordinates = commands.map((command, pathIndex) => {
+      if (command.type === "M" !== (target.type === "M")) mismatch(fn);
+      const same = toSameType(command, target, chunk37ZW67WK_cjs.getEndPosition(extended[pathIndex].slice(0, index)));
+      if (same.type === "Z") return [];
+      return same.type === "C" ? [same.x, same.y, same.cp1x, same.cp1y, same.cp2x, same.cp2y] : [same.x, same.y];
+    });
+    const values = coordinates[0].map((base, k) => {
+      const mixed = coordinates.reduce((sum, path, pathIndex) => sum + (path[k] - base) * contributing[pathIndex].weight, base);
+      if (Number.isFinite(mixed)) return mixed;
+      return coordinates.reduce((sum, path, pathIndex) => sum + path[k] * contributing[pathIndex].weight, 0);
+    });
+    if (target.type === "C") {
+      return { type: "C", x: values[0], y: values[1], cp1x: values[2], cp1y: values[3], cp2x: values[4], cp2y: values[5] };
+    }
+    return { type: target.type, x: values[0], y: values[1] };
+  });
+  if (closed) result.push({ type: "Z" });
+  return tidyNumbers(chunk37ZW67WK_cjs.serializeInstructions(result));
+};
+
+// src/utils/path/from-points.ts
 var format = (n) => String(Math.abs(n) < 1e-12 ? 0 : n);
 var pair = (p) => `${format(p.x)} ${format(p.y)}`;
 var pathFromPoints = (points, options = {}) => {
@@ -3346,9 +2813,9 @@ var pathFromPoints = (points, options = {}) => {
     const u = { x: (prev.x - vertex.x) / inLength, y: (prev.y - vertex.y) / inLength };
     const v = { x: (next.x - vertex.x) / outLength, y: (next.y - vertex.y) / outLength };
     const cosine = Math.max(-1, Math.min(1, u.x * v.x + u.y * v.y));
-    const angle = Math.acos(cosine);
-    if (angle < 1e-9 || Math.PI - angle < 1e-9) return null;
-    const tanHalf = Math.tan(angle / 2);
+    const angle2 = Math.acos(cosine);
+    if (angle2 < 1e-9 || Math.PI - angle2 < 1e-9) return null;
+    const tanHalf = Math.tan(angle2 / 2);
     const cut = Math.min(cornerRadius / tanHalf, inLength / 2, outLength / 2);
     const cross = (vertex.x - prev.x) * (next.y - vertex.y) - (vertex.y - prev.y) * (next.x - vertex.x);
     return {
@@ -3384,155 +2851,10 @@ var pathFromPoints = (points, options = {}) => {
   return parts.join(" ");
 };
 
-// src/utils/transitions.ts
-var fade = (progress) => {
-  return progress;
-};
-var slide = (progress, direction = "right") => {
-  const eased = progress;
-  const offset = (1 - eased) * 100;
-  switch (direction) {
-    case "left":
-      return { x: -offset, y: 0 };
-    case "right":
-      return { x: offset, y: 0 };
-    case "up":
-      return { x: 0, y: -offset };
-    case "down":
-      return { x: 0, y: offset };
-  }
-};
-var scale = (progress, from = 0, to = 1) => {
-  return from + (to - from) * progress;
-};
-var rotate = (progress, degrees = 360) => {
-  return degrees * progress;
-};
-var zoom = (progress) => {
-  return {
-    scale: 0.5 + progress * 0.5,
-    opacity: progress
-  };
-};
-var wipe = (progress, direction = "right") => {
-  const pct = progress * 100;
-  switch (direction) {
-    case "left":
-      return { clipPath: `inset(0 ${100 - pct}% 0 0)` };
-    case "right":
-      return { clipPath: `inset(0 0 0 ${100 - pct}%)` };
-    case "up":
-      return { clipPath: `inset(0 0 ${100 - pct}% 0)` };
-    case "down":
-      return { clipPath: `inset(${100 - pct}% 0 0 0)` };
-  }
-};
-var blur = (progress, maxBlur = 20) => {
-  return {
-    filter: `blur(${maxBlur * (1 - progress)}px)`,
-    opacity: progress
-  };
-};
-var glitch = (frame, intensity = 10) => {
-  const offset = Math.sin(frame * 0.5) * intensity;
-  return {
-    transform: `translate(${offset}px, ${offset * 0.5}px)`
-  };
-};
-var shake = (frame, intensity = 5) => {
-  const x = Math.sin(frame * 0.8) * intensity;
-  const y = Math.cos(frame * 1.2) * intensity;
-  return {
-    transform: `translate(${x}px, ${y}px)`
-  };
-};
-var pulse = (frame, minScale = 0.95, maxScale = 1.05) => {
-  const scale2 = minScale + (Math.sin(frame * 0.1) + 1) / 2 * (maxScale - minScale);
-  return {
-    transform: `scale(${scale2})`
-  };
-};
-var bounce = (progress) => {
-  const c4 = 2 * Math.PI / 3;
-  return progress === 0 ? 0 : progress === 1 ? 1 : Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * c4) + 1;
-};
-var flash = (progress, flashAt = 0.5) => {
-  const flashProgress = progress < flashAt ? progress / flashAt : (1 - progress) / (1 - flashAt);
-  return {
-    opacity: progress < flashAt ? 1 - flashProgress * 0.5 : 1,
-    backgroundColor: progress < flashAt ? `rgba(255,255,255,${flashProgress * 0.3})` : "transparent"
-  };
-};
-var slideWithFade = (progress, direction = "right") => {
-  const { x, y } = slide(progress, direction);
-  return {
-    transform: `translate(${x}%, ${y}%)`,
-    opacity: progress
-  };
-};
-var flip = (progress, direction = "horizontal") => {
-  const rotateValue = (1 - progress) * 90;
-  const opacity = progress < 0.5 ? 1 - progress : progress;
-  return {
-    transform: direction === "horizontal" ? `rotateY(${rotateValue}deg)` : `rotateX(${rotateValue}deg)`,
-    opacity
-  };
-};
-var combine = (progress, ...transitions2) => {
-  return transitions2.reduce((acc, transition) => ({
-    ...acc,
-    ...transition(progress)
-  }), {});
-};
-var transitions = {
-  fade: {
-    enter: (p) => ({ opacity: fade(p) }),
-    exit: (p) => ({ opacity: fade(1 - p) })
-  },
-  slideRight: {
-    enter: (p) => ({ transform: `translateX(${100 - p * 100}%)` }),
-    exit: (p) => ({ transform: `translateX(${p * -100}%)` })
-  },
-  slideLeft: {
-    enter: (p) => ({ transform: `translateX(${ -100 + p * 100}%)` }),
-    exit: (p) => ({ transform: `translateX(${p * 100}%)` })
-  },
-  slideUp: {
-    enter: (p) => ({ transform: `translateY(${100 - p * 100}%)` }),
-    exit: (p) => ({ transform: `translateY(${p * -100}%)` })
-  },
-  slideDown: {
-    enter: (p) => ({ transform: `translateY(${ -100 + p * 100}%)` }),
-    exit: (p) => ({ transform: `translateY(${p * 100}%)` })
-  },
-  scale: {
-    enter: (p) => ({ transform: `scale(${scale(p, 0, 1)})` }),
-    exit: (p) => ({ transform: `scale(${scale(p, 1, 0)})` })
-  },
-  zoom: {
-    enter: (p) => {
-      const { scale: s, opacity } = zoom(p);
-      return { transform: `scale(${s})`, opacity };
-    },
-    exit: (p) => {
-      const { scale: s, opacity } = zoom(1 - p);
-      return { transform: `scale(${s})`, opacity };
-    }
-  },
-  flipX: {
-    enter: (p) => flip(p, "vertical"),
-    exit: (p) => flip(1 - p, "vertical")
-  },
-  flipY: {
-    enter: (p) => flip(p, "horizontal"),
-    exit: (p) => flip(1 - p, "horizontal")
-  }
-};
-
 // src/hooks/animation.ts
 var useSpring = (options = {}) => {
-  const currentFrame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { fps: videoFps } = chunk64PBRZLD_cjs.useVideoConfig();
+  const currentFrame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { fps: videoFps } = chunkNS6WDBHG_cjs.useVideoConfig();
   const {
     fps = videoFps,
     frame = currentFrame,
@@ -3541,7 +2863,7 @@ var useSpring = (options = {}) => {
     to = 1,
     durationInFrames
   } = options;
-  return spring({
+  return chunkWEQRPTIM_cjs.spring({
     frame,
     fps,
     config,
@@ -3551,34 +2873,34 @@ var useSpring = (options = {}) => {
   });
 };
 var useInterpolate = (inputRange, outputRange, options) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  return interpolate(frame, inputRange, outputRange, options);
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  return chunkWEQRPTIM_cjs.interpolate(frame, inputRange, outputRange, options);
 };
 var useCycle = (items, frame, durationPerItem) => {
   const index = Math.floor(frame / durationPerItem) % items.length;
   return items[index];
 };
 var useDurationInFrames = (seconds) => {
-  const { fps } = chunk64PBRZLD_cjs.useVideoConfig();
+  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
   return Math.round(seconds * fps);
 };
 var useDelay = (delayInFrames) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   return frame >= delayInFrames;
 };
 var progressOf = (frame, durationInFrames) => durationInFrames > 1 ? frame / (durationInFrames - 1) : frame >= 0 ? 1 : 0;
 var useProgress = () => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { durationInFrames } = chunk64PBRZLD_cjs.useVideoConfig();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { durationInFrames } = chunkNS6WDBHG_cjs.useVideoConfig();
   return progressOf(frame, durationInFrames);
 };
 var useLoop = (loopDuration) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   return frame % loopDuration;
 };
 var useTimeline = () => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { durationInFrames, fps } = chunk64PBRZLD_cjs.useVideoConfig();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { durationInFrames, fps } = chunkNS6WDBHG_cjs.useVideoConfig();
   return {
     frame,
     durationInFrames,
@@ -3591,13 +2913,13 @@ var useTimeline = () => {
   };
 };
 var useWindowedFrame = (startFrame, endFrame) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   const isInWindow = frame >= startFrame && frame < endFrame;
   const relativeFrame = frame - startFrame;
   return { isInWindow, relativeFrame: isInWindow ? relativeFrame : 0 };
 };
 var useAnimation = (startFrame, endFrame) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   const isAnimating = frame >= startFrame && frame < endFrame;
   const isComplete = frame >= endFrame;
   const progress = isAnimating ? (frame - startFrame) / (endFrame - startFrame) : isComplete ? 1 : 0;
@@ -3609,7 +2931,7 @@ var useAnimation = (startFrame, endFrame) => {
   };
 };
 var useKeyframeState = (keyframes) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   const sorted = [...keyframes].sort((a, b) => a.frame - b.frame);
   let prev = sorted[0];
   let next = sorted[sorted.length - 1];
@@ -3629,7 +2951,7 @@ var useKeyframeState = (keyframes) => {
   };
 };
 var useTransform = (options) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
   const transforms = [];
   if (options.translateX) {
     transforms.push(`translateX(${options.translateX(frame)}px)`);
@@ -3653,37 +2975,37 @@ var useTransform = (options) => {
   return style;
 };
 var useFade = (fadeInDuration, fadeOutDuration, options) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { durationInFrames } = chunk64PBRZLD_cjs.useVideoConfig();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { durationInFrames } = chunkNS6WDBHG_cjs.useVideoConfig();
   const startFrame = options?.startFrame ?? 0;
   const endFrame = options?.endFrame ?? durationInFrames - 1;
   if (frame < startFrame + fadeInDuration) {
-    return interpolate(
+    return chunkWEQRPTIM_cjs.interpolate(
       frame,
       [startFrame, startFrame + fadeInDuration],
       [0, 1],
-      { extrapolateRight: "clamp" }
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
   }
   if (frame > endFrame - fadeOutDuration) {
-    return interpolate(
+    return chunkWEQRPTIM_cjs.interpolate(
       frame,
       [endFrame - fadeOutDuration, endFrame],
       [1, 0],
-      { extrapolateLeft: "clamp" }
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
   }
   return 1;
 };
 var useSlide = (direction, distance, duration, startFrame = 0) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const progress = interpolate(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + duration],
     [0, 1],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
-  const easedProgress = Easing.easeOutCubic(progress);
+  const easedProgress = chunkWEQRPTIM_cjs.Easing.easeOutCubic(progress);
   let transform = "";
   const offset = distance * (1 - easedProgress);
   switch (direction) {
@@ -3703,8 +3025,8 @@ var useSlide = (direction, distance, duration, startFrame = 0) => {
   return { transform };
 };
 var useShake = (intensity, duration, startFrame = 0) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const progress = interpolate(
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + duration],
     [0, 1],
@@ -3716,29 +3038,29 @@ var useShake = (intensity, duration, startFrame = 0) => {
   return { transform: `translate(${shakeX}px, ${shakeY}px)` };
 };
 var usePulse = (minScale, maxScale, frequency) => {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { fps } = chunk64PBRZLD_cjs.useVideoConfig();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
   const progress = (Math.sin(frame / fps * frequency * Math.PI * 2) + 1) / 2;
-  const scale2 = interpolate(progress, [0, 1], [minScale, maxScale]);
+  const scale2 = chunkWEQRPTIM_cjs.interpolate(progress, [0, 1], [minScale, maxScale]);
   return { transform: `scale(${scale2})` };
 };
 function useMemoizedFrame(compute, deps = []) {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  return React2.useMemo(() => compute(), [frame, ...deps]);
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  return React5.useMemo(() => compute(), [frame, ...deps]);
 }
 function useAnimationValue(compute, _frameDeps) {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  return React2.useMemo(() => compute(frame), [frame, compute]);
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  return React5.useMemo(() => compute(frame), [frame, compute]);
 }
 function useCachedFrame(compositionId, renderer) {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { width, height } = chunk64PBRZLD_cjs.useVideoConfig();
-  return React2.useMemo(() => {
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { width, height } = chunkNS6WDBHG_cjs.useVideoConfig();
+  return React5.useMemo(() => {
     return renderer(frame);
   }, [compositionId, frame, width, height, renderer]);
 }
 function useFrameRange(startFrame, endFrame) {
-  return React2.useMemo(() => {
+  return React5.useMemo(() => {
     const frames = [];
     for (let i = startFrame; i <= endFrame; i++) {
       frames.push(i);
@@ -3747,26 +3069,26 @@ function useFrameRange(startFrame, endFrame) {
   }, [startFrame, endFrame]);
 }
 function usePrecomputeFrames(compute, lookahead = 10) {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { durationInFrames } = chunk64PBRZLD_cjs.useVideoConfig();
-  return React2.useMemo(() => {
-    const cache2 = /* @__PURE__ */ new Map();
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { durationInFrames } = chunkNS6WDBHG_cjs.useVideoConfig();
+  return React5.useMemo(() => {
+    const cache = /* @__PURE__ */ new Map();
     for (let i = frame; i < Math.min(frame + lookahead, durationInFrames); i++) {
-      cache2.set(i, compute(i));
+      cache.set(i, compute(i));
     }
-    return cache2;
+    return cache;
   }, [frame, lookahead, durationInFrames, compute]);
 }
 function useOptimizedSpring(config, from = 0, to = 1) {
-  const frame = chunk64PBRZLD_cjs.useCurrentFrame();
-  const { fps } = chunk64PBRZLD_cjs.useVideoConfig();
-  return React2.useMemo(() => {
-    return spring({ frame, fps, config, from, to });
+  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  return React5.useMemo(() => {
+    return chunkWEQRPTIM_cjs.spring({ frame, fps, config, from, to });
   }, [frame, fps, config, from, to]);
 }
 function useOptimizedInterpolate(inputRange, outputRange, options) {
-  return React2.useCallback((frame) => {
-    return interpolate(frame, inputRange, outputRange, options);
+  return React5.useCallback((frame) => {
+    return chunkWEQRPTIM_cjs.interpolate(frame, inputRange, outputRange, options);
   }, [inputRange, outputRange, options]);
 }
 /**
@@ -3782,131 +3104,306 @@ function useOptimizedInterpolate(inputRange, outputRange, options) {
  * @license MIT
  */
 
-Object.defineProperty(exports, "useDelayRender", {
+Object.defineProperty(exports, "centerPath", {
   enumerable: true,
-  get: function () { return chunkC2TXLM7A_cjs.useDelayRender; }
+  get: function () { return chunk37ZW67WK_cjs.centerPath; }
+});
+Object.defineProperty(exports, "cutPath", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.cutPath; }
+});
+Object.defineProperty(exports, "evolvePath", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.evolvePath; }
+});
+Object.defineProperty(exports, "extendViewBox", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.extendViewBox; }
+});
+Object.defineProperty(exports, "getBoundingBox", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.getBoundingBox; }
+});
+Object.defineProperty(exports, "getInstructionIndexAtLength", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.getInstructionIndexAtLength; }
+});
+Object.defineProperty(exports, "getLength", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.getLength; }
+});
+Object.defineProperty(exports, "getPointAtLength", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.getPointAtLength; }
+});
+Object.defineProperty(exports, "getSubpaths", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.getSubpaths; }
+});
+Object.defineProperty(exports, "getTangentAtLength", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.getTangentAtLength; }
+});
+Object.defineProperty(exports, "normalizePath", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.normalizePath; }
+});
+Object.defineProperty(exports, "parsePath", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.parsePath; }
+});
+Object.defineProperty(exports, "reduceInstructions", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.reduceInstructions; }
+});
+Object.defineProperty(exports, "resetPath", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.resetPath; }
+});
+Object.defineProperty(exports, "reversePath", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.reversePath; }
+});
+Object.defineProperty(exports, "scalePath", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.scalePath; }
+});
+Object.defineProperty(exports, "serializeInstructions", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.serializeInstructions; }
+});
+Object.defineProperty(exports, "translatePath", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.translatePath; }
+});
+Object.defineProperty(exports, "warpPath", {
+  enumerable: true,
+  get: function () { return chunk37ZW67WK_cjs.warpPath; }
+});
+Object.defineProperty(exports, "Easing", {
+  enumerable: true,
+  get: function () { return chunkWEQRPTIM_cjs.Easing; }
+});
+Object.defineProperty(exports, "easing", {
+  enumerable: true,
+  get: function () { return chunkWEQRPTIM_cjs.Easing; }
+});
+Object.defineProperty(exports, "getFramesFromSeconds", {
+  enumerable: true,
+  get: function () { return chunkWEQRPTIM_cjs.getFramesFromSeconds; }
+});
+Object.defineProperty(exports, "getSecondsFromFrames", {
+  enumerable: true,
+  get: function () { return chunkWEQRPTIM_cjs.getSecondsFromFrames; }
+});
+Object.defineProperty(exports, "interpolate", {
+  enumerable: true,
+  get: function () { return chunkWEQRPTIM_cjs.interpolate; }
+});
+Object.defineProperty(exports, "interpolateColors", {
+  enumerable: true,
+  get: function () { return chunkWEQRPTIM_cjs.interpolateColors; }
+});
+Object.defineProperty(exports, "measureSpring", {
+  enumerable: true,
+  get: function () { return chunkWEQRPTIM_cjs.measureSpring; }
+});
+Object.defineProperty(exports, "random", {
+  enumerable: true,
+  get: function () { return chunkWEQRPTIM_cjs.random; }
+});
+Object.defineProperty(exports, "range", {
+  enumerable: true,
+  get: function () { return chunkWEQRPTIM_cjs.range; }
+});
+Object.defineProperty(exports, "spring", {
+  enumerable: true,
+  get: function () { return chunkWEQRPTIM_cjs.spring; }
+});
+Object.defineProperty(exports, "useKeyframes", {
+  enumerable: true,
+  get: function () { return chunkWEQRPTIM_cjs.useKeyframes; }
+});
+Object.defineProperty(exports, "AbsoluteFill", {
+  enumerable: true,
+  get: function () { return chunkWQ6AZCZD_cjs.AbsoluteFill; }
+});
+Object.defineProperty(exports, "Audio", {
+  enumerable: true,
+  get: function () { return chunkWQ6AZCZD_cjs.Audio; }
+});
+Object.defineProperty(exports, "Div", {
+  enumerable: true,
+  get: function () { return chunkWQ6AZCZD_cjs.AbsoluteFill; }
+});
+Object.defineProperty(exports, "G", {
+  enumerable: true,
+  get: function () { return chunkWQ6AZCZD_cjs.G; }
+});
+Object.defineProperty(exports, "Img", {
+  enumerable: true,
+  get: function () { return chunkWQ6AZCZD_cjs.Img; }
+});
+Object.defineProperty(exports, "Path", {
+  enumerable: true,
+  get: function () { return chunkWQ6AZCZD_cjs.Path; }
+});
+Object.defineProperty(exports, "SVG", {
+  enumerable: true,
+  get: function () { return chunkWQ6AZCZD_cjs.SVG; }
+});
+Object.defineProperty(exports, "Text", {
+  enumerable: true,
+  get: function () { return chunkWQ6AZCZD_cjs.Text; }
+});
+Object.defineProperty(exports, "Video", {
+  enumerable: true,
+  get: function () { return chunkWQ6AZCZD_cjs.Video; }
+});
+Object.defineProperty(exports, "prefetch", {
+  enumerable: true,
+  get: function () { return chunkWQ6AZCZD_cjs.prefetch; }
+});
+Object.defineProperty(exports, "Freeze", {
+  enumerable: true,
+  get: function () { return chunkJRWGLEMD_cjs.Freeze; }
+});
+Object.defineProperty(exports, "Loop", {
+  enumerable: true,
+  get: function () { return chunkJRWGLEMD_cjs.Loop; }
+});
+Object.defineProperty(exports, "Retiming", {
+  enumerable: true,
+  get: function () { return chunkJRWGLEMD_cjs.Retiming; }
+});
+Object.defineProperty(exports, "Reverse", {
+  enumerable: true,
+  get: function () { return chunkJRWGLEMD_cjs.Reverse; }
+});
+Object.defineProperty(exports, "Sequence", {
+  enumerable: true,
+  get: function () { return chunkJRWGLEMD_cjs.Sequence; }
+});
+Object.defineProperty(exports, "Series", {
+  enumerable: true,
+  get: function () { return chunkJRWGLEMD_cjs.Series; }
+});
+Object.defineProperty(exports, "useRelativeCurrentFrame", {
+  enumerable: true,
+  get: function () { return chunkJRWGLEMD_cjs.useRelativeCurrentFrame; }
+});
+Object.defineProperty(exports, "useSequence", {
+  enumerable: true,
+  get: function () { return chunkJRWGLEMD_cjs.useSequence; }
 });
 Object.defineProperty(exports, "FrameProvider", {
   enumerable: true,
-  get: function () { return chunk64PBRZLD_cjs.FrameProvider; }
+  get: function () { return chunkNS6WDBHG_cjs.FrameProvider; }
+});
+Object.defineProperty(exports, "createAudioCollector", {
+  enumerable: true,
+  get: function () { return chunkNS6WDBHG_cjs.createAudioCollector; }
 });
 Object.defineProperty(exports, "createRenderGate", {
   enumerable: true,
-  get: function () { return chunk64PBRZLD_cjs.createRenderGate; }
+  get: function () { return chunkNS6WDBHG_cjs.createRenderGate; }
 });
 Object.defineProperty(exports, "useCurrentFrame", {
   enumerable: true,
-  get: function () { return chunk64PBRZLD_cjs.useCurrentFrame; }
+  get: function () { return chunkNS6WDBHG_cjs.useCurrentFrame; }
+});
+Object.defineProperty(exports, "useDelayRender", {
+  enumerable: true,
+  get: function () { return chunkNS6WDBHG_cjs.useDelayRender; }
 });
 Object.defineProperty(exports, "useVideoConfig", {
   enumerable: true,
-  get: function () { return chunk64PBRZLD_cjs.useVideoConfig; }
+  get: function () { return chunkNS6WDBHG_cjs.useVideoConfig; }
 });
-exports.AbsoluteFill = AbsoluteFill;
-exports.Audio = Audio;
+exports.AnimatedImage = AnimatedImage;
 exports.Blur = Blur;
 exports.Bounce = Bounce;
 exports.CardExpansionMask = CardExpansionMask;
-exports.Circle = Circle;
 exports.Composition = Composition;
 exports.Confetti = Confetti;
 exports.Counter = Counter;
 exports.Cube3D = Cube3D;
-exports.Div = AbsoluteFill;
-exports.Easing = Easing;
 exports.Fade = Fade;
 exports.Flip3D = Flip3D;
 exports.FlipImageReveal = FlipImageReveal;
-exports.Freeze = Freeze;
-exports.G = G;
 exports.Glitch = Glitch;
 exports.GradientText = GradientText;
 exports.Highlight = Highlight;
 exports.HyperFrame = HyperFrame;
-exports.Img = Img;
 exports.KineticTypography = KineticTypography;
 exports.LetterByLetter = LetterByLetter;
 exports.LiquidText = LiquidText;
-exports.Loop = Loop;
 exports.MaskReveal = MaskReveal;
 exports.NeonGlow = NeonGlow;
 exports.ParticleSystem = ParticleSystem;
 exports.Particles = Particles;
-exports.Path = Path;
 exports.Perspective3D = Perspective3D;
 exports.ProgressBar = ProgressBar;
 exports.Pulse = Pulse;
 exports.RainbowText = RainbowText;
-exports.Rect = Rect;
-exports.Retiming = Retiming;
-exports.Reverse = Reverse;
 exports.Rotate = Rotate;
 exports.Rotate3D = Rotate3D;
-exports.SVG = SVG;
 exports.Scale = Scale;
-exports.Sequence = Sequence;
-exports.Series = Series;
 exports.ShakeEffect = ShakeEffect;
 exports.Slide = Slide;
 exports.StickyGridScroll = StickyGridScroll;
 exports.Swing = Swing;
-exports.Text = Text;
 exports.TextStack3D = TextStack3D;
-exports.Trail = Trail;
 exports.Typewriter = Typewriter;
-exports.Video = Video;
 exports.WaveText = WaveText;
 exports.WordByWord = WordByWord;
-exports.blur = blur;
-exports.bounce = bounce;
-exports.combine = combine;
-exports.easing = Easing;
-exports.evolvePath = evolvePath;
-exports.fade = fade;
-exports.flash = flash;
-exports.flip = flip;
-exports.getFramesFromSeconds = getFramesFromSeconds;
-exports.getLength = getLength;
+exports.fitRect = fitRect;
 exports.getParticles = getParticles;
-exports.getPointAtLength = getPointAtLength;
-exports.getSecondsFromFrames = getSecondsFromFrames;
-exports.getTangentAtLength = getTangentAtLength;
-exports.glitch = glitch;
-exports.interpolate = interpolate;
-exports.interpolateColors = interpolateColors;
-exports.measureSpring = measureSpring;
+exports.interpolatePath = interpolatePath;
+exports.interpolatePaths = interpolatePaths;
+exports.interpolateStyles = interpolateStyles;
+exports.loadFont = loadFont;
+exports.makeTransform = makeTransform;
+exports.matrix = matrix;
+exports.matrix3d = matrix3d;
 exports.noise2D = noise2D;
+exports.noise3D = noise3D;
+exports.noise4D = noise4D;
 exports.pathFromPoints = pathFromPoints;
-exports.preloadAudio = preloadAudio;
-exports.preloadFont = preloadFont;
-exports.preloadImage = preloadImage;
-exports.preloadVideo = preloadVideo;
-exports.pulseTransition = pulse;
-exports.random = random;
-exports.range = range;
-exports.rotateTransition = rotate;
-exports.scaleTransition = scale;
-exports.shakeTransition = shake;
-exports.slide = slide;
-exports.slideWithFade = slideWithFade;
-exports.spring = spring;
-exports.staticFile = staticFile;
-exports.transitions = transitions;
+exports.perspective = perspective;
+exports.rotate = rotate;
+exports.rotate3d = rotate3d;
+exports.rotateX = rotateX;
+exports.rotateY = rotateY;
+exports.rotateZ = rotateZ;
+exports.scale = scale;
+exports.scale3d = scale3d;
+exports.scaleX = scaleX;
+exports.scaleY = scaleY;
+exports.scaleZ = scaleZ;
+exports.skew = skew;
+exports.skewX = skewX;
+exports.skewY = skewY;
+exports.translate = translate;
+exports.translate3d = translate3d;
+exports.translateX = translateX;
+exports.translateY = translateY;
+exports.translateZ = translateZ;
 exports.useAnimation = useAnimation;
 exports.useAnimationValue = useAnimationValue;
 exports.useCachedFrame = useCachedFrame;
 exports.useComposition = useComposition;
-exports.useConfig = useVideoConfig2;
 exports.useCycle = useCycle;
 exports.useDelay = useDelay;
 exports.useDurationInFrames = useDurationInFrames;
+exports.useEmitInput = useEmitInput;
 exports.useFade = useFade;
 exports.useFrameRange = useFrameRange;
+exports.useInputEvents = useInputEvents;
 exports.useInterpolate = useInterpolate;
 exports.useKeyframeState = useKeyframeState;
-exports.useKeyframes = useKeyframes;
+exports.useLastEvent = useLastEvent;
 exports.useLoop = useLoop;
-exports.useLoopInfo = useLoopInfo;
 exports.useMemoizedFrame = useMemoizedFrame;
 exports.useOptimizedInterpolate = useOptimizedInterpolate;
 exports.useOptimizedSpring = useOptimizedSpring;
@@ -3914,15 +3411,13 @@ exports.usePrecomputeFrames = usePrecomputeFrames;
 exports.usePreloadAssets = usePreloadAssets;
 exports.useProgress = useProgress;
 exports.usePulse = usePulse;
-exports.useRelativeCurrentFrame = useRelativeCurrentFrame;
-exports.useSequence = useSequence;
+exports.useReducedState = useReducedState;
 exports.useShake = useShake;
 exports.useSlide = useSlide;
 exports.useSpring = useSpring;
+exports.useStaticFile = useStaticFile;
 exports.useTimeline = useTimeline;
 exports.useTransform = useTransform;
 exports.useWindowedFrame = useWindowedFrame;
-exports.wipe = wipe;
-exports.zoom = zoom;
 //# sourceMappingURL=index.cjs.map
 //# sourceMappingURL=index.cjs.map

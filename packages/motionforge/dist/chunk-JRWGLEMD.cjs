@@ -1,0 +1,323 @@
+'use client';'use strict';
+
+var chunkNS6WDBHG_cjs = require('./chunk-NS6WDBHG.cjs');
+var React = require('react');
+var jsxRuntime = require('react/jsx-runtime');
+
+function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
+
+var React__default = /*#__PURE__*/_interopDefault(React);
+
+var SequenceContext = React.createContext({
+  relativeFrom: 0,
+  isActive: true,
+  isPremounted: false,
+  isPostmounted: false,
+  startFrame: 0,
+  endFrame: Infinity
+});
+var useSequence = () => React.useContext(SequenceContext);
+var checkFrames = (component, name, value) => {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`${component}: ${name} must be a non-negative integer, got ${value}`);
+  }
+};
+var checkSize = (name, value) => {
+  if (value !== void 0 && !(typeof value === "number" && Number.isFinite(value) && value > 0)) {
+    throw new Error(`Sequence: ${name} must be a positive number of pixels, got ${value}`);
+  }
+};
+var Sequence = (props) => {
+  const { from = 0, durationInFrames, offset = 0, name, width, height, children } = props;
+  const layout = props.layout ?? "absolute-fill";
+  const fill = props.layout === "none" ? null : props;
+  const premountFor = fill?.premountFor ?? 0;
+  const postmountFor = fill?.postmountFor ?? 0;
+  const currentFrame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const parent = React.useContext(chunkNS6WDBHG_cjs.FrameContext);
+  const parentGate = React.useContext(chunkNS6WDBHG_cjs.GateContext);
+  const parentTimeline = React.useContext(chunkNS6WDBHG_cjs.TimelineContext);
+  if (layout !== "absolute-fill" && layout !== "none") {
+    throw new Error(`Sequence: layout must be "absolute-fill" or "none", got ${JSON.stringify(layout)}`);
+  }
+  if (!Number.isInteger(from)) {
+    throw new Error(`Sequence: from must be an integer, got ${from}`);
+  }
+  if (!Number.isInteger(offset)) {
+    throw new Error(`Sequence: offset must be an integer, got ${offset}`);
+  }
+  if (durationInFrames !== void 0 && (!Number.isInteger(durationInFrames) || durationInFrames <= 0)) {
+    throw new Error(
+      `Sequence: durationInFrames must be a positive integer (leave it out to run to the end), got ${durationInFrames}`
+    );
+  }
+  checkSize("width", width);
+  checkSize("height", height);
+  if (layout === "none") {
+    const rest = props;
+    for (const key of ["style", "className", "premountFor", "postmountFor", "styleWhilePremounted", "styleWhilePostmounted"]) {
+      if (rest[key] !== void 0) {
+        throw new Error(
+          `Sequence: layout="none" renders no element, so it takes no ${key} (it needs layout="absolute-fill")`
+        );
+      }
+    }
+  }
+  checkFrames("Sequence", "premountFor", premountFor);
+  checkFrames("Sequence", "postmountFor", postmountFor);
+  if (postmountFor > 0 && durationInFrames === void 0) {
+    throw new Error("Sequence: postmountFor needs durationInFrames (a sequence without one never ends)");
+  }
+  const startFrame = from + offset;
+  const endFrame = durationInFrames !== void 0 ? startFrame + durationInFrames : Infinity;
+  const timelineOffset = (parentTimeline?.offset ?? 0) + startFrame;
+  const timelineStart = Math.max(parentTimeline?.start ?? 0, timelineOffset);
+  const timelineEnd = Math.min(parentTimeline?.end ?? Infinity, timelineOffset + (durationInFrames ?? Infinity));
+  const remappedBy = parentTimeline?.remappedBy ?? null;
+  const timeline = React.useMemo(
+    () => ({ offset: timelineOffset, start: timelineStart, end: timelineEnd, remappedBy }),
+    [timelineOffset, timelineStart, timelineEnd, remappedBy]
+  );
+  const isActive = currentFrame >= startFrame && currentFrame < endFrame;
+  const isPremounted = !isActive && currentFrame >= startFrame - premountFor && currentFrame < startFrame;
+  const isPostmounted = !isActive && currentFrame >= endFrame && currentFrame < endFrame + postmountFor;
+  const hidden = isPremounted || isPostmounted;
+  const relativeFrame = isPremounted ? 0 : isPostmounted ? durationInFrames - 1 : currentFrame - startFrame;
+  const [scope] = React.useState(() => ({ visible: !hidden, parent: parentGate?.scope ?? null }));
+  React.useEffect(() => {
+    if (!parentGate || scope.visible === !hidden) return;
+    scope.visible = !hidden;
+    chunkNS6WDBHG_cjs.getGateInternals(parentGate.gate).changed();
+  }, [hidden, parentGate, scope]);
+  const mounts = premountFor > 0 || postmountFor > 0;
+  const gateValue = React.useMemo(
+    () => parentGate && mounts ? { gate: parentGate.gate, scope } : parentGate,
+    [parentGate, mounts, scope]
+  );
+  const contextValue = {
+    relativeFrom: startFrame,
+    durationInFrames,
+    isActive,
+    isPremounted,
+    isPostmounted,
+    startFrame,
+    endFrame
+  };
+  if (!isActive && !hidden) {
+    return null;
+  }
+  const localDuration = durationInFrames ?? (parent ? parent.durationInFrames - startFrame : void 0);
+  const content = /* @__PURE__ */ jsxRuntime.jsx(chunkNS6WDBHG_cjs.GateContext.Provider, { value: gateValue, children: /* @__PURE__ */ jsxRuntime.jsx(chunkNS6WDBHG_cjs.TimelineContext.Provider, { value: timeline, children: /* @__PURE__ */ jsxRuntime.jsx(
+    SequenceFrameProvider,
+    {
+      relativeFrame,
+      durationInFrames: localDuration,
+      width,
+      height,
+      children
+    }
+  ) }) });
+  if (fill === null) {
+    return /* @__PURE__ */ jsxRuntime.jsx(SequenceContext.Provider, { value: contextValue, children: content });
+  }
+  return /* @__PURE__ */ jsxRuntime.jsx(SequenceContext.Provider, { value: contextValue, children: /* @__PURE__ */ jsxRuntime.jsx(
+    "div",
+    {
+      "data-sequence-name": name,
+      "data-sequence-from": startFrame,
+      "data-sequence-duration": durationInFrames,
+      className: fill.className,
+      style: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        display: "flex",
+        flexDirection: "column",
+        ...width !== void 0 ? { width } : null,
+        ...height !== void 0 ? { height } : null,
+        ...fill.style,
+        ...hidden ? { opacity: 0, pointerEvents: "none" } : null,
+        ...isPremounted ? fill.styleWhilePremounted : null,
+        ...isPostmounted ? fill.styleWhilePostmounted : null
+      },
+      children: content
+    }
+  ) });
+};
+var SequenceFrameProvider = ({
+  relativeFrame,
+  durationInFrames,
+  width,
+  height,
+  children
+}) => {
+  const parent = React.useContext(chunkNS6WDBHG_cjs.FrameContext);
+  const frameValue = React.useMemo(
+    () => parent ? {
+      ...parent,
+      frame: relativeFrame,
+      durationInFrames: durationInFrames ?? parent.durationInFrames,
+      width: width ?? parent.width,
+      height: height ?? parent.height
+    } : null,
+    [parent, relativeFrame, durationInFrames, width, height]
+  );
+  return /* @__PURE__ */ jsxRuntime.jsx(chunkNS6WDBHG_cjs.FrameContext.Provider, { value: frameValue, children: /* @__PURE__ */ jsxRuntime.jsx(RelativeFrameContext.Provider, { value: relativeFrame, children }) });
+};
+var RelativeFrameContext = React.createContext(null);
+var Remapped = ({ by, children }) => {
+  const parent = React.useContext(chunkNS6WDBHG_cjs.TimelineContext);
+  const value = React.useMemo(
+    () => parent ? { ...parent, remappedBy: parent.remappedBy ?? by } : null,
+    [parent, by]
+  );
+  return /* @__PURE__ */ jsxRuntime.jsx(chunkNS6WDBHG_cjs.TimelineContext.Provider, { value, children });
+};
+var useRelativeCurrentFrame = () => React.useContext(RelativeFrameContext);
+var checkFrameNotNegative = (component, frame) => {
+  if (frame < 0) {
+    throw new Error(`${component}: the current frame must be >= 0, got ${frame} (a parent shifted it below 0)`);
+  }
+};
+var LoopContext = React.createContext(null);
+var useLoop = () => React.useContext(LoopContext);
+var LoopRoot = (props) => {
+  const { durationInFrames, times = Infinity, name, children } = props;
+  const currentFrame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
+    throw new Error(`Loop: durationInFrames must be a positive integer, got ${durationInFrames}`);
+  }
+  if (times !== Infinity && (!Number.isInteger(times) || times < 0)) {
+    throw new Error(`Loop: times must be a non-negative integer or Infinity, got ${times}`);
+  }
+  checkFrameNotNegative("Loop", currentFrame);
+  const iteration = Math.floor(currentFrame / durationInFrames);
+  const loopContext = React.useMemo(() => ({ iteration, durationInFrames }), [iteration, durationInFrames]);
+  if (iteration >= times) {
+    return null;
+  }
+  const layoutProps = props.layout === "none" ? { layout: "none" } : { layout: props.layout, style: props.style, className: props.className };
+  return /* @__PURE__ */ jsxRuntime.jsx(LoopContext.Provider, { value: loopContext, children: /* @__PURE__ */ jsxRuntime.jsx(Sequence, { from: iteration * durationInFrames, durationInFrames, name, ...layoutProps, children }) });
+};
+var Loop = Object.assign(LoopRoot, { useLoop });
+var Freeze = ({
+  frame: frozenFrame,
+  active = true,
+  children
+}) => {
+  const currentFrame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  if (typeof frozenFrame !== "number" || !Number.isFinite(frozenFrame)) {
+    throw new Error(`Freeze: frame must be a finite number, got ${frozenFrame}`);
+  }
+  if (typeof active !== "boolean" && typeof active !== "function") {
+    throw new Error(`Freeze: active must be a boolean or a function of the frame, got ${active}`);
+  }
+  const isActive = typeof active === "function" ? active(currentFrame) : active;
+  if (typeof isActive !== "boolean") {
+    throw new Error(`Freeze: active(${currentFrame}) must return a boolean, got ${isActive}`);
+  }
+  return /* @__PURE__ */ jsxRuntime.jsx(Remapped, { by: "Freeze", children: /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame: isActive ? frozenFrame : currentFrame, children }) });
+};
+var checkRate = (rate, frame) => {
+  if (typeof rate !== "number" || !Number.isFinite(rate)) {
+    throw new Error(`Retiming: playbackRate must be a finite number, got ${rate} at frame ${frame}`);
+  }
+  return rate;
+};
+var cumulativeTables = /* @__PURE__ */ new WeakMap();
+var cumulativeRate = (rate, frame) => {
+  const whole = Math.floor(frame);
+  const partial = frame - whole === 0 ? 0 : (frame - whole) * checkRate(rate(whole), whole);
+  if (whole < 0) {
+    let sum = 0;
+    for (let i = whole; i < 0; i++) sum -= checkRate(rate(i), i);
+    return sum + partial;
+  }
+  let table = cumulativeTables.get(rate);
+  if (!table) {
+    table = [0];
+    cumulativeTables.set(rate, table);
+  }
+  for (let n = table.length; n <= whole; n++) {
+    table.push(table[n - 1] + checkRate(rate(n - 1), n - 1));
+  }
+  return table[whole] + partial;
+};
+var Retiming = ({
+  children,
+  playbackRate
+}) => {
+  const currentFrame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const retimedFrame = typeof playbackRate === "function" ? Math.floor(cumulativeRate(playbackRate, currentFrame)) : Math.floor(currentFrame * checkRate(playbackRate, currentFrame));
+  return /* @__PURE__ */ jsxRuntime.jsx(Remapped, { by: "Retiming", children: /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame: retimedFrame, children }) });
+};
+var Reverse = ({
+  children,
+  durationInFrames
+}) => {
+  const currentFrame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
+    throw new Error(`Reverse: durationInFrames must be a positive integer, got ${durationInFrames}`);
+  }
+  checkFrameNotNegative("Reverse", currentFrame);
+  const reversedFrame = durationInFrames - 1 - currentFrame % durationInFrames;
+  return /* @__PURE__ */ jsxRuntime.jsx(Remapped, { by: "Reverse", children: /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame: reversedFrame, durationInFrames, children }) });
+};
+var SeriesSequence = () => {
+  throw new Error("<Series.Sequence> must be a direct child of <Series>");
+};
+var describeChild = (child) => {
+  if (typeof child === "string") return `the string ${JSON.stringify(child)}`;
+  if (React__default.default.isValidElement(child)) {
+    const type = child.type;
+    const name = typeof type === "string" ? type : type.displayName ?? type.name ?? "Component";
+    return `<${name}>`;
+  }
+  return String(child);
+};
+var flattenChildren = (children, prefix = "") => React__default.default.Children.toArray(children).flatMap((child, index) => {
+  const key = `${prefix}${React__default.default.isValidElement(child) && child.key !== null ? child.key : index}`;
+  if (React__default.default.isValidElement(child) && child.type === React__default.default.Fragment) {
+    return flattenChildren(child.props.children, `${key}/`);
+  }
+  return [{ key, child }];
+});
+var SeriesRoot = ({ children }) => {
+  let start = 0;
+  const sequences = flattenChildren(children).map(({ key, child }, index) => {
+    if (typeof child === "string" && child.trim() === "") return null;
+    if (!React__default.default.isValidElement(child) || child.type !== SeriesSequence) {
+      throw new Error(`Series: children must be <Series.Sequence> elements, got ${describeChild(child)} at index ${index}`);
+    }
+    const { durationInFrames, offset = 0, children: content, ...sequenceProps } = child.props;
+    if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
+      throw new Error(
+        `Series.Sequence: durationInFrames must be a positive integer, got ${durationInFrames} at index ${index}`
+      );
+    }
+    if (!Number.isInteger(offset)) {
+      throw new Error(`Series.Sequence: offset must be an integer, got ${offset} at index ${index}`);
+    }
+    const from = start + offset;
+    start = from + durationInFrames;
+    return /* @__PURE__ */ jsxRuntime.jsx(Sequence, { ...sequenceProps, from, durationInFrames, children: content }, key);
+  });
+  return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: sequences });
+};
+var Series = Object.assign(SeriesRoot, { Sequence: SeriesSequence });
+
+exports.Freeze = Freeze;
+exports.Loop = Loop;
+exports.Retiming = Retiming;
+exports.Reverse = Reverse;
+exports.Sequence = Sequence;
+exports.SequenceContext = SequenceContext;
+exports.Series = Series;
+exports.describeChild = describeChild;
+exports.flattenChildren = flattenChildren;
+exports.useRelativeCurrentFrame = useRelativeCurrentFrame;
+exports.useSequence = useSequence;
+//# sourceMappingURL=chunk-JRWGLEMD.cjs.map
+//# sourceMappingURL=chunk-JRWGLEMD.cjs.map
