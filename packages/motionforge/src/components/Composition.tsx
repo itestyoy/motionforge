@@ -3,6 +3,7 @@
 import React, { createContext, useContext } from 'react';
 import { VideoConfig } from '../core/types';
 import { FrameProvider, useVideoConfig as useVideoConfigContext } from '../core/context';
+import { RenderGate } from '../core/render-gate';
 
 // Composition Context
 const CompositionContext = createContext<{
@@ -31,6 +32,8 @@ interface CompositionProps {
   fps?: number;
   durationInFrames: number;
   defaultProps?: Record<string, unknown>;
+  /** Render gate for this composition's FrameProvider (see createRenderGate). */
+  gate?: RenderGate;
 }
 
 // A composition rendered at `frame`, with its config available to useComposition().
@@ -43,6 +46,7 @@ export const Composition: React.FC<CompositionProps> = ({
   fps = 30,
   durationInFrames,
   defaultProps = {},
+  gate,
 }) => {
   return (
     <CompositionContext.Provider
@@ -57,6 +61,7 @@ export const Composition: React.FC<CompositionProps> = ({
         durationInFrames={durationInFrames}
         width={width}
         height={height}
+        gate={gate}
       >
         <Component {...defaultProps} />
       </FrameProvider>

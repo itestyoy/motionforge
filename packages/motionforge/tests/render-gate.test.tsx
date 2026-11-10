@@ -9,6 +9,7 @@ import { useDelayRender, DelayRenderApi } from '../src/core/delay-render';
 import { usePreloadAssets, preloadFont } from '../src/core/preload';
 import { Sequence } from '../src/components/Sequence';
 import { Img, Video } from '../src/components/Media';
+import { Composition } from '../src/components/Composition';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -186,6 +187,14 @@ describe('render gate', () => {
       gate,
     );
     expect(gate.getPending().map((p) => p.label)).toEqual(['inner']);
+  });
+
+  it('is passed through by Composition', async () => {
+    const gate = createRenderGate();
+    const Scene = () => <Holder label="scene" api={{ current: null }} />;
+    act(() => root.render(<Composition id="c" component={Scene} frame={3} durationInFrames={10} gate={gate} />));
+    expect(gate.getPending().map((p) => p.label)).toEqual(['scene']);
+    await expect(gate.waitUntilReady({ frame: 3, timeoutMs: 20 })).rejects.toThrow(/pending: "scene"/);
   });
 
   it('serves one FrameProvider at a time', () => {
