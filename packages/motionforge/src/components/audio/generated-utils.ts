@@ -1,30 +1,4 @@
-/**
- * Generated sounds by key, most recently used last. Rendering the same sound
- * again (a sequence mounting again, another FrameProvider) reuses it; the
- * oldest are dropped beyond the limit (a component keeps its own buffer).
- */
-const LIMIT = 64;
-
-const entries = new Map<string, unknown>();
-
-export const getGenerated = <T>(key: string): T | undefined => {
-  if (!entries.has(key)) return undefined;
-  const value = entries.get(key) as T;
-  entries.delete(key);
-  entries.set(key, value);
-  return value;
-};
-
-export const setGenerated = <T>(key: string, value: T): T => {
-  entries.delete(key);
-  entries.set(key, value);
-  while (entries.size > LIMIT) entries.delete(entries.keys().next().value as string);
-  return value;
-};
-
-export const deleteGenerated = (key: string, value: unknown): void => {
-  if (entries.get(key) === value) entries.delete(key);
-};
+/** Checks and conversions shared by the generated sounds (the cache is core/generated-audio). */
 
 const describe = (value: unknown) => {
   try {

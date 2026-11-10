@@ -326,7 +326,7 @@ const tile = { left: photo.x + 500 * photo.scaleX, top: photo.y + 300 * photo.sc
 
 | Import | What it contains | Extra dependencies |
 |--------|------------------|--------------------|
-| `motionforge` | Core: `FrameProvider`, frame hooks, sequences, effects, `AnimatedImage`, `createAudioCollector`, input hooks, `useStaticFile`, `fitRect`, utilities | — |
+| `motionforge` | Core: `FrameProvider`, frame hooks, sequences, effects, `AnimatedImage`, `createAudioCollector`, `collectAudioTracks`, input hooks, `useStaticFile`, `fitRect`, utilities | — |
 | `motionforge/three` | `ThreeCanvas`, `DepthGallery3D`, `ShaderImageReveal`, `DitheringEffect` | `three`, `@react-three/fiber` (and `@react-three/drei` for the ready-made scenes) |
 | `motionforge/lottie` | `Lottie`, `getLottieMetadata` | `lottie-web` (installed with the package) |
 | `motionforge/motion-blur` | `Trail`, `CameraMotionBlur` | — |
@@ -719,7 +719,7 @@ An `AudioTrack` is plain data (frames are composition frames at the provider's `
 |-------|---------|
 | `id` | Derived from the description, not from the render: the same track has the same id whatever frames were rendered in what order, so manifests of several `FrameProvider`s (a parallel export) merge by id. Identical tracks playing at the same time are listed once per copy (`id`, `id#2`, ...) |
 | `name` | The `name` prop, or `null` |
-| `src` / `buffer` | The URL (`Audio`, `Video`), or the `AudioBuffer` of generated audio; the other is `null` |
+| `src` / `generated` | The URL (`Audio`, `Video`), or for generated audio (`motionforge/audio`) a `GeneratedAudio`: `{ kind: 'tone' \| 'zzfx', key, buffer, render() }` (see [Generated audio](#generated-audio-motionforgeaudio)); the other is `null` |
 | `from` | The frame at which the track's own frame 0 (media frame `trimBefore`) plays: the start of the enclosing sequences, `Series`, `Loop` iterations and `TransitionSeries` scenes, all added up |
 | `startFrame` | The first frame it is heard (later than `from` when a sequence starts before frame 0 or before an enclosing one is shown: start the media `startFrame - from` frames in) |
 | `endFrame` | The frame (exclusive) it stops: the end of an enclosing sequence, of the composition, or of the trimmed media (without `loop`), whichever is first |
@@ -740,7 +740,9 @@ for (let f = 0; f < durationInFrames; f++) {
 const mix = new OfflineAudioContext(2, Math.ceil((durationInFrames / fps) * 48000), 48000);
 for (const track of audio.getTracks()) {
   if (track.muted) continue;
-  const buffer = track.buffer ?? (await mix.decodeAudioData(await (await fetch(track.src!)).arrayBuffer()));
+  const buffer = track.generated
+    ? await track.generated.render()             // cached: rendered once per page
+    : await mix.decodeAudioData(await (await fetch(track.src!)).arrayBuffer());
   const source = new AudioBufferSourceNode(mix, { buffer, playbackRate: track.playbackRate, loop: track.loop });
   if (track.loop) {
     source.loopStart = track.trimBefore / fps;
@@ -758,16 +760,36 @@ const soundtrack = await mix.startRendering();
 
 **Live playback.** A track registers when its component mounts: when its sequence starts, or `premountFor` frames earlier. Inside a `Loop`, the component registers one track per iteration, all of them when it first mounts (each iteration that is shown, up to `times` and the end of the enclosing sequences), so the host knows the next iteration's track a whole iteration ahead and can start it exactly at the boundary; a sound inside a `Loop` therefore describes every iteration and must not depend on `Loop.useLoop().iteration` (give such sounds a `Sequence` each). `subscribe()` tells the host, which starts each new track at `startFrame` on its clock (or, if that is already past, at the current position). Give sequences with sound a `premountFor` of a few frames so their tracks (and generated audio, which renders first) are known before they start. Tracks stay listed after their component unmounts (`getTracks()` only grows); when the scene itself changes, give the `FrameProvider` a new collector.
 
-- **No dry pass.** The SDK does not offer the whole manifest before playback: a sequence mounts only around its frames, so knowing every track means rendering every frame (scenes may also choose what to render from the frame). That is the export pass above; a host that wants the manifest up front runs it on a hidden `FrameProvider` first.
+- **Dry pass: the whole manifest up front.** `collectAudioTracks(scene, { fps?, durationInFrames, width, height, input?, staticFiles? }) → Promise<readonly AudioTrack[]>` renders every frame of the scene to a string with `react-dom/server` (loaded on first call; no DOM needed, so it runs in Node too) and returns exactly the manifest a collector has after the host rendered every frame: the same tracks, ids and order. Nothing is loaded or played while it runs: no effect runs, images, video and fonts are not fetched, the render gate is not used, and generated audio is described but not rendered (`track.generated.buffer` is `null`; call `track.generated.render()` when the samples are needed, in the browser). A playable's tracks depend on its input: pass the scripted log (`input`) to get the tracks of that session. 300 frames of a creative with a board of 36 cells, particles, transitions, looping music, effects and a Tone jingle take about a second under Node (2 CPUs).
+
+  ```ts
+  import { collectAudioTracks } from 'motionforge';
+
+  const tracks = await collectAudioTracks(<Scene />, { fps: 30, durationInFrames: 900, width: 1080, height: 1920 });
+  await Promise.all(tracks.map((t) => (t.generated ? t.generated.render() : preload(t.src!))));
+  schedule(tracks);
+  ```
+
+  - Components that draw with the DOM do not break it: `ThreeCanvas` renders nothing while collecting (and a sound inside a `ThreeCanvas` throws, since its scene renders in a React root of its own that a dry pass cannot render); `Img`, `Video`, `Lottie`, `Gif` and `AnimatedImage` render their element and load nothing (they load in effects). Scene code that reads the DOM while rendering (e.g. `measureText()` / `fitText()` during render, in Node) fails the pass with `collectAudioTracks: rendering frame N failed: ...`: run the pass in the browser, or skip that code when `useIsCollectingAudio()` is `true`.
+  - It yields to the page about every 50 ms, so in a browser it does not freeze the UI.
 - **Video's sound** is a track too (as in Remotion, where a video's audio is in the render): `<Video volume muted name>` describe it, and the `<video>` element itself is always muted. A video whose sound is not wanted takes `muted`.
-- **Readiness.** Registering a URL track does not hold the gate (it registers in the same commit, before the gate can resolve); the host loads the files. Generated audio holds the gate until it is rendered and registered (see `motionforge/audio`).
+- **Readiness.** Registering a track does not hold the gate (it registers in the same commit, before the gate can resolve); the host loads the files. Generated audio registers at once, too, and holds the gate until its samples are rendered (see `motionforge/audio`), so `track.generated.buffer` is set when the frame is ready.
 - Without `audio`, nothing is collected and `Audio` does nothing. A `FrameProvider` inside another one does not use the outer collector: its frames are its own. A collector serves one `FrameProvider` at a time.
 - `Audio` / `Video` inside `Freeze`, `Retiming` or `Reverse` (and so inside `Trail` and `CameraMotionBlur`, which render through `Freeze`) throw: their frames do not run with the composition's, and a track plays in real time. Put the sound outside.
 - **Differs from Remotion:** Remotion's player plays `<Audio>` through an `<audio>` element and its renderer collects per-frame assets; MotionForge has no player, so `Audio` is only a description and the host plays it. A `volume` above 1 amplifies (no media element caps it); the frame a `volume` function sees restarts per loop iteration only when `trimAfter` (or `durationInFrames`) gives the iteration length.
 
 ### Generated audio: `motionforge/audio`
 
-Sounds made in code become audio tracks like any `<Audio>`: they start at the start of the enclosing sequence (or at `at`), and the host plays their `AudioBuffer`.
+Sounds made in code become audio tracks like any `<Audio>`: they start at the start of the enclosing sequence (or at `at`), and the host plays their `AudioBuffer`. Such a track has `src: null` and `generated`, a `GeneratedAudio`:
+
+| Field | Meaning |
+|-------|---------|
+| `kind` | `'tone'` (`ToneAudio`) or `'zzfx'` (`Sfx`) |
+| `key` | Everything the samples are made from, as JSON: the cache key (see the components below for what is in it). Tracks with the same key play the same samples |
+| `buffer` | The `AudioBuffer` once rendered on this page (by the scene, `usePrepareAudio()` or `render()`), else `null` |
+| `render()` | `Promise<AudioBuffer>`: renders the samples once per page and key (later calls, and the scene, share the result). Needs Web Audio, and Tone.js for `'tone'`; a failed render is not kept |
+
+The track registers as soon as the component mounts, before its samples exist, so the host (and `collectAudioTracks()`) knows it early; the scene renders the samples and holds the gate meanwhile.
 
 **`<ToneAudio>`** renders [Tone.js](https://tonejs.github.io/) code offline (`Tone.OfflineContext`, an `OfflineAudioContext`, faster than real time) into an `AudioBuffer`. `render` is ordinary Tone.js code and receives Tone itself; the wrapper only converts frames to seconds, renders offline, caches, holds the gate and registers the track.
 
@@ -797,8 +819,8 @@ import { ToneAudio, Sfx } from 'motionforge/audio';
 | `channels` | `2` | 1 or 2 |
 | `volume`, `muted`, `name` | | As for `<Audio>` |
 
-- The result is cached by the source text of `render`, `deps` and the options (one render per sound per page; the same sound in another sequence or `FrameProvider` reuses it). A value `render` reads from outside that is not in `deps` is not part of the key: a changed value would play the cached sound.
-- While it renders it holds the render gate (inside a premounted sequence it does not, so `premountFor` renders it ahead); a failure (`render` throws, is async, Tone is missing) cancels the render. Renders run one at a time (Tone has one global context). Without an audio collector on the `FrameProvider` nothing is rendered.
+- The result is cached by its key, `generated.key` = `JSON.stringify(['tone', String(render), deps, durationInFrames, fps, sampleRate, channels, seed])`: the source text of `render`, `deps`, the length, the composition's `fps` and the options (one render per sound per page; the same sound in another sequence or `FrameProvider` reuses it). `volume`, `muted`, `name` and where it plays are not in it. A value `render` reads from outside that is not in `deps` is not part of the key: a changed value would play the cached sound.
+- Its track registers at once; while the samples render it holds the render gate (inside a premounted sequence it does not, so `premountFor` renders it ahead); a failure (`render` throws, is async, Tone is missing) cancels the render. Renders run one at a time (Tone has one global context). Without an audio collector on the `FrameProvider` nothing is described or rendered; in `collectAudioTracks()` it is described, not rendered (Tone is not loaded).
 - `tone` is an optional peer dependency (tested with 15.1.22): it is imported when the first `ToneAudio` renders, and a missing package fails the render with `<ToneAudio> needs Tone.js, an optional peer dependency of motionforge: install it (npm install tone@15)`.
 
 **`<Sfx>`** plays a [ZzFX](https://github.com/KilledByAPixel/ZzFX) sound effect: paste the parameter array from the ZzFX designer.
@@ -809,7 +831,8 @@ import { ToneAudio, Sfx } from 'motionforge/audio';
 </Sequence>
 ```
 
-- `at` is a frame of the enclosing sequence (an integer ≥ 0, default 0; at or after the sequence's end throws); `seed` (default 0), `sampleRate` (default 44100, as ZzFX's), `volume`, `muted`, `name`. The samples are computed on mount (no gate needed).
+- `at` is a frame of the enclosing sequence (an integer ≥ 0, default 0; at or after the sequence's end throws); `seed` (default 0), `sampleRate` (default 44100, as ZzFX's), `volume`, `muted`, `name`. The samples are computed on mount (no gate needed); in `collectAudioTracks()` only their length is (no Web Audio needed).
+- Cache key: `generated.key` = `JSON.stringify(['zzfx', params, sampleRate, seed])`, the parameters with holes and `undefined` as `null`. `at`, `volume`, `muted` and `name` are not in it.
 - `renderZzfx(params, sampleRate = 44100, seed = 0) → Float32Array` is the same as a pure function (no Web Audio needed): ZzFX's samples at the loudness `zzfx()` plays them (its master volume 0.3 applied).
 - ZzFX 1.4.0 (MIT, Frank Force) is vendored with its license header: only its sample generator, with the sample rate and the random number generator as arguments; the arithmetic is unchanged (a test compares it with the original).
 

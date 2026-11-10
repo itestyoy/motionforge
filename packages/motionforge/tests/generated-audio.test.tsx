@@ -148,7 +148,7 @@ const renderTrack = async (node: React.ReactNode, frame = 0) => {
   renderAt(frame, node, audio, gate);
   await waitReady(gate, frame);
   const [track] = audio.getTracks();
-  return { track, samples: Array.from(track.buffer!.getChannelData(0)) };
+  return { track, samples: Array.from(track.generated!.buffer!.getChannelData(0)) };
 };
 
 // Scene code written against the stand-in: random values in the callback,
@@ -191,7 +191,7 @@ describe('<ToneAudio>', () => {
     expect(seen.some((value) => clean.samples.includes(Math.fround(value)))).toBe(false);
   });
 
-  it('holds the gate while rendering and registers the buffer as a track at the start of its sequence', async () => {
+  it('registers its track at once, at the start of its sequence, and holds the gate while the samples render', async () => {
     const audio = createAudioCollector();
     const gate = createRenderGate();
     renderAt(
@@ -203,13 +203,16 @@ describe('<ToneAudio>', () => {
       gate,
     );
     expect(gate.getPending().map((p) => p.label)).toEqual(['<ToneAudio> rendering 60 frames offline']);
-    expect(audio.getTracks()).toEqual([]);
-    await waitReady(gate, 40);
     expect(audio.getTracks()).toMatchObject([
       { name: 'jingle', src: null, from: 40, startFrame: 40, endFrame: 100, volume: 0.5, trimBefore: 0, loop: false },
     ]);
     const [track] = audio.getTracks();
-    expect(track.buffer!.sampleRate).toBe(48000);
+    // The host knows the sound before it is rendered: what it is made from, and render() to get it.
+    expect(track.generated).toMatchObject({ kind: 'tone', buffer: null });
+    expect(JSON.parse(track.generated!.key)).toEqual(['tone', String(noisyRender), ['gate'], 60, 30, 48000, 2, 0]);
+    await waitReady(gate, 40);
+    expect(track.generated!.buffer!.sampleRate).toBe(48000);
+    await expect(track.generated!.render()).resolves.toBe(track.generated!.buffer);
   });
 
   it('renders each sound once and reuses it without holding the gate', async () => {
@@ -218,7 +221,7 @@ describe('<ToneAudio>', () => {
     const { track } = await renderTrack(node);
     const again = await renderTrack(node, 5);
     expect(fake.state.renders - renders).toBe(1);
-    expect(again.track.buffer).toBe(track.buffer);
+    expect(again.track.generated!.buffer).toBe(track.generated!.buffer);
     const gate = createRenderGate();
     act(() => root.unmount());
     root = createRoot(container);
@@ -288,7 +291,8 @@ describe('renderZzfx / <Sfx>', () => {
     const [track] = audio.getTracks();
     const samples = renderZzfx(coin);
     expect(track).toMatchObject({ name: 'coin', src: null, from: 62, startFrame: 62, endFrame: 62 + Math.ceil((samples.length / 44100) * 30 - 1e-9) });
-    expect(Array.from(track.buffer!.getChannelData(0))).toEqual(Array.from(samples));
+    expect(Array.from(track.generated!.buffer!.getChannelData(0))).toEqual(Array.from(samples));
+    expect(track.generated).toMatchObject({ kind: 'zzfx', key: JSON.stringify(['zzfx', [...coin].map((v) => v ?? null), 44100, 0]) });
   });
 
   it('needs no Web Audio without a collector and throws for a frame after its sequence', () => {

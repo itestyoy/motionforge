@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useContext, useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useMemo } from 'react';
 import type * as ToneModule from 'tone';
 import { HostContext, useVideoConfig } from '../../core/context';
 import { useDelayRender } from '../../core/delay-render';
 import { AudioVolume, useAudioTrack } from '../../core/audio-track';
+import { generatedAudio } from '../../core/generated-audio';
 import { checkSeed, seededRandom, withRandom } from './seeded-random';
-import { checkJson, deleteGenerated, getGenerated, setGenerated } from './generated-cache';
+import { checkJson } from './generated-utils';
 
 /** Tone.js itself: what `import * as Tone from 'tone'` gives. */
 export type Tone = typeof ToneModule;
@@ -125,50 +126,62 @@ const renderOffline = async ({ render, fps, durationInSeconds, sampleRate, chann
   return buffer;
 };
 
-const renderTone = (key: string, job: RenderJob): Promise<AudioBuffer> => {
-  const cached = getGenerated<Promise<AudioBuffer>>(key);
-  if (cached) return cached;
+const renderQueued = (job: RenderJob): Promise<AudioBuffer> => {
   const promise = queue.then(() => renderOffline(job));
   queue = promise.catch(() => undefined);
-  // A failed render is not kept, so a later mount tries again.
-  promise.catch(() => deleteGenerated(key, promise));
-  return setGenerated(key, promise);
+  return promise;
 };
 
-// Rendered buffers by key, to use at once (without holding the gate again)
-// when the same sound mounts again.
-const rendered = new Map<string, AudioBuffer>();
-const remember = (key: string, buffer: AudioBuffer) => {
-  rendered.delete(key);
-  rendered.set(key, buffer);
-  while (rendered.size > 64) rendered.delete(rendered.keys().next().value as string);
-};
+/**
+ * The cache key of a Tone sound: the source text of `render`, `deps`,
+ * `durationInFrames`, the composition's `fps`, `sampleRate`, `channels` and
+ * `seed`. Where and how it plays (`volume`, `muted`, `name`, the enclosing
+ * sequences) is not part of it.
+ */
+export const toneKey = (
+  render: ToneAudioProps['render'],
+  deps: readonly unknown[],
+  durationInFrames: number,
+  fps: number,
+  sampleRate: number,
+  channels: number,
+  seed: number,
+): string => JSON.stringify(['tone', String(render), deps, durationInFrames, fps, sampleRate, channels, seed]);
 
-const checkProps = ({ durationInFrames, render, deps, sampleRate, channels }: ToneAudioProps) => {
+/** A Tone sound as generated audio, shared by every ToneAudio and usePrepareAudio() with the same key. */
+export const toneAudio = (job: RenderJob & { deps: readonly unknown[]; durationInFrames: number }) =>
+  generatedAudio(
+    'tone',
+    toneKey(job.render, job.deps, job.durationInFrames, job.fps, job.sampleRate, job.channels, job.seed),
+    () => renderQueued(job),
+  );
+
+export const checkToneProps = (component: string, { durationInFrames, render, deps, sampleRate, channels }: Pick<ToneAudioProps, 'durationInFrames' | 'render' | 'deps' | 'sampleRate' | 'channels'>) => {
   if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
-    throw new Error(`<ToneAudio>: durationInFrames must be a positive integer, got ${JSON.stringify(durationInFrames)}`);
+    throw new Error(`${component}: durationInFrames must be a positive integer, got ${JSON.stringify(durationInFrames)}`);
   }
   if (typeof render !== 'function') {
-    throw new Error(`<ToneAudio>: render must be a function (Tone) => { ... }, got ${JSON.stringify(render)}`);
+    throw new Error(`${component}: render must be a function (Tone) => { ... }, got ${JSON.stringify(render)}`);
   }
   if (deps !== undefined && !Array.isArray(deps)) {
-    throw new Error(`<ToneAudio>: deps must be an array, got ${JSON.stringify(deps)}`);
+    throw new Error(`${component}: deps must be an array, got ${JSON.stringify(deps)}`);
   }
-  if (deps !== undefined) checkJson('<ToneAudio>', 'deps', deps);
+  if (deps !== undefined) checkJson(component, 'deps', deps);
   if (!Number.isInteger(sampleRate) || (sampleRate as number) < 3000 || (sampleRate as number) > 768000) {
-    throw new Error(`<ToneAudio>: sampleRate must be an integer from 3000 to 768000 (Hz), got ${JSON.stringify(sampleRate)}`);
+    throw new Error(`${component}: sampleRate must be an integer from 3000 to 768000 (Hz), got ${JSON.stringify(sampleRate)}`);
   }
   if (channels !== 1 && channels !== 2) {
-    throw new Error(`<ToneAudio>: channels must be 1 or 2, got ${JSON.stringify(channels)}`);
+    throw new Error(`${component}: channels must be 1 or 2, got ${JSON.stringify(channels)}`);
   }
 };
 
 /**
  * A sound written with Tone.js, rendered offline (an OfflineAudioContext,
  * faster than real time) into an AudioBuffer and registered as an audio
- * track at the start of the enclosing sequence. While it renders it holds
- * the render gate; the result is cached by the source of `render`, `deps`
- * and the options. Renders nothing.
+ * track at the start of the enclosing sequence. The track is registered at
+ * once (`track.generated` describes the sound); while the samples render the
+ * component holds the render gate. The result is cached by the source of
+ * `render`, `deps` and the options (see toneKey). Renders nothing.
  *
  *   <ToneAudio durationInFrames={60} render={(Tone, { framesToSeconds }) => {
  *     const synth = new Tone.Synth().toDestination();
@@ -178,7 +191,7 @@ const checkProps = ({ durationInFrames, render, deps, sampleRate, channels }: To
  */
 export const ToneAudio: React.FC<ToneAudioProps> = (props) => {
   const { durationInFrames, render, deps = [], seed = 0, sampleRate = 48000, channels = 2, volume, muted = false, name } = props;
-  checkProps({ ...props, sampleRate, channels });
+  checkToneProps('<ToneAudio>', { ...props, sampleRate, channels });
   checkSeed('<ToneAudio>', seed);
   if (typeof muted !== 'boolean') throw new Error(`<ToneAudio>: muted must be a boolean, got ${JSON.stringify(muted)}`);
   if (name !== undefined && typeof name !== 'string') throw new Error(`<ToneAudio>: name must be a string, got ${JSON.stringify(name)}`);
@@ -186,56 +199,28 @@ export const ToneAudio: React.FC<ToneAudioProps> = (props) => {
     throw new Error(`<ToneAudio>: volume must be a number >= 0 or a function (frame) => number, got ${JSON.stringify(volume)}`);
   }
   const host = useContext(HostContext);
-  const collector = host?.audio ?? null;
+  const listened = Boolean(host?.audio);
   const { fps } = useVideoConfig();
   const { delayRender, continueRender, cancelRender } = useDelayRender();
-  const key = JSON.stringify(['tone', String(render), deps, durationInFrames, fps, sampleRate, channels, seed]);
+  const key = toneKey(render, deps, durationInFrames, fps, sampleRate, channels, seed);
 
-  // The latest render function (its source is in `key`).
-  const renderRef = useRef(render);
-  renderRef.current = render;
-  const [done, setDone] = useState<{ key: string; buffer: AudioBuffer } | null>(null);
-  const buffer = done?.key === key ? done.buffer : rendered.get(key) ?? null;
-  const handle = useRef<number | null>(null);
-
-  useEffect(() => {
-    // Without a collector nobody plays it: nothing is rendered.
-    if (!collector || rendered.has(key)) return;
-    const current = delayRender(`<ToneAudio> rendering ${durationInFrames} frames offline`);
-    handle.current = current;
-    let active = true;
-    renderTone(key, {
-      render: renderRef.current,
-      fps,
-      durationInSeconds: durationInFrames / fps,
-      sampleRate,
-      channels,
-      seed,
-    }).then(
-      (result) => {
-        remember(key, result);
-        if (active) setDone({ key, buffer: result });
-      },
-      (error) => {
-        if (!active) return;
-        cancelRender(error);
-        continueRender(current);
-      },
-    );
-    return () => {
-      active = false;
-      continueRender(current);
-      handle.current = null;
-    };
+  // Without a collector nobody plays it: nothing is described or rendered.
+  // The render function of the first descriptor for `key` is used (its
+  // source and every input are in the key).
+  const generated = useMemo(
+    () =>
+      listened
+        ? toneAudio({ render, deps, durationInFrames, fps, durationInSeconds: durationInFrames / fps, sampleRate, channels, seed })
+        : null,
     // The other inputs are in `key`.
-  }, [collector, key, delayRender, continueRender, cancelRender]);
+    [listened, key],
+  );
 
   useAudioTrack(
     'ToneAudio',
-    buffer && {
+    generated && {
       src: null,
-      buffer,
-      bufferKey: key,
+      generated,
       name: name ?? null,
       trimBefore: 0,
       trimAfter: null,
@@ -248,13 +233,27 @@ export const ToneAudio: React.FC<ToneAudioProps> = (props) => {
     },
   );
 
-  // Released once the track is registered (the effect above in useAudioTrack ran first).
+  // Holds the frame until the samples are rendered (collectAudioTracks()
+  // runs no effects, so it renders nothing).
   useEffect(() => {
-    if (buffer && handle.current !== null) {
-      continueRender(handle.current);
-      handle.current = null;
-    }
-  }, [buffer, continueRender]);
+    if (!generated || generated.buffer) return;
+    const handle = delayRender(`<ToneAudio> rendering ${durationInFrames} frames offline`);
+    let active = true;
+    generated.render().then(
+      () => {
+        if (active) continueRender(handle);
+      },
+      (error) => {
+        if (!active) return;
+        cancelRender(error);
+        continueRender(handle);
+      },
+    );
+    return () => {
+      active = false;
+      continueRender(handle);
+    };
+  }, [generated, durationInFrames, delayRender, continueRender, cancelRender]);
 
   return null;
 };

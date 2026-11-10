@@ -67,8 +67,12 @@ export interface TimelineContextValue {
   start: number;
   /** The composition frame (exclusive) at which it stops being shown. */
   end: number;
-  /** A component between the FrameProvider and here that remaps time (Freeze, Retiming, Reverse), or null. */
-  remappedBy: string | null;
+  /**
+   * Why sound cannot be here, or null: a component between the FrameProvider
+   * and here remaps time (Freeze, Retiming, Reverse), or renders in a root
+   * the audio dry pass does not render (ThreeCanvas).
+   */
+  noAudio: { inside: string; why: string } | null;
   /**
    * Every window the content plays in, the current one (offset, start, end)
    * included: one per iteration of the enclosing Loops (all of them, also
@@ -211,7 +215,7 @@ export const FrameProvider: React.FC<FrameProviderProps> = ({
   );
 
   const timeline = useMemo<TimelineContextValue>(
-    () => ({ offset: 0, start: 0, end: durationInFrames, remappedBy: null, placements: [{ offset: 0, start: 0, end: durationInFrames }] }),
+    () => ({ offset: 0, start: 0, end: durationInFrames, noAudio: null, placements: [{ offset: 0, start: 0, end: durationInFrames }] }),
     [durationInFrames],
   );
   const outerHost = useContext(HostContext);

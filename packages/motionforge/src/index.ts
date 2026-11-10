@@ -24,6 +24,11 @@ export type { FrameProviderProps } from './core/context';
 export { createAudioCollector } from './core/audio-collector';
 export type { AudioCollector, AudioTrack } from './core/audio-collector';
 export type { AudioVolume } from './core/audio-track';
+export type { GeneratedAudio } from './core/generated-audio';
+// The whole manifest up front, without the DOM (a dry pass)
+export { collectAudioTracks } from './core/collect-audio-tracks';
+export type { CollectAudioTracksOptions } from './core/collect-audio-tracks';
+export { useIsCollectingAudio } from './core/audio-track';
 
 // Render readiness
 export { createRenderGate } from './core/render-gate';

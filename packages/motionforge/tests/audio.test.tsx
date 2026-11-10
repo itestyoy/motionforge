@@ -66,7 +66,7 @@ describe('<Audio> track manifest', () => {
         id: expect.stringMatching(/^[0-9a-f]{14}$/),
         name: 'voice',
         src: 'voice.mp3',
-        buffer: null,
+        generated: null,
         from: 70,
         startFrame: 70,
         // The outer sequence ends at 150.

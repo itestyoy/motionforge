@@ -10,8 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `AbsoluteFill` takes `ref` (a prop, React 19) and passes every other `<div>` attribute through (`id`, `data-*`, `aria-*`, event handlers, ...), as Remotion's does; its props type is exported as `AbsoluteFillProps`.
 - `gate.waitUntilReady({ frame, input })`: also waits until React has committed the given input log (or one that extends it), so an event appended from a `pointermove` handler, which React renders later than the handler returns, is on the frame the wait resolves for.
+- `collectAudioTracks(scene, { fps, durationInFrames, width, height, input?, staticFiles? })`: the whole audio manifest up front, without the DOM. It renders every frame to a string (`react-dom/server`, imported on first call) with components reporting their tracks during render, and resolves with exactly the tracks (and ids) a live collector lists after every frame was rendered; nothing is loaded, played or rendered (300 frames of a realistic creative: about a second under Node). `useIsCollectingAudio()` tells components it is running.
+- `GeneratedAudio` (`AudioTrack.generated`): `{ kind: 'tone' | 'zzfx', key, buffer, render() }` describes the samples of a generated track; `render()` renders them on demand, once per page and key.
 
 ### Changed (breaking)
+- `AudioTrack.buffer` is replaced by `AudioTrack.generated` (see Added): the samples are `track.generated.buffer` once rendered, or `await track.generated.render()`. `ToneAudio` registers its track at once (it registered it only after the render) and still holds the gate until the samples are rendered.
+- `ThreeCanvas` renders nothing inside `collectAudioTracks()`, and `Audio`, `Video`, `Sfx` and `ToneAudio` inside a `ThreeCanvas` throw: its scene renders in a React root of its own, which a dry pass cannot render, so the sound would be missing from the manifest.
 - `gate.waitUntilReady()` without `input` rejects when its `FrameProvider` renders an input log: it could resolve on the frame from before an appended event. Pass the log: `waitUntilReady({ frame, input })`.
 
 ### Fixed

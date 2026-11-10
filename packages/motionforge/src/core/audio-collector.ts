@@ -5,6 +5,8 @@
  * FrameProvider they are in.
  */
 
+import type { GeneratedAudio } from './generated-audio';
+
 /**
  * One sound of the scene. All frames are frames of the composition (the fps
  * of the FrameProvider), counted from the start of the composition; media
@@ -27,8 +29,12 @@ export interface AudioTrack {
   name: string | null;
   /** URL of the media (`<Audio>`, `<Video>`), or null for generated audio. */
   src: string | null;
-  /** The samples of generated audio (`motionforge/audio`), or null for a URL. */
-  buffer: AudioBuffer | null;
+  /**
+   * Generated audio (`motionforge/audio`): what the samples are made from
+   * (`kind`, `key`), the samples once rendered (`buffer`) and `render()` to
+   * get them; null for a URL.
+   */
+  generated: GeneratedAudio | null;
   /**
    * The frame at which the track's own frame 0 plays (media frame
    * `trimBefore`): the start of the enclosing sequences. It is below
@@ -77,13 +83,52 @@ export interface AudioCollector {
 }
 
 export interface AudioCollectorInternals {
+  /**
+   * True for the collector of collectAudioTracks(): components report their
+   * tracks during render (collect()), no effect runs, and nothing is loaded
+   * or rendered. False for createAudioCollector(): they mount them in effects.
+   */
+  readonly collecting: boolean;
   /** Called by the FrameProvider that owns the collector; returns the detach function. */
   attach(): () => void;
   /** A component plays `track` (its id is the key); returns the release function. */
   mount(track: AudioTrack): () => void;
+  /** Collecting: in the frame being rendered, the component copy `instance` plays `track`. */
+  collect(instance: string, track: AudioTrack): void;
 }
 
 const internalsOf = new WeakMap<AudioCollector, AudioCollectorInternals>();
+
+interface Entry {
+  track: AudioTrack;
+  /** The most copies that ever played it at the same time. */
+  most: number;
+}
+
+/**
+ * The manifest: each track once per copy that played at the same time
+ * (`id`, `id#2`, ...), ordered by `startFrame`, then `id`.
+ */
+const listTracks = (entries: Iterable<Entry>): readonly AudioTrack[] => {
+  const tracks: AudioTrack[] = [];
+  for (const { track, most } of entries) {
+    for (let i = 0; i < most; i++) tracks.push(i === 0 ? track : { ...track, id: `${track.id}#${i + 1}` });
+  }
+  tracks.sort((a, b) => a.startFrame - b.startFrame || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return Object.freeze(tracks);
+};
+
+const attachOnce = (attached: { value: boolean }) => () => {
+  if (attached.value) {
+    throw new Error(
+      'An audio collector can serve only one FrameProvider at a time; create one collector per FrameProvider',
+    );
+  }
+  attached.value = true;
+  return () => {
+    attached.value = false;
+  };
+};
 
 /**
  * Collects the audio tracks of one FrameProvider:
@@ -95,18 +140,13 @@ const internalsOf = new WeakMap<AudioCollector, AudioCollectorInternals>();
 export const createAudioCollector = (): AudioCollector => {
   // id -> the track, how many components play it now, and the most that
   // ever played it at the same time.
-  const entries = new Map<string, { track: AudioTrack; mounted: number; most: number }>();
+  const entries = new Map<string, Entry & { mounted: number }>();
   const listeners = new Set<() => void>();
-  let snapshot: readonly AudioTrack[] = [];
-  let attached = false;
+  let snapshot: readonly AudioTrack[] = Object.freeze([]);
+  const attached = { value: false };
 
   const publish = () => {
-    const tracks: AudioTrack[] = [];
-    for (const { track, most } of entries.values()) {
-      for (let i = 0; i < most; i++) tracks.push(i === 0 ? track : { ...track, id: `${track.id}#${i + 1}` });
-    }
-    tracks.sort((a, b) => a.startFrame - b.startFrame || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    snapshot = Object.freeze(tracks);
+    snapshot = listTracks(entries.values());
     listeners.forEach((listener) => listener());
   };
 
@@ -124,17 +164,8 @@ export const createAudioCollector = (): AudioCollector => {
   };
 
   internalsOf.set(collector, {
-    attach() {
-      if (attached) {
-        throw new Error(
-          'An audio collector can serve only one FrameProvider at a time; create one collector per FrameProvider',
-        );
-      }
-      attached = true;
-      return () => {
-        attached = false;
-      };
-    },
+    collecting: false,
+    attach: attachOnce(attached),
     mount(track) {
       let entry = entries.get(track.id);
       if (!entry) {
@@ -154,8 +185,56 @@ export const createAudioCollector = (): AudioCollector => {
         current.mounted -= 1;
       };
     },
+    collect() {
+      throw new Error('collect() is for the collector of collectAudioTracks()');
+    },
   });
   return collector;
+};
+
+/**
+ * The collector of collectAudioTracks(): the host renders frame after frame
+ * between beginFrame() and endFrame(); components report their tracks during
+ * render. A track counts once per component copy in a frame, so it ends up
+ * listed as often as copies of it played at the same time, as with a live
+ * collector.
+ */
+export const createCollectingCollector = () => {
+  const entries = new Map<string, Entry>();
+  let frame: Map<string, Set<string>> | null = null;
+  const collector: AudioCollector = {
+    getTracks: () => listTracks(entries.values()),
+    subscribe() {
+      throw new Error('The tracks of collectAudioTracks() are complete when it resolves: there is nothing to subscribe to');
+    },
+  };
+  internalsOf.set(collector, {
+    collecting: true,
+    attach: attachOnce({ value: false }),
+    mount() {
+      throw new Error('mount() is for the collector of createAudioCollector()');
+    },
+    collect(instance, track) {
+      if (!frame) throw new Error('collect() outside of a frame of collectAudioTracks()');
+      if (!entries.has(track.id)) entries.set(track.id, { track: Object.freeze({ ...track }), most: 0 });
+      const copies = frame.get(track.id) ?? new Set<string>();
+      copies.add(instance);
+      frame.set(track.id, copies);
+    },
+  });
+  return {
+    collector,
+    beginFrame() {
+      frame = new Map();
+    },
+    endFrame() {
+      for (const [id, copies] of frame ?? []) {
+        const entry = entries.get(id)!;
+        entry.most = Math.max(entry.most, copies.size);
+      }
+      frame = null;
+    },
+  };
 };
 
 export const isAudioCollector = (value: unknown): value is AudioCollector =>

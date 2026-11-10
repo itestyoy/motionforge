@@ -137,14 +137,14 @@ export const Sequence: React.FC<SequenceProps> = (props) => {
   const timelineOffset = (parentTimeline?.offset ?? 0) + startFrame;
   const timelineStart = Math.max(parentTimeline?.start ?? 0, timelineOffset);
   const timelineEnd = Math.min(parentTimeline?.end ?? Infinity, timelineOffset + (durationInFrames ?? Infinity));
-  const remappedBy = parentTimeline?.remappedBy ?? null;
+  const noAudio = parentTimeline?.noAudio ?? null;
   const parentPlacements = parentTimeline?.placements ?? null;
   const timeline = useMemo<TimelineContextValue>(
     () => ({
       offset: timelineOffset,
       start: timelineStart,
       end: timelineEnd,
-      remappedBy,
+      noAudio,
       // Each window of the parent (one per Loop iteration) shifted and cut the same way.
       placements: (parentPlacements ?? [{ offset: 0, start: 0, end: Infinity }]).flatMap((p): TimelinePlacement[] => {
         const offset = p.offset + startFrame;
@@ -153,7 +153,7 @@ export const Sequence: React.FC<SequenceProps> = (props) => {
         return start < end ? [{ offset, start, end }] : [];
       }),
     }),
-    [timelineOffset, timelineStart, timelineEnd, remappedBy, parentPlacements, startFrame, durationInFrames],
+    [timelineOffset, timelineStart, timelineEnd, noAudio, parentPlacements, startFrame, durationInFrames],
   );
 
   // Check if sequence is active
@@ -304,7 +304,18 @@ const RelativeFrameContext = createContext<number | null>(null);
 const Remapped: React.FC<{ by: string; children: ReactNode }> = ({ by, children }) => {
   const parent = useContext(TimelineContext);
   const value = useMemo(
-    () => (parent ? { ...parent, remappedBy: parent.remappedBy ?? by } : null),
+    () =>
+      parent
+        ? {
+            ...parent,
+            noAudio: parent.noAudio ?? {
+              inside: by,
+              why:
+                'it remaps time (Trail and CameraMotionBlur render through <Freeze>), and an audio track plays in real time. ' +
+                'Put the sound outside of it.',
+            },
+          }
+        : null,
     [parent, by],
   );
   return <TimelineContext.Provider value={value}>{children}</TimelineContext.Provider>;

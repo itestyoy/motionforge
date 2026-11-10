@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import React, { act, use } from 'react';
+import React, { act, Component, use } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +7,8 @@ import { FrameProvider, useCurrentFrame, useVideoConfig } from '../src/core/cont
 import { createRenderGate, RenderGate } from '../src/core/render-gate';
 import { useSequence } from '../src/components/Sequence';
 import { ThreeCanvas } from '../src/three';
+import { Audio } from '../src/components/Media';
+import { collectAudioTracks } from '../src/core/collect-audio-tracks';
 
 // A stand-in for React Three Fiber: like the real one it renders the scene in
 // a separate React root (here without any context bridge), after the outer
@@ -160,6 +162,30 @@ describe('ThreeCanvas', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     renderAt(0, <ThreeCanvas width={10} height={10} data-fail><Probe /></ThreeCanvas>, gate);
     await expect(gate.waitUntilReady()).rejects.toThrow('<ThreeCanvas>: WebGL is not available');
+  });
+
+  it('renders nothing in collectAudioTracks() and takes no sound inside', async () => {
+    await collectAudioTracks(<ThreeCanvas width={10} height={10}><Probe /></ThreeCanvas>, { durationInFrames: 3, width: 10, height: 10 });
+    // The canvas was never rendered (the stand-in records every render).
+    expect(fiber.frameloops).toEqual([]);
+    const errors: string[] = [];
+    class Boundary extends Component<{ children: React.ReactNode }, { failed: boolean }> {
+      state = { failed: false };
+      static getDerivedStateFromError() {
+        return { failed: true };
+      }
+      componentDidCatch(error: Error) {
+        errors.push(error.message);
+      }
+      render() {
+        return this.state.failed ? null : this.props.children;
+      }
+    }
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    renderAt(0, <ThreeCanvas width={10} height={10}><Boundary><Audio src="a.mp3" /></Boundary></ThreeCanvas>);
+    expect(errors).toEqual([
+      '<Audio> cannot be inside <ThreeCanvas>: the canvas renders in a React root of its own, which collectAudioTracks() does not render. Put the sound outside the canvas.',
+    ]);
   });
 
   it('checks its props', () => {

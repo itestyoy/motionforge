@@ -1,8 +1,9 @@
 'use client';
 
-import { useContext, useEffect, useMemo } from 'react';
+import { useContext, useEffect, useId, useMemo } from 'react';
 import { AudioTrack, getAudioCollectorInternals, hashString } from './audio-collector';
 import { HostContext, TimelineContext } from './context';
+import type { GeneratedAudio } from './generated-audio';
 
 /** A volume: a gain ≥ 0, or a function of the track's frame returning one. */
 export type AudioVolume = number | ((frame: number) => number);
@@ -10,9 +11,8 @@ export type AudioVolume = number | ((frame: number) => number);
 /** What a component describes; the hook places it on the composition's timeline. */
 export interface AudioTrackDescription {
   src: string | null;
-  buffer: AudioBuffer | null;
-  /** Identifies `buffer` (the cache key of generated audio); null for a URL. */
-  bufferKey: string | null;
+  /** Generated audio (its `key` is part of the track's id); null for a URL. */
+  generated: GeneratedAudio | null;
   name: string | null;
   trimBefore: number;
   trimAfter: number | null;
@@ -64,9 +64,11 @@ const sampleVolume = (
  * Registers the track `description` (null: nothing yet, e.g. still
  * rendering) with the FrameProvider's audio collector while the component is
  * mounted: one track per window the component plays in, i.e. one per
- * iteration of the enclosing Loops, all of them as soon as it mounts. Throws
- * inside Freeze, Retiming and Reverse: their content's frames do not run with
- * the composition's, and a track plays in real time.
+ * iteration of the enclosing Loops, all of them as soon as it mounts. In
+ * collectAudioTracks() it reports them while rendering instead. Throws where
+ * sound cannot be: inside Freeze, Retiming and Reverse (their content's frames
+ * do not run with the composition's, and a track plays in real time) and
+ * inside ThreeCanvas (a React root collectAudioTracks() cannot render).
  */
 export const useAudioTrack = (component: string, description: AudioTrackDescription | null): void => {
   const host = useContext(HostContext);
@@ -74,13 +76,13 @@ export const useAudioTrack = (component: string, description: AudioTrackDescript
   if (!host || !timeline) {
     throw new Error(`<${component}> must be used within a FrameProvider`);
   }
-  if (timeline.remappedBy !== null) {
-    throw new Error(
-      `<${component}> cannot be inside <${timeline.remappedBy}>: it remaps time (Trail and CameraMotionBlur render ` +
-        'through <Freeze>), and an audio track plays in real time. Put the sound outside of it.',
-    );
+  if (timeline.noAudio !== null) {
+    throw new Error(`<${component}> cannot be inside <${timeline.noAudio.inside}>: ${timeline.noAudio.why}`);
   }
   const collector = host.audio;
+  const internals = collector ? getAudioCollectorInternals(collector) : null;
+  // Tells the copies of a track apart in collectAudioTracks() (stable within one render).
+  const instance = useId();
 
   const at = description?.at ?? 0;
   const length = description?.lengthInFrames;
@@ -109,11 +111,11 @@ export const useAudioTrack = (component: string, description: AudioTrackDescript
         typeof volume === 'function'
           ? sampleVolume(component, volume, from, startFrame, endFrame, iterationLength)
           : volume ?? 1;
-      const { src, buffer, bufferKey, name, trimBefore, trimAfter, playbackRate, loop, muted } = description;
+      const { src, generated, name, trimBefore, trimAfter, playbackRate, loop, muted } = description;
       const id = hashString(
-        JSON.stringify([src, bufferKey, name, from, startFrame, endFrame, trimBefore, trimAfter, playbackRate, loop, muted, volumeValue]),
+        JSON.stringify([src, generated?.key ?? null, name, from, startFrame, endFrame, trimBefore, trimAfter, playbackRate, loop, muted, volumeValue]),
       );
-      list.push({ id, name, src, buffer, from, startFrame, endFrame, trimBefore, trimAfter, playbackRate, loop, muted, volume: volumeValue });
+      list.push({ id, name, src, generated, from, startFrame, endFrame, trimBefore, trimAfter, playbackRate, loop, muted, volume: volumeValue });
     }
     return list;
     // `description` is listed by its fields; the volume function by its kind (see above).
@@ -121,8 +123,7 @@ export const useAudioTrack = (component: string, description: AudioTrackDescript
     component,
     description === null,
     description?.src,
-    description?.buffer,
-    description?.bufferKey,
+    description?.generated,
     description?.name,
     description?.trimBefore,
     description?.trimAfter,
@@ -136,10 +137,25 @@ export const useAudioTrack = (component: string, description: AudioTrackDescript
     iterationLength,
   ]);
 
+  // collectAudioTracks(): reported while rendering (no effect runs there).
+  if (internals?.collecting) {
+    tracks.forEach((track, index) => internals.collect(`${instance}/${index}`, track));
+  }
+
   useEffect(() => {
-    if (!collector || tracks.length === 0) return undefined;
-    const internals = getAudioCollectorInternals(collector);
+    if (!internals || internals.collecting || tracks.length === 0) return undefined;
     const releases = tracks.map((track) => internals.mount(track));
     return () => releases.forEach((release) => release());
-  }, [collector, tracks]);
+  }, [internals, tracks]);
+};
+
+/**
+ * True while collectAudioTracks() renders the scene: no effect runs, nothing
+ * is loaded and no audio is rendered; only the audio tracks are collected.
+ * Components that need the DOM while rendering (measuring text, a canvas)
+ * can render nothing then (ThreeCanvas does).
+ */
+export const useIsCollectingAudio = (): boolean => {
+  const host = useContext(HostContext);
+  return host?.audio ? getAudioCollectorInternals(host.audio).collecting : false;
 };

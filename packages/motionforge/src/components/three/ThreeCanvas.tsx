@@ -1,9 +1,10 @@
 'use client';
 
-import React, { Component, Suspense, useCallback, useContext, useLayoutEffect, useRef, useState } from 'react';
+import React, { Component, Suspense, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useThree, type CanvasProps, type RootState } from '@react-three/fiber';
 import { FrameContext, GateContext, HostContext, TimelineContext, useCurrentFrame, useVideoConfig } from '../../core/context';
 import { useDelayRender } from '../../core/delay-render';
+import { useIsCollectingAudio } from '../../core/audio-track';
 import { SequenceContext } from '../Sequence';
 
 export type ThreeCanvasProps = Omit<CanvasProps, 'frameloop' | 'children'> & {
@@ -114,8 +115,11 @@ class CanvasErrorBoundary extends Component<
  *   time in seconds. Animate with `useCurrentFrame()`, not `useFrame()`.
  * - Holds the render gate until the renderer exists, the frame is drawn, and
  *   suspended content (textures, models) has loaded.
+ * - Renders nothing in collectAudioTracks() (no WebGL there), and sound
+ *   inside the canvas throws: put it outside.
  */
 export const ThreeCanvas: React.FC<ThreeCanvasProps> = (props) => {
+  const collecting = useIsCollectingAudio();
   for (const name of SEQUENCE_PROPS) {
     if (name in props) {
       throw new Error(
@@ -136,10 +140,27 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = (props) => {
   if (!frameValue) {
     throw new Error('<ThreeCanvas> must be used within a FrameProvider');
   }
+  // collectAudioTracks() renders to a string, without WebGL; the canvas holds
+  // no sound (see below). An instance is always in one mode, so the hooks
+  // below are either always called or never.
+  if (collecting) return null;
   const gateValue = useContext(GateContext);
   const sequenceValue = useContext(SequenceContext);
   const hostValue = useContext(HostContext);
-  const timelineValue = useContext(TimelineContext);
+  const outerTimeline = useContext(TimelineContext);
+  // R3F renders the scene in a root of its own, which collectAudioTracks()
+  // cannot render: a sound there would be missing from its manifest.
+  const timelineValue = useMemo(
+    () =>
+      outerTimeline && {
+        ...outerTimeline,
+        noAudio: outerTimeline.noAudio ?? {
+          inside: 'ThreeCanvas',
+          why: 'the canvas renders in a React root of its own, which collectAudioTracks() does not render. Put the sound outside the canvas.',
+        },
+      },
+    [outerTimeline],
+  );
   const { frame } = frameValue;
   const { delayRender, continueRender, cancelRender } = useDelayRender();
 

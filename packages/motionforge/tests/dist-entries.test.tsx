@@ -167,6 +167,8 @@ describe('built entries', () => {
     expect(Object.keys(gif).sort()).toEqual(['Gif', 'getGifDurationInSeconds']);
     expect(Object.keys(audioModule).sort()).toEqual(['Sfx', 'ToneAudio', 'renderZzfx']);
     expect(main).toHaveProperty('createAudioCollector');
+    expect(main).toHaveProperty('collectAudioTracks');
+    expect(main).toHaveProperty('useIsCollectingAudio');
     for (const name of ['ToneAudio', 'Sfx', 'renderZzfx']) expect(main, name).not.toHaveProperty(name);
     expect(Object.keys(mediaUtils).sort()).toEqual([
       'createSmoothSvgPath',
@@ -187,6 +189,27 @@ describe('built entries', () => {
       expect(source, entry).toContain("import('tone')");
       expect(source, entry).not.toMatch(/(?:from\s*|require\s*\(\s*)['"]tone['"]/);
     }
+  });
+
+  it('loads the server renderer of collectAudioTracks() only when it is called', () => {
+    for (const entry of ['index.js', 'index.cjs']) {
+      const source = relativeImportClosure(join(distDir, entry)).map((file) => readFileSync(file, 'utf8')).join('\n');
+      expect(source, entry).toMatch(/import\(['"]react-dom\/server['"]\)/);
+      expect(source, entry).not.toMatch(/(?:from\s*|require\s*\(\s*)['"]react-dom\/server['"]/);
+    }
+  });
+
+  it('collects the audio tracks of a scene from the built entries', async () => {
+    const tracks = await main.collectAudioTracks(
+      <main.Sequence from={10}>
+        <main.Audio src="a.mp3" />
+        <audioModule.Sfx zzfx={[1, 0, 440, 0, 0.05]} />
+      </main.Sequence>,
+      { durationInFrames: 30, width: 10, height: 10 },
+    );
+    expect(tracks.map((t: any) => [t.src ?? t.generated.kind, t.startFrame])).toEqual(
+      expect.arrayContaining([['a.mp3', 10], ['zzfx', 10]]),
+    );
   });
 
   it('lets motionforge/audio see the timeline of a FrameProvider from motionforge', () => {

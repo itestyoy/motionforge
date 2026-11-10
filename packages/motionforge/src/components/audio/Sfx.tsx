@@ -2,10 +2,11 @@
 
 import React, { useContext, useMemo } from 'react';
 import { HostContext, TimelineContext, useVideoConfig } from '../../core/context';
-import { AudioVolume, useAudioTrack } from '../../core/audio-track';
+import { AudioVolume, useAudioTrack, useIsCollectingAudio } from '../../core/audio-track';
+import { generatedAudio } from '../../core/generated-audio';
 import { buildZzfxSamples, ZZFX_VOLUME } from './zzfx';
 import { checkSeed, seededRandom } from './seeded-random';
-import { getGenerated, setGenerated, toAudioBuffer } from './generated-cache';
+import { toAudioBuffer } from './generated-utils';
 
 /**
  * ZzFX parameters, as the ZzFX designer (https://killedbyapixel.github.io/ZzFX/)
@@ -18,7 +19,7 @@ export type ZzfxParams = ReadonlyArray<number | undefined>;
 
 const MAX_PARAMS = 21;
 
-const checkParams = (component: string, params: unknown): (number | undefined)[] => {
+export const checkParams = (component: string, params: unknown): (number | undefined)[] => {
   if (!Array.isArray(params)) {
     throw new Error(`${component}: the ZzFX parameters must be an array of numbers, got ${JSON.stringify(params)}`);
   }
@@ -35,7 +36,7 @@ const checkParams = (component: string, params: unknown): (number | undefined)[]
   });
 };
 
-const checkSampleRate = (component: string, sampleRate: unknown): number => {
+export const checkSampleRate = (component: string, sampleRate: unknown): number => {
   if (!Number.isInteger(sampleRate) || (sampleRate as number) < 3000 || (sampleRate as number) > 768000) {
     throw new Error(`${component}: sampleRate must be an integer from 3000 to 768000 (Hz), got ${JSON.stringify(sampleRate)}`);
   }
@@ -59,6 +60,38 @@ export const renderZzfx = (params: ZzfxParams, sampleRate = 44100, seed = 0): Fl
   return samples;
 };
 
+/**
+ * The cache key of a ZzFX sound: its parameters (holes and `undefined` alike,
+ * as `null`), sample rate and seed. Where and how it plays (`at`, `volume`,
+ * `muted`, `name`) is not part of it.
+ */
+export const sfxKey = (params: ReadonlyArray<number | undefined>, sampleRate: number, seed: number): string =>
+  JSON.stringify(['zzfx', params, sampleRate, seed]);
+
+// Samples by key, the most recent last: the length of a sound is needed to
+// place its track also when no AudioBuffer is made (collectAudioTracks()).
+const samplesByKey = new Map<string, Float32Array>();
+const zzfxSamples = (key: string, params: ReadonlyArray<number | undefined>, sampleRate: number, seed: number) => {
+  let samples = samplesByKey.get(key);
+  if (samples) {
+    samplesByKey.delete(key);
+  } else {
+    samples = renderZzfx(params, sampleRate, seed);
+  }
+  samplesByKey.set(key, samples);
+  while (samplesByKey.size > 64) samplesByKey.delete(samplesByKey.keys().next().value as string);
+  return samples;
+};
+
+/** The samples of a ZzFX sound as generated audio, shared by every Sfx and usePrepareAudio() with the same key. */
+export const sfxAudio = (params: ReadonlyArray<number | undefined>, sampleRate: number, seed: number) => {
+  const key = sfxKey(params, sampleRate, seed);
+  return {
+    generated: generatedAudio('zzfx', key, () => toAudioBuffer('<Sfx>', [zzfxSamples(key, params, sampleRate, seed)], sampleRate)),
+    length: () => zzfxSamples(key, params, sampleRate, seed).length,
+  };
+};
+
 export interface SfxProps {
   /** ZzFX parameters (see ZzfxParams). */
   zzfx: ZzfxParams;
@@ -79,11 +112,12 @@ export interface SfxProps {
  * A ZzFX sound effect as an audio track: `<Sfx at={12} zzfx={[...]} />`
  * plays the sound at frame 12 of the enclosing sequence. The samples are
  * computed when the component mounts (no gate needed) and handed to the
- * host as an AudioBuffer; renders nothing.
+ * host as an AudioBuffer (`track.generated`); renders nothing.
  */
 export const Sfx: React.FC<SfxProps> = ({ zzfx, at = 0, seed = 0, sampleRate = 44100, volume, muted = false, name }) => {
   const host = useContext(HostContext);
   const timeline = useContext(TimelineContext);
+  const collecting = useIsCollectingAudio();
   const { fps } = useVideoConfig();
   const params = checkParams('<Sfx>', zzfx);
   checkSampleRate('<Sfx>', sampleRate);
@@ -102,24 +136,23 @@ export const Sfx: React.FC<SfxProps> = ({ zzfx, at = 0, seed = 0, sampleRate = 4
   if (typeof muted !== 'boolean') throw new Error(`<Sfx>: muted must be a boolean, got ${JSON.stringify(muted)}`);
   if (name !== undefined && typeof name !== 'string') throw new Error(`<Sfx>: name must be a string, got ${JSON.stringify(name)}`);
 
-  const key = JSON.stringify(['zzfx', params, sampleRate, seed]);
-  const collect = Boolean(host?.audio);
-  // Without a collector nobody plays it: nothing is computed (and no Web Audio is needed).
-  const buffer = useMemo(() => {
-    if (!collect) return null;
-    return (
-      getGenerated<AudioBuffer>(key) ??
-      setGenerated(key, toAudioBuffer('<Sfx>', [renderZzfx(params, sampleRate, seed)], sampleRate))
-    );
+  const key = sfxKey(params, sampleRate, seed);
+  const listened = Boolean(host?.audio);
+  // Without a collector nobody plays it: nothing is computed (and no Web
+  // Audio is needed). collectAudioTracks() needs only the length.
+  const sound = useMemo(() => {
+    if (!listened) return null;
+    const { generated, length } = sfxAudio(params, sampleRate, seed);
+    if (!collecting) generated.renderNow();
+    return { generated, length: length() };
     // `params`, `sampleRate` and `seed` are in `key`.
-  }, [collect, key]);
+  }, [listened, collecting, key]);
 
   useAudioTrack(
     'Sfx',
-    buffer && {
+    sound && {
       src: null,
-      buffer,
-      bufferKey: key,
+      generated: sound.generated,
       name: name ?? null,
       trimBefore: 0,
       trimAfter: null,
@@ -128,7 +161,7 @@ export const Sfx: React.FC<SfxProps> = ({ zzfx, at = 0, seed = 0, sampleRate = 4
       muted,
       volume,
       at,
-      lengthInFrames: (buffer.length / buffer.sampleRate) * fps,
+      lengthInFrames: (sound.length / sampleRate) * fps,
     },
   );
   return null;

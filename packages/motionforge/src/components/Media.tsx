@@ -175,8 +175,7 @@ const mediaTrack = (
   }
   return {
     src,
-    buffer: null,
-    bufferKey: null,
+    generated: null,
     name: name ?? null,
     trimBefore: timing.trimBefore,
     trimAfter: timing.end ?? null,
