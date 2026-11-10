@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import React, { act } from 'react';
+import React, { act, useState } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,6 +9,7 @@ import { useEmitInput, useInputEvents, useLastEvent, useReducedState } from '../
 import { Freeze, Loop, Sequence } from '../src/components/Sequence';
 import { Composition } from '../src/components/Composition';
 import { spring } from '../src/utils/animation';
+import { createRenderGate, RenderGate } from '../src/core/render-gate';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -201,5 +202,99 @@ describe('playable input log', () => {
     };
     renderAt(0, <Grab />, [], () => {});
     expect(emitted[0]).toThrow(/leave out frame/);
+  });
+});
+
+describe('waitUntilReady() with an input log', () => {
+  const Taps = () => <i data-taps="">{useInputEvents().length}</i>;
+  const renderWithGate = (gate: RenderGate, frame: number, input?: readonly InputEvent[]) =>
+    act(() =>
+      root.render(
+        <FrameProvider frame={frame} fps={30} durationInFrames={DURATION} width={100} height={100} gate={gate} input={input}>
+          <Taps />
+        </FrameProvider>,
+      ),
+    );
+  const stateOf = async (promise: Promise<unknown>) => {
+    let state = 'pending';
+    promise.then(
+      () => (state = 'resolved'),
+      () => (state = 'rejected'),
+    );
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    return state;
+  };
+
+  it('waits until React has committed the appended event, which it renders later than the handler runs', async () => {
+    const gate = createRenderGate();
+    let append: (event: InputEvent) => readonly InputEvent[] = () => [];
+    // A live host: an event handler (e.g. pointermove) appends to the log in state.
+    const Host = () => {
+      const [log, setLog] = useState<readonly InputEvent[]>([]);
+      append = (event) => {
+        const next = [...log, event];
+        setLog(next);
+        return next;
+      };
+      return (
+        <FrameProvider frame={5} fps={30} durationInFrames={DURATION} width={100} height={100} gate={gate} input={log}>
+          <Taps />
+        </FrameProvider>
+      );
+    };
+    act(() => root.render(<Host />));
+    let seen: string | null = null;
+    let waiting: Promise<void> = Promise.resolve();
+    await act(async () => {
+      const log = append({ frame: 5, type: 'move' });
+      waiting = gate.waitUntilReady({ frame: 5, input: log }).then(() => {
+        seen = container.querySelector('[data-taps]')!.textContent;
+      });
+      // Frame 5 is committed and nothing is pending, but React has not rendered the new log yet.
+      expect(await stateOf(waiting)).toBe('pending');
+      // A wait that does not name the log would resolve here, on the frame without the event: it is refused.
+      await expect(gate.waitUntilReady({ frame: 5 })).rejects.toThrow(
+        /this FrameProvider renders an input log, so pass the log you gave it: waitUntilReady\(\{ frame, input \}\)/,
+      );
+    });
+    await waiting;
+    expect(seen).toBe('1');
+  });
+
+  it('resolves for a log the committed one extends, and waits for a new session', async () => {
+    const gate = createRenderGate();
+    const a = { frame: 1, type: 'tap' };
+    const b = { frame: 2, type: 'tap' };
+    const c = { frame: 3, type: 'tap' };
+    renderWithGate(gate, 3, [a]);
+    const ab = [a, b];
+    const waitAb = gate.waitUntilReady({ frame: 3, input: ab });
+    expect(await stateOf(waitAb)).toBe('pending');
+    // React batched two appends: the committed log extends the one waited for.
+    renderWithGate(gate, 3, [...ab, c]);
+    await expect(waitAb).resolves.toBeUndefined();
+    // Another session starts with a new log: not an extension of the committed one.
+    const fresh = [{ frame: 0, type: 'tap' }];
+    const waitFresh = gate.waitUntilReady({ frame: 3, input: fresh });
+    expect(await stateOf(waitFresh)).toBe('pending');
+    renderWithGate(gate, 3, fresh);
+    await expect(waitFresh).resolves.toBeUndefined();
+  });
+
+  it('names the log that was not committed on timeout, and checks the option', async () => {
+    const gate = createRenderGate();
+    renderWithGate(gate, 0, [{ frame: 0, type: 'tap' }]);
+    await expect(gate.waitUntilReady({ frame: 0, input: [{ frame: 0, type: 'other' }], timeoutMs: 20 })).rejects.toThrow(
+      /the input log of 1 events was not committed \(FrameProvider renders a log of 1 events that does not extend it\)/,
+    );
+    const plain = createRenderGate();
+    act(() => root.unmount());
+    root = createRoot(container);
+    renderWithGate(plain, 0);
+    await expect(plain.waitUntilReady({ frame: 0, input: [], timeoutMs: 20 })).rejects.toThrow(/FrameProvider renders no input log/);
+    // Without an input log, a wait without `input` is fine.
+    await expect(plain.waitUntilReady({ frame: 0 })).resolves.toBeUndefined();
+    // @ts-expect-error not a log
+    expect(() => plain.waitUntilReady({ input: 'taps' })).toThrow(/input must be the input log \(an array\)/);
   });
 });

@@ -231,10 +231,11 @@ export const FrameProvider: React.FC<FrameProviderProps> = ({
   useEffect(() => (owned ? getGateInternals(owned).attach() : undefined), [owned]);
   useEffect(() => (audio ? getAudioCollectorInternals(audio).attach() : undefined), [audio]);
   // Effects run children first, so when this one runs every component below
-  // has registered its delayRender() handles for this frame.
+  // has registered its delayRender() handles for this frame and this log.
+  const committedLog = input === undefined ? null : log;
   useEffect(() => {
-    if (owned) getGateInternals(owned).commit(frame);
-  }, [owned, frame]);
+    if (owned) getGateInternals(owned).commit(frame, committedLog);
+  }, [owned, frame, committedLog]);
 
   // Nobody waits on the private gate: its errors are thrown here instead.
   const [cancelled, setCancelled] = useState<Error | null>(null);

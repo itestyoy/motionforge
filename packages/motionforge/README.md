@@ -113,7 +113,8 @@ await gate.waitUntilReady({ frame: n, timeoutMs: 10000 });
 // capture frame n
 ```
 
-- `waitUntilReady({ frame?, timeoutMs? })` resolves once `FrameProvider` has committed `frame` (React rendered it and ran its effects) and no handle of a visible component is pending. Without `frame` it waits on the frame committed last, so call it only after React has rendered. `timeoutMs` defaults to 30000 (`Infinity` waits forever); on timeout it rejects with an error listing the pending labels.
+- `waitUntilReady({ frame?, input?, timeoutMs? })` resolves once `FrameProvider` has committed `frame` (React rendered it and ran its effects) and no handle of a visible component is pending. Without `frame` it waits on the frame committed last, so call it only after React has rendered. `timeoutMs` defaults to 30000 (`Infinity` waits forever); on timeout it rejects with an error listing the pending labels (and the frame or input log that was not committed).
+- `input` (playable mode, see below): the input log the host passed to `FrameProvider`. The wait then also covers the time until React has committed a render with that log, or with more events appended to it. An event handler that appends to the log (a `pointermove`, which React renders with a lower priority than a click) returns before React renders the new log, so a wait that names only the frame could resolve on the frame without the event. When the `FrameProvider` renders an input log, a wait without `input` rejects with an error saying so.
 - `cancelRender(error)` rejects every current and later `waitUntilReady()` with that error; `gate.error` holds it. A cancelled gate stays cancelled: create a new gate (and remount) to try again.
 - `gate.getPending()` lists the handles holding the frame: `{ handle, label }`.
 - `Composition` takes `gate` too and passes it to its `FrameProvider`. A gate serves one `FrameProvider` at a time. A `FrameProvider` without `gate` inside another one uses the outer gate.
@@ -254,6 +255,25 @@ export const PlayableHost = ({ Scene, script }: { Scene: React.FC; script?: read
     </FrameProvider>
   );
 };
+```
+
+**Waiting for a frame with live input.** A host that captures frames or shows only ready ones passes the log it rendered with to the gate, so the frame it waits for has the events it just appended:
+
+```tsx
+const gate = createRenderGate();
+
+const onInput = (event: InputEvent) => {
+  const next = [...log, event];
+  setLog(next);                          // React renders it later (pointermove: continuous priority)
+  void showWhenReady(frame, next);
+};
+
+const showWhenReady = async (frame: number, input: readonly InputEvent[]) => {
+  await gate.waitUntilReady({ frame, input });   // React has committed `input` (or a log extending it) at `frame`
+  present(frame);
+};
+
+<FrameProvider gate={gate} frame={frame} input={log} onInput={onInput} ...>
 ```
 
 - **Recording → video.** Save `recorded` (it is plain JSON) and export with `input={recorded}` (the export pass above, with the gate): the video shows the session frame for frame.

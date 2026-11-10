@@ -10,6 +10,8 @@
  * every gate, and one that failed fails every gate.
  */
 
+import { InputEvent, isAppendOf } from './input-log';
+
 export interface PendingDelay {
   /** The number delayRender() returned; negative for a page-wide load (loadFont()). */
   handle: number;
@@ -25,16 +27,25 @@ export interface WaitUntilReadyOptions {
    * for the frame FrameProvider has committed last.
    */
   frame?: number;
+  /**
+   * The input log the host passed to FrameProvider (playable mode). The wait
+   * also covers the time until React has committed a render with this log
+   * (or with more events appended to it): an input appended from an event
+   * handler, e.g. pointermove, which React renders with a lower priority,
+   * is on the frame the wait resolves for. Required when the FrameProvider
+   * renders an input log: a wait without it rejects.
+   */
+  input?: readonly InputEvent[];
   /** Rejects after this many milliseconds (default 30000; Infinity waits forever). */
   timeoutMs?: number;
 }
 
 export interface RenderGate {
   /**
-   * Resolves when FrameProvider has committed the frame (see `frame`) and no
-   * delayRender() handle of a visible component is pending. Rejects with the
-   * cancelRender() error, or on timeout with an error listing the pending
-   * labels.
+   * Resolves when FrameProvider has committed the frame (see `frame`) with
+   * the input log (see `input`) and no delayRender() handle of a visible
+   * component is pending. Rejects with the cancelRender() error, or on
+   * timeout with an error listing the pending labels.
    */
   waitUntilReady(options?: WaitUntilReadyOptions): Promise<void>;
   /** Handles that hold the frame right now (premounted content is not counted), and page-wide loads. */
@@ -62,14 +73,22 @@ export interface GateInternals {
   cancel(error: Error): void;
   /** Called by the FrameProvider that owns the gate; returns the detach function. */
   attach(): () => void;
-  /** Called by the owning FrameProvider after the effects of `frame` have run. */
-  commit(frame: number): void;
+  /**
+   * Called by the owning FrameProvider after the effects of `frame` have run,
+   * with the input log it rendered (null: it has no `input` prop).
+   */
+  commit(frame: number, input: readonly InputEvent[] | null): void;
   /** A scope changed visibility. */
   changed(): void;
   onError(listener: (error: Error) => void): () => void;
 }
 
 const DEFAULT_TIMEOUT_MS = 30000;
+
+const MISSING_INPUT =
+  'waitUntilReady: this FrameProvider renders an input log, so pass the log you gave it: ' +
+  'waitUntilReady({ frame, input }). Without it the wait can resolve before React has rendered an event ' +
+  'you appended (React renders pointermove and other continuous events later), and the frame would miss it.';
 
 const internalsOf = new WeakMap<RenderGate, GateInternals>();
 
@@ -112,6 +131,7 @@ const isVisible = (scope: GateScope | null): boolean => {
 
 interface Waiter {
   frame: number | undefined;
+  input: readonly InputEvent[] | undefined;
   resolve: () => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout> | null;
@@ -132,6 +152,7 @@ export const createRenderGate = (): RenderGate => {
   let lastHandle = 0;
   let error: Error | null = null;
   let committedFrame: number | null = null;
+  let committedInput: readonly InputEvent[] | null = null;
   let attached = false;
   let checkScheduled = false;
   const waiters = new Set<Waiter>();
@@ -154,6 +175,10 @@ export const createRenderGate = (): RenderGate => {
 
   // Checks run in a microtask, so a batch of effects (children first, the
   // FrameProvider's commit last) is seen as a whole.
+  // Whether the committed log is the waiter's (or extends it).
+  const inputCommitted = (waiter: Waiter) =>
+    waiter.input === undefined || (committedInput !== null && isAppendOf(waiter.input, committedInput));
+
   const check = () => {
     checkScheduled = false;
     for (const waiter of [...waiters]) {
@@ -161,9 +186,13 @@ export const createRenderGate = (): RenderGate => {
       if (failed) {
         settle(waiter);
         waiter.reject(failed);
+      } else if (committedFrame !== null && committedInput !== null && waiter.input === undefined) {
+        settle(waiter);
+        waiter.reject(new Error(MISSING_INPUT));
       } else if (
         committedFrame !== null &&
         (waiter.frame === undefined || waiter.frame === committedFrame) &&
+        inputCommitted(waiter) &&
         blocking().length === 0
       ) {
         settle(waiter);
@@ -189,9 +218,12 @@ export const createRenderGate = (): RenderGate => {
 
   const gate: RenderGate = {
     waitUntilReady(options = {}) {
-      const { frame, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
+      const { frame, input, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
       if (frame !== undefined && (!Number.isInteger(frame) || frame < 0)) {
         throw new Error(`waitUntilReady: frame must be a non-negative integer, got ${frame}`);
+      }
+      if (input !== undefined && !Array.isArray(input)) {
+        throw new Error(`waitUntilReady: input must be the input log (an array) passed to FrameProvider, got ${JSON.stringify(input)}`);
       }
       if (typeof timeoutMs !== 'number' || Number.isNaN(timeoutMs) || timeoutMs <= 0) {
         throw new Error(`waitUntilReady: timeoutMs must be a positive number (or Infinity), got ${timeoutMs}`);
@@ -199,14 +231,16 @@ export const createRenderGate = (): RenderGate => {
       const failed = failure();
       if (failed) return Promise.reject(failed);
       return new Promise<void>((resolve, reject) => {
-        const waiter: Waiter = { frame, resolve, reject, timer: null };
+        const waiter: Waiter = { frame, input, resolve, reject, timer: null };
         if (Number.isFinite(timeoutMs)) {
           waiter.timer = setTimeout(() => {
             settle(waiter);
             const notCommitted =
               frame !== undefined && committedFrame !== frame
                 ? `frame ${frame} was not committed (FrameProvider is at ${committedFrame ?? 'no frame yet'}); `
-                : '';
+                : !inputCommitted(waiter)
+                  ? `the input log of ${input!.length} events was not committed (FrameProvider renders ${committedInput === null ? 'no input log' : `a log of ${committedInput.length} events that does not extend it`}); `
+                  : '';
             reject(
               new Error(
                 `waitUntilReady: the frame was not ready after ${timeoutMs} ms: ${notCommitted}${describePending()}`,
@@ -269,10 +303,12 @@ export const createRenderGate = (): RenderGate => {
       return () => {
         attached = false;
         committedFrame = null;
+        committedInput = null;
       };
     },
-    commit(frame) {
+    commit(frame, input) {
       committedFrame = frame;
+      committedInput = input;
       scheduleCheck();
     },
     changed: scheduleCheck,

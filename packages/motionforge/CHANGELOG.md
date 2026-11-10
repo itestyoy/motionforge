@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `AbsoluteFill` takes `ref` (a prop, React 19) and passes every other `<div>` attribute through (`id`, `data-*`, `aria-*`, event handlers, ...), as Remotion's does; its props type is exported as `AbsoluteFillProps`.
+- `gate.waitUntilReady({ frame, input })`: also waits until React has committed the given input log (or one that extends it), so an event appended from a `pointermove` handler, which React renders later than the handler returns, is on the frame the wait resolves for.
+
+### Changed (breaking)
+- `gate.waitUntilReady()` without `input` rejects when its `FrameProvider` renders an input log: it could resolve on the frame from before an appended event. Pass the log: `waitUntilReady({ frame, input })`.
 
 ### Fixed
 - `loadFont()` adds the face to `document.fonts` at once, while it loads (it added it only once loaded), so `usePreloadAssets([{ type: 'font', family }])` for a font that is still loading (`loadFont()` at the top of a module, or in an effect of the same commit) waits for that load instead of cancelling the render with "no font face matches". A face that fails to load is removed again.
