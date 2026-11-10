@@ -1,8 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, ReactNode } from 'react';
-import { CompositionProps as CompositionType, VideoConfig } from '../core/types';
-import { FrameProvider, FrameContext, useVideoConfig as useVideoConfigContext } from '../core/context';
+import React, { createContext, useContext } from 'react';
+import { VideoConfig } from '../core/types';
+import { FrameProvider, useVideoConfig as useVideoConfigContext } from '../core/context';
 
 // Composition Context
 const CompositionContext = createContext<{
@@ -24,18 +24,20 @@ export const useVideoConfig = () => useVideoConfigContext();
 interface CompositionProps {
   id: string;
   component: React.ComponentType<Record<string, unknown>>;
+  /** The frame to render; the host app drives it. */
+  frame: number;
   width?: number;
   height?: number;
   fps?: number;
   durationInFrames: number;
   defaultProps?: Record<string, unknown>;
-  children?: ReactNode;
 }
 
-// Composition wrapper (for registration)
+// A composition rendered at `frame`, with its config available to useComposition().
 export const Composition: React.FC<CompositionProps> = ({
   id,
   component: Component,
+  frame,
   width = 1920,
   height = 1080,
   fps = 30,
@@ -50,6 +52,7 @@ export const Composition: React.FC<CompositionProps> = ({
       }}
     >
       <FrameProvider
+        frame={frame}
         fps={fps}
         durationInFrames={durationInFrames}
         width={width}
@@ -58,96 +61,6 @@ export const Composition: React.FC<CompositionProps> = ({
         <Component {...defaultProps} />
       </FrameProvider>
     </CompositionContext.Provider>
-  );
-};
-
-// Player Composition - for preview with controlled frame
-interface PlayerCompositionProps {
-  id: string;
-  component: React.ComponentType<Record<string, unknown>>;
-  width?: number;
-  height?: number;
-  fps?: number;
-  durationInFrames: number;
-  defaultProps?: Record<string, unknown>;
-  frame: number;
-  playing?: boolean;
-  playbackRate?: number;
-}
-
-export const PlayerComposition: React.FC<PlayerCompositionProps> = ({
-  id,
-  component: Component,
-  width = 1920,
-  height = 1080,
-  fps = 30,
-  durationInFrames,
-  defaultProps = {},
-  frame,
-  playing = false,
-  playbackRate = 1,
-}) => {
-  return (
-    <CompositionContext.Provider
-      value={{
-        id,
-        config: { width, height, fps, durationInFrames },
-      }}
-    >
-      <StaticFrameProvider
-        fps={fps}
-        durationInFrames={durationInFrames}
-        width={width}
-        height={height}
-        frame={frame}
-        playing={playing}
-        playbackRate={playbackRate}
-      >
-        <Component {...defaultProps} />
-      </StaticFrameProvider>
-    </CompositionContext.Provider>
-  );
-};
-
-// Static Frame Provider - for controlled frame playback
-interface StaticFrameProviderProps {
-  fps: number;
-  durationInFrames: number;
-  width: number;
-  height: number;
-  frame: number;
-  playing: boolean;
-  playbackRate: number;
-  children: ReactNode;
-}
-
-const StaticFrameProvider: React.FC<StaticFrameProviderProps> = ({
-  fps,
-  durationInFrames,
-  width,
-  height,
-  frame,
-  playing,
-  playbackRate,
-  children,
-}) => {
-  const value = {
-    frame,
-    fps,
-    durationInFrames,
-    width,
-    height,
-    playing,
-    playbackRate,
-    setFrame: () => {},
-    setPlaying: () => {},
-    setPlaybackRate: () => {},
-  };
-
-  return (
-    <FrameContext.Provider value={value}>
-      {children}
-    </FrameContext.Provider>
   );
 };
 

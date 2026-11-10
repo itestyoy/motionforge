@@ -1,5 +1,6 @@
 /**
- * MotionForge - A React-based framework for creating videos programmatically
+ * MotionForge - headless React SDK for frame-based motion: scenes are a pure
+ * function of the frame; the host app owns time, rendering and playback.
  *
  * Build stunning videos with React components, spring animations,
  * and frame-perfect control. Perfect for data visualization,
@@ -15,14 +16,11 @@ export * from './core/types';
 export {
   useCurrentFrame,
   useVideoConfig,
-  useTimelineState,
   FrameProvider,
-  CompositionManagerProvider,
-  PlayerProvider,
 } from './core/context';
 
 // Components
-export { Composition, PlayerComposition, useVideoConfig as useConfig, useComposition } from './components/Composition';
+export { Composition, useVideoConfig as useConfig, useComposition } from './components/Composition';
 export {
   Sequence,
   Loop,
@@ -167,54 +165,6 @@ export {
   useRenderPriority,
 } from './hooks/performance';
 
-// Player
-export { Player } from './player/Player';
-export type { PlayerProps } from './player/Player';
-
-// Renderer
-export {
-  renderVideo,
-  generateFrames,
-  buildFFmpegCommand,
-  frameToDataURL,
-  calculateVideoSize,
-  estimateRenderTime,
-  validateRenderConfig,
-  renderJobManager,
-  RenderJobManager,
-  // Cache system
-  FrameCache,
-  MemoCache,
-  frameCache,
-  createDebouncedCache,
-  createThrottledCache,
-  // Export system
-  CanvasRenderer,
-  WebMEncoder,
-  FrameSequenceEncoder,
-  VideoExportManager,
-  videoExportManager,
-  calculateProgress,
-  estimateFileSize,
-  checkEncodingSupport,
-  // High-level API
-  renderCompositionToVideo,
-  downloadVideo,
-  downloadFrame,
-} from './renderer';
-
-// Renderer types
-export type {
-  RenderProgress,
-  ExportOptions,
-  ExportResult,
-  CacheStats,
-} from './renderer';
-
-// Icons
-export * from './icons';
-export { default as Icons } from './icons';
-
 // Types
 export type {
   VideoConfig,
@@ -230,9 +180,5 @@ export type {
   EasingFunction,
   Keyframe,
   AnimationTrack,
-  TimelineState,
-  RenderJob,
   FrameContextValue,
-  VideoRendererConfig,
-  CompositionManager,
 } from './core/types';

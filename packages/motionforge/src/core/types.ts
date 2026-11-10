@@ -93,49 +93,11 @@ export interface AnimationTrack {
   keyframes: Keyframe[];
 }
 
-export interface TimelineState {
-  frame: number;
-  playing: boolean;
-  playbackRate: number;
-}
-
-export interface RenderJob {
-  id: string;
-  compositionId: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  progress: number;
-  outputUrl?: string;
-  error?: string;
-  createdAt: Date;
-}
-
 export interface FrameContextValue {
   frame: number;
   fps: number;
   durationInFrames: number;
   width: number;
   height: number;
-  playing: boolean;
-  playbackRate: number;
-  setFrame: (frame: number) => void;
-  setPlaying: (playing: boolean) => void;
-  setPlaybackRate: (rate: number) => void;
 }
 
-export interface VideoRendererConfig {
-  quality: 'low' | 'medium' | 'high';
-  format: 'mp4' | 'webm' | 'gif';
-  codec?: 'h264' | 'h265' | 'vp8' | 'vp9';
-  crf?: number;
-  pixelFormat?: string;
-  bitrate?: number;
-}
-
-export interface CompositionManager {
-  compositions: Map<string, CompositionProps>;
-  currentComposition: string | null;
-  registerComposition: (composition: CompositionProps) => void;
-  unregisterComposition: (id: string) => void;
-  setCurrentComposition: (id: string) => void;
-  getComposition: (id: string) => CompositionProps | undefined;
-}

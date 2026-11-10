@@ -7,8 +7,8 @@
 </div>
 
 <div align="center">
-  <h3>Create stunning videos programmatically with React</h3>
-  <p>Build animations, motion graphics, and videos using React components and frame-perfect control.</p>
+  <h3>Headless React SDK for frame-based motion graphics</h3>
+  <p>A scene is a pure function of the frame. Your app renders it at any frame and owns playback, seeking and export.</p>
 </div>
 
 ---
@@ -19,9 +19,7 @@
 - 🎨 **70+ Effect Components** - Fade, Scale, Slide, 3D transforms, particles, and more
 - 🌊 **Spring Physics** - Natural, physics-based animations
 - 📊 **Interpolation System** - Smooth transitions with 20+ easing functions
-- 🎮 **Interactive Player** - Real-time preview with timeline controls
-- 📦 **Frame Caching** - LRU cache for optimized performance
-- 🎥 **Video Export** - WebM encoding with MediaRecorder API
+- 🧩 **Headless** - No player, no UI, no clock: the host app passes the frame in
 - 🎯 **TypeScript First** - Full type safety out of the box
 
 ## 📦 Installation
@@ -48,7 +46,7 @@ import {
   useCurrentFrame, 
   interpolate,
   spring,
-  Player 
+  FrameProvider,
 } from 'motionforge';
 
 // Create a video composition
@@ -88,19 +86,12 @@ const MyVideo = () => {
   );
 };
 
-// Use with Player (its controls are styled by the bundled stylesheet)
-import 'motionforge/styles.css';
-
-const App = () => (
-  <Player
-    component={MyVideo}
-    durationInFrames={150}
-    fps={30}
-    width={1920}
-    height={1080}
-    controls
-    loop
-  />
+// Render it at any frame. Your app owns time: a player advances `frame`,
+// a scrubber sets it, an exporter steps through 0..durationInFrames-1.
+const Preview = ({ frame }: { frame: number }) => (
+  <FrameProvider frame={frame} fps={30} durationInFrames={150} width={1920} height={1080}>
+    <MyVideo />
+  </FrameProvider>
 );
 ```
 
@@ -108,13 +99,10 @@ const App = () => (
 
 | Import | What it contains | Extra dependencies |
 |--------|------------------|--------------------|
-| `motionforge` | Core: frame hooks, sequences, effects, utilities, `Player`, renderer | — |
+| `motionforge` | Core: `FrameProvider`, frame hooks, sequences, effects, utilities | — |
 | `motionforge/three` | `DepthGallery3D`, `ShaderImageReveal`, `DitheringEffect` | `three`, `@react-three/fiber`, `@react-three/drei` |
 | `motionforge/lottie` | `Lottie` | `lottie-web` (installed with the package) |
-| `motionforge/player` | `Player` only | — |
-| `motionforge/styles.css` | Styles of the `Player` controls (no CSS reset) | — |
-
-All entries share one frame context, so `Player` and the hooks work together whichever entry they come from.
+All entries share one frame context, so components from `motionforge/three` and `motionforge/lottie` read the frame of the `FrameProvider` from `motionforge`.
 
 ## 🎨 Available Components
 
@@ -187,34 +175,6 @@ Easing.easeInBounce, Easing.easeOutBounce
 // ... and more!
 ```
 
-## 🎥 Video Export
-
-```tsx
-import { 
-  VideoExportManager, 
-  downloadVideo,
-  checkEncodingSupport 
-} from 'motionforge';
-
-// Check browser support
-const support = checkEncodingSupport();
-console.log('WebM support:', support.webm);
-console.log('Available codecs:', support.codecs);
-
-// Export video
-const manager = new VideoExportManager();
-const result = await manager.exportFromCanvas(canvas, {
-  config: { width: 1920, height: 1080, fps: 30, durationInFrames: 150 },
-  onProgress: (progress) => {
-    console.log(`Progress: ${progress.percentage.toFixed(1)}%`);
-  }
-});
-
-if (result.success && result.blob) {
-  downloadVideo(result.blob, 'my-video.webm');
-}
-```
-
 ## 🎯 Performance Optimization
 
 ```tsx
@@ -222,7 +182,6 @@ import {
   useMemoizedFrame,
   useOptimizedSpring,
   usePrecomputeFrames,
-  FrameCache 
 } from 'motionforge';
 
 // Memoize expensive computations
@@ -258,20 +217,6 @@ const scale = useOptimizedSpring({ damping: 10 }, 0, 1);
 | `interpolateColors(input, inputRange, outputRange)` | Smooth color transitions |
 | `random(seed)` | Deterministic random number generator |
 | `noise2D(x, y)` | Perlin noise function |
-
-## 🎨 Theming
-
-MotionForge uses a dark theme by default with emerald green accents. Customize colors using CSS variables:
-
-```css
-:root {
-  --mf-primary: #10b981;
-  --mf-secondary: #34d399;
-  --mf-background: #0a0a0a;
-  --mf-surface: #0f0f0f;
-  --mf-border: rgba(16, 185, 129, 0.3);
-}
-```
 
 ## 🎭 Using Lottie in MotionForge
 

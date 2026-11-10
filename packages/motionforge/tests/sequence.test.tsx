@@ -1,29 +1,16 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { FrameContext, useCurrentFrame } from '../src/core/context';
+import { FrameProvider, useCurrentFrame } from '../src/core/context';
 import { Freeze, Loop, Sequence, Series, useRelativeCurrentFrame } from '../src/components/Sequence';
 
 const ShowFrame = ({ id }: { id: string }) => <i data-id={id}>{useCurrentFrame()}</i>;
 
 const renderAt = (frame: number, node: React.ReactNode) =>
   renderToStaticMarkup(
-    <FrameContext.Provider
-      value={{
-        frame,
-        fps: 30,
-        durationInFrames: 300,
-        width: 100,
-        height: 100,
-        playing: false,
-        playbackRate: 1,
-        setFrame: () => {},
-        setPlaying: () => {},
-        setPlaybackRate: () => {},
-      }}
-    >
+    <FrameProvider frame={frame} fps={30} durationInFrames={300} width={100} height={100}>
       {node}
-    </FrameContext.Provider>,
+    </FrameProvider>,
   );
 
 const frameOf = (html: string, id: string) => {

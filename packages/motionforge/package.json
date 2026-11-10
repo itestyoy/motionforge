@@ -1,7 +1,7 @@
 {
   "name": "motionforge",
   "version": "1.4.0",
-  "description": "A React-based framework for creating videos programmatically. Build stunning videos with React components, spring animations, and frame-perfect control.",
+  "description": "Headless React SDK for frame-based motion graphics: scenes are pure functions of the frame, the host app renders them and owns playback.",
   "author": "MotionForge Team",
   "license": "MIT",
   "type": "module",
@@ -14,21 +14,6 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
-    "./icons": {
-      "types": "./dist/icons/index.d.ts",
-      "import": "./dist/icons/index.js",
-      "require": "./dist/icons/index.cjs"
-    },
-    "./player": {
-      "types": "./dist/player/Player.d.ts",
-      "import": "./dist/player/Player.js",
-      "require": "./dist/player/Player.cjs"
-    },
-    "./renderer": {
-      "types": "./dist/renderer/index.d.ts",
-      "import": "./dist/renderer/index.js",
-      "require": "./dist/renderer/index.cjs"
-    },
     "./three": {
       "types": "./dist/three/index.d.ts",
       "import": "./dist/three/index.js",
@@ -38,21 +23,17 @@
       "types": "./dist/lottie/index.d.ts",
       "import": "./dist/lottie/index.js",
       "require": "./dist/lottie/index.cjs"
-    },
-    "./styles.css": "./dist/styles.css"
+    }
   },
   "files": [
     "dist",
     "README.md",
     "LICENSE"
   ],
-  "sideEffects": [
-    "**/*.css"
-  ],
+  "sideEffects": false,
   "scripts": {
-    "build": "tsup && tailwindcss -i src/styles.css -o dist/styles.css --minify",
+    "build": "tsup",
     "dev": "tsup --watch",
-    "lint": "eslint src --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "prepublishOnly": "bun run build"
@@ -95,13 +76,11 @@
   "devDependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
-    "@tailwindcss/cli": "4.1.17",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/three": "^0.184.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwindcss": "4.1.17",
     "three": "^0.184.0",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",

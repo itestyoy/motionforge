@@ -3,7 +3,7 @@
 
 import { useMemo, useCallback } from 'react';
 import { useCurrentFrame, useVideoConfig } from '../core/context';
-import { MemoCache } from '../renderer/cache';
+import { MemoCache } from '../utils/memoCache';
 import { spring, interpolate } from '../utils/animation';
 
 /**

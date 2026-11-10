@@ -1,14 +1,12 @@
 import { defineConfig } from 'tsup';
 
 // One build for every entry point: with code splitting the entries share one
-// copy of the core (frame context, hooks), so `Player` from 'motionforge/player'
-// and `useCurrentFrame` from 'motionforge' see the same React context.
+// copy of the core (frame context, hooks), so components from
+// 'motionforge/three' and 'motionforge/lottie' see the frame set by the
+// FrameProvider from 'motionforge'.
 export default defineConfig({
   entry: {
     index: 'src/index.ts',
-    'icons/index': 'src/icons/index.tsx',
-    'player/Player': 'src/player/Player.tsx',
-    'renderer/index': 'src/renderer/index.ts',
     'three/index': 'src/three.ts',
     'lottie/index': 'src/lottie.ts',
   },

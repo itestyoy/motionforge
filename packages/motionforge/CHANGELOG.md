@@ -7,20 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- `Player`, `FrameProvider` and `PlayerProvider` play in real time: the frame is derived from the elapsed wall-clock time instead of advancing one frame per repaint (a 30 fps video played at ~20 fps on a 60 Hz screen).
-- `Sequence`, `Loop`, `Freeze`, `Retiming`, `Reverse` and `Series` shift `useCurrentFrame()` for their children; nested sequences compose.
-- `Player` from `motionforge/player` works with hooks from `motionforge` (all entries are built together and share one frame context).
-- `motionforge/styles.css` is built and shipped (the `Player` controls were unstyled without Tailwind in the host app).
-- `spring()` returns `from` for frames before the start instead of diverging.
-- `interpolate()` with `extrapolateRight: 'extend'` continues the last segment, not the first.
-- `interpolateColors()` holds the end colors outside the input range, keeps alpha of `rgba()` / `#rrggbbaa`, and throws on colors it cannot parse instead of returning black.
-- `random()` gives unrelated values for neighbouring seeds.
+MotionForge is now a headless SDK: scenes are pure functions of the frame, and the host app renders them, owns time and provides playback, seeking and export.
+
+### Removed (breaking)
+- `Player`, `PlayerProvider`, `usePlayer`, `PlayerComposition`, `useTimelineState`, `CompositionManagerProvider`, and the playback state of the frame context (`playing`, `playbackRate`, `setFrame`, `setPlaying`, `setPlaybackRate`).
+- The renderer and export API (`renderVideo`, `VideoExportManager`, `CanvasRenderer`, `WebMEncoder`, `FrameCache`, ffmpeg helpers, …), icons, and the `motionforge/renderer`, `motionforge/player`, `motionforge/icons` and `motionforge/styles.css` entries.
 
 ### Changed (breaking)
-- 3D components (`DepthGallery3D`, `ShaderImageReveal`, `DitheringEffect`) moved to `motionforge/three`, `Lottie` to `motionforge/lottie`; the main entry no longer imports three.js or lottie-web. `three` and the `@react-three/*` peers are optional.
-- `framer-motion` is no longer a peer dependency (nothing used it).
-- Code inside a `Sequence` that computed its own offset from the absolute frame must use the local frame now.
+- `FrameProvider` and `Composition` are controlled: they take a required `frame` prop and have no clock.
+- 3D components (`DepthGallery3D`, `ShaderImageReveal`, `DitheringEffect`) moved to `motionforge/three`, `Lottie` to `motionforge/lottie`; the main entry no longer imports three.js or lottie-web. `three` and the `@react-three/*` peers are optional; `framer-motion` is no longer a peer dependency (nothing used it).
+- `Sequence`, `Loop`, `Freeze`, `Retiming`, `Reverse` and `Series` shift `useCurrentFrame()` for their children; nested sequences compose. Code inside a `Sequence` that subtracted the sequence start itself must use the local frame now.
+- `interpolateColors()` throws on colors it cannot parse instead of returning black.
+
+### Fixed
+- All entries are built together and share one frame context.
+- `spring()` returns `from` for frames before the start instead of diverging.
+- `interpolate()` with `extrapolateRight: 'extend'` continues the last segment, not the first.
+- `interpolateColors()` holds the end colors outside the input range and keeps alpha of `rgba()` / `#rrggbbaa`.
+- `random()` gives unrelated values for neighbouring seeds.
 
 ## [1.3.0] - 2024-03-20
 

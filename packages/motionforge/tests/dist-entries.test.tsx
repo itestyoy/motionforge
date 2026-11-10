@@ -1,28 +1,39 @@
 /**
  * Runs against the built package (`bun run build` first): the subpath entries
- * must share one frame context with the main entry.
+ * must share one frame context with the main entry, and the main entry must
+ * stay free of three.js and lottie-web.
  */
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 // @ts-expect-error — built output, no types needed here
 import * as main from '../dist/index.js';
-// @ts-expect-error — built output
-import { Player } from '../dist/player/Player.js';
 // @ts-expect-error — built output
 import * as three from '../dist/three/index.js';
 // @ts-expect-error — built output
 import * as lottie from '../dist/lottie/index.js';
-import { existsSync, readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 
 describe('built entries', () => {
-  it('Player from motionforge/player renders a scene that uses useCurrentFrame from motionforge', () => {
+  it('renders a scene at the frame the host passes in', () => {
     const Scene = () => <b data-frame="x">{main.useCurrentFrame()}</b>;
     const html = renderToStaticMarkup(
-      <Player component={Scene} durationInFrames={10} width={100} height={100} controls={false} />,
+      <main.FrameProvider frame={42} durationInFrames={100} width={100} height={100}>
+        <Scene />
+      </main.FrameProvider>,
     );
-    expect(html).toContain('data-frame="x">0<');
+    expect(html).toContain('data-frame="x">42<');
+  });
+
+  it('lets components from motionforge/lottie read the frame of FrameProvider from motionforge', () => {
+    const render = () =>
+      renderToStaticMarkup(
+        <main.FrameProvider frame={3} durationInFrames={100} width={100} height={100}>
+          <lottie.Lottie src={{}} />
+        </main.FrameProvider>,
+      );
+    expect(render).not.toThrow();
   });
 
   it('keeps three.js and lottie out of the main entry', () => {
@@ -34,13 +45,9 @@ describe('built entries', () => {
     expect(lottie).toHaveProperty('Lottie');
   });
 
-  it('ships the Player stylesheet', () => {
-    const css = fileURLToPath(new URL('../dist/styles.css', import.meta.url));
-    expect(existsSync(css)).toBe(true);
-    const text = readFileSync(css, 'utf8');
-    for (const cls of ['rounded-2xl', 'bg-emerald-950', 'font-mono', 'bg-gradient-to-r']) {
-      expect(text).toContain(cls);
+  it('exposes no player or renderer', () => {
+    for (const name of ['Player', 'PlayerProvider', 'renderVideo', 'VideoExportManager', 'useTimelineState']) {
+      expect(main).not.toHaveProperty(name);
     }
-    expect(text).not.toContain('box-sizing:border-box;margin:0'); // no preflight
   });
 });
