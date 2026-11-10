@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import lottie, { AnimationItem } from 'lottie-web';
 import { useCurrentFrame, useVideoConfig } from '../core/context';
+import { useDelayRender } from '../core/delay-render';
 
 export interface LottieProps {
   /**
@@ -53,8 +54,10 @@ export interface LottieProps {
  * Provides production-grade Lottie support with deterministic frame synchronization.
  * Synchronizes with the MotionForge frame system instead of using time-based playback:
  * composition frame `f` shows the Lottie at time f / fps (times `playbackRate`),
- * whatever the Lottie's own frame rate. If the animation data cannot be loaded,
- * the component shows the error instead of rendering nothing.
+ * whatever the Lottie's own frame rate. It holds the render gate
+ * (delayRender) until the data is loaded and the first frame is set. If the
+ * animation data cannot be loaded, the error goes to cancelRender() and the
+ * component shows it instead of rendering nothing.
  */
 export const Lottie: React.FC<LottieProps> = ({
   src,
@@ -71,6 +74,9 @@ export const Lottie: React.FC<LottieProps> = ({
   const animationRef = useRef<AnimationItem | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { delayRender, continueRender, cancelRender } = useDelayRender();
+  // Held from loading until the frame is set on the loaded animation.
+  const loadHandle = useRef<number | null>(null);
 
   // Inside a Sequence this is already the frame relative to the sequence start.
   const currentFrame = useCurrentFrame();
@@ -84,6 +90,17 @@ export const Lottie: React.FC<LottieProps> = ({
     if (typeof window === 'undefined' || !containerRef.current) return;
 
     let isCancelled = false;
+    const handle = delayRender(`<Lottie> ${typeof src === 'string' ? src : 'animation data'}`);
+    loadHandle.current = handle;
+    const release = () => {
+      continueRender(handle);
+      if (loadHandle.current === handle) loadHandle.current = null;
+    };
+    const fail = (message: string) => {
+      setError(message);
+      cancelRender(new Error(`<Lottie> ${message}`));
+      release();
+    };
 
     const params: any = {
       container: containerRef.current,
@@ -117,7 +134,7 @@ export const Lottie: React.FC<LottieProps> = ({
       anim.addEventListener('data_ready', onLoaded);
       anim.addEventListener('data_failed', () => {
         if (!isCancelled) {
-          setError(
+          fail(
             typeof src === 'string'
               ? `failed to load animation data from ${src}`
               : 'failed to load animation data'
@@ -127,14 +144,15 @@ export const Lottie: React.FC<LottieProps> = ({
 
       return () => {
         isCancelled = true;
+        release();
         anim.destroy();
         animationRef.current = null;
       };
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      fail(err instanceof Error ? err.message : String(err));
       return () => {};
     }
-  }, [src]);
+  }, [src, delayRender, continueRender, cancelRender]);
 
   // Handle frame synchronization
   useEffect(() => {
@@ -150,7 +168,16 @@ export const Lottie: React.FC<LottieProps> = ({
     const end = frameEnd ?? totalLottieFrames;
     const duration = end - start;
 
-    if (duration <= 0) return;
+    if (duration <= 0) {
+      cancelRender(
+        new Error(`<Lottie> frameEnd (${end}) must be greater than frameStart (${start}); the animation has ${totalLottieFrames} frames`),
+      );
+      if (loadHandle.current !== null) {
+        continueRender(loadHandle.current);
+        loadHandle.current = null;
+      }
+      return;
+    }
 
     // Map the composition frame to the Lottie timeline by time: the Lottie
     // has its own frame rate, and playbackRate speeds it up or slows it down.
@@ -167,7 +194,13 @@ export const Lottie: React.FC<LottieProps> = ({
 
     // goToAndStop(value, isFrame) - second arg true means it's a frame number, not time
     anim.goToAndStop(finalFrame, true);
-  }, [currentFrame, fps, isLoaded, frameStart, frameEnd, playbackRate, loop]);
+
+    // The first frame is drawn: the animation is ready.
+    if (loadHandle.current !== null) {
+      continueRender(loadHandle.current);
+      loadHandle.current = null;
+    }
+  }, [currentFrame, fps, isLoaded, frameStart, frameEnd, playbackRate, loop, continueRender, cancelRender]);
 
   const containerStyle: React.CSSProperties = useMemo(() => ({
     width: width ?? '100%',

@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useRef, useEffect, useState, VideoHTMLAttributes, AudioHTMLAttributes, ImgHTMLAttributes } from 'react';
+import React, { useCallback, useRef, useEffect, useState, VideoHTMLAttributes, AudioHTMLAttributes, ImgHTMLAttributes } from 'react';
 import { useCurrentFrame, useVideoConfig } from '../core/context';
-import { interpolate } from '../utils/animation';
+import { useDelayRender } from '../core/delay-render';
 
 // Absolute Fill - Container component
 interface AbsoluteFillProps {
@@ -37,6 +37,21 @@ export const AbsoluteFill: React.FC<AbsoluteFillProps> = ({
   );
 };
 
+// The element ref is needed internally; a caller's ref (a prop in React 19)
+// gets the element too.
+const useElementRef = <T,>(callerRef: unknown) => {
+  const ref = useRef<T | null>(null);
+  const setRef = useCallback(
+    (element: T | null) => {
+      ref.current = element;
+      if (typeof callerRef === 'function') callerRef(element);
+      else if (callerRef && typeof callerRef === 'object') (callerRef as { current: T | null }).current = element;
+    },
+    [callerRef],
+  );
+  return [ref, setRef] as const;
+};
+
 /**
  * Media time in seconds for a composition frame. `startFrom` is in frames of
  * the media; each composition frame advances `playbackRate` media frames.
@@ -64,6 +79,11 @@ interface VideoProps extends Omit<VideoHTMLAttributes<HTMLVideoElement>, 'src'> 
   pauseOnFrame?: boolean;
 }
 
+/**
+ * Video synced to the frame. It holds the render gate (delayRender) until the
+ * element shows the frame's time: until its data is loaded and, when it has
+ * to seek, until `seeked`. A load error goes to cancelRender().
+ */
 export const Video: React.FC<VideoProps> = ({
   src,
   startFrom = 0,
@@ -73,23 +93,66 @@ export const Video: React.FC<VideoProps> = ({
   muted = true,
   style,
   pauseOnFrame = true,
-  onLoadedData,
   ...props
 }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoRef, setVideoRef] = useElementRef<HTMLVideoElement>((props as { ref?: unknown }).ref);
   const currentFrame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const [loaded, setLoaded] = useState(false);
+  const { delayRender, continueRender, cancelRender } = useDelayRender();
 
-  // Calculate video time based on frame
+  // Show the frame's time, holding the frame until the element is there.
   useEffect(() => {
-    if (videoRef.current && loaded) {
+    const video = videoRef.current;
+    if (!video) return;
+    const handle = delayRender(`<Video> ${src} at frame ${currentFrame}`);
+    let settled = false;
+    const removeListeners = () => {
+      video.removeEventListener('loadeddata', sync);
+      video.removeEventListener('seeked', done);
+      video.removeEventListener('error', fail);
+    };
+    function done() {
+      if (settled) return;
+      settled = true;
+      removeListeners();
+      continueRender(handle);
+    }
+    function fail() {
+      if (settled) return;
+      settled = true;
+      removeListeners();
+      const detail = video!.error ? `: ${video!.error.message || `media error code ${video!.error.code}`}` : '';
+      cancelRender(new Error(`<Video> could not load ${src}${detail}`));
+      continueRender(handle);
+    }
+    function sync() {
+      video!.removeEventListener('loadeddata', sync);
       const time = getMediaTime(currentFrame, fps, startFrom, playbackRate);
-      if (needsSeek(videoRef.current.currentTime, time, fps)) {
-        videoRef.current.currentTime = time;
+      if (needsSeek(video!.currentTime, time, fps)) {
+        video!.addEventListener('seeked', done);
+        video!.currentTime = time;
+      } else {
+        done();
       }
     }
-  }, [currentFrame, fps, startFrom, playbackRate, loaded]);
+
+    video.addEventListener('error', fail);
+    if (video.error) {
+      fail();
+    } else if (video.readyState >= 2) {
+      // HAVE_CURRENT_DATA: the element can seek and show a frame.
+      sync();
+    } else {
+      video.addEventListener('loadeddata', sync);
+    }
+    return () => {
+      removeListeners();
+      if (!settled) {
+        settled = true;
+        continueRender(handle);
+      }
+    };
+  }, [currentFrame, fps, startFrom, playbackRate, src, delayRender, continueRender, cancelRender]);
 
   // Handle volume
   useEffect(() => {
@@ -106,15 +169,8 @@ export const Video: React.FC<VideoProps> = ({
     }
   }, [playbackRate]);
 
-  // The caller's onLoadedData runs after ours; it must not replace it.
-  const handleLoadedData = (event: React.SyntheticEvent<HTMLVideoElement>) => {
-    setLoaded(true);
-    onLoadedData?.(event);
-  };
-
   return (
     <video
-      ref={videoRef}
       src={src}
       muted={muted}
       playsInline
@@ -125,7 +181,7 @@ export const Video: React.FC<VideoProps> = ({
         ...style,
       }}
       {...props}
-      onLoadedData={handleLoadedData}
+      ref={setVideoRef}
     />
   );
 };
@@ -205,6 +261,11 @@ interface ImgProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> {
   endAt?: number;
 }
 
+/**
+ * Image that holds the render gate (delayRender) until it is loaded and
+ * decoded (HTMLImageElement.decode()). A load or decode error goes to
+ * cancelRender().
+ */
 export const Img: React.FC<ImgProps> = ({
   src,
   style,
@@ -213,12 +274,37 @@ export const Img: React.FC<ImgProps> = ({
   ...props
 }) => {
   const currentFrame = useCurrentFrame();
-  
+  const [imageRef, setImageRef] = useElementRef<HTMLImageElement>((props as { ref?: unknown }).ref);
+  const { delayRender, continueRender, cancelRender } = useDelayRender();
+
   // Check if should render based on frame range
-  if (startFrom !== undefined && currentFrame < startFrom) {
-    return null;
-  }
-  if (endAt !== undefined && currentFrame > endAt) {
+  const shown =
+    !(startFrom !== undefined && currentFrame < startFrom) && !(endAt !== undefined && currentFrame > endAt);
+
+  useEffect(() => {
+    const image = imageRef.current;
+    if (!shown || !image) return;
+    const handle = delayRender(`<Img> ${src}`);
+    let active = true;
+    const settle = (error?: Error) => {
+      if (!active) return;
+      active = false;
+      if (error) cancelRender(error);
+      continueRender(handle);
+    };
+    if (typeof image.decode !== 'function') {
+      settle(new Error('<Img> needs HTMLImageElement.decode() to know when the image is ready'));
+    } else {
+      // decode() waits for the load and rejects when loading or decoding fails.
+      image.decode().then(
+        () => settle(),
+        () => settle(new Error(`<Img> could not load or decode ${src}`)),
+      );
+    }
+    return () => settle();
+  }, [src, shown, delayRender, continueRender, cancelRender]);
+
+  if (!shown) {
     return null;
   }
 
@@ -233,6 +319,7 @@ export const Img: React.FC<ImgProps> = ({
         ...style,
       }}
       {...props}
+      ref={setImageRef}
     />
   );
 };

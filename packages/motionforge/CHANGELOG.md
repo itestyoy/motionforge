@@ -9,12 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 MotionForge is now a headless SDK: scenes are pure functions of the frame, and the host app renders them, owns time and provides playback, seeking and export.
 
+### Added
+- Render readiness: `createRenderGate()` and `FrameProvider gate`; `gate.waitUntilReady({ frame, timeoutMs })` resolves when the frame is committed and nothing holds it, and rejects on timeout (listing the pending labels) or with the `cancelRender()` error. Scenes use `useDelayRender()` → `{ delayRender, continueRender, cancelRender }`; handles are per gate, released on unmount, and `delayRender()` throws during render. Without a gate, `cancelRender()` errors are thrown to the nearest error boundary.
+- `Img`, `Video` and `Lottie` hold the frame until the image is decoded, the video has seeked to the frame, or the Lottie data is loaded and the frame set; their load errors go to `cancelRender()`.
+- `preloadImage`, `preloadVideo`, `preloadAudio`, `preloadFont` and `usePreloadAssets(assets)`.
+- `Sequence premountFor`: children mount that many frames early, invisible and at their frame 0; their handles hold the frame only once the sequence has started. `useSequence().isPremounted` tells them.
+
 ### Removed (breaking)
 - `Player`, `PlayerProvider`, `usePlayer`, `PlayerComposition`, `useTimelineState`, `CompositionManagerProvider`, and the playback state of the frame context (`playing`, `playbackRate`, `setFrame`, `setPlaying`, `setPlaybackRate`).
 - The renderer and export API (`renderVideo`, `VideoExportManager`, `CanvasRenderer`, `WebMEncoder`, `FrameCache`, ffmpeg helpers, …), icons, and the `motionforge/renderer`, `motionforge/player`, `motionforge/icons` and `motionforge/styles.css` entries.
 - `usePerformanceMonitor`, `useThrottledFrame`, `useBatchFrameProcessor` and `useRenderPriority`: they returned constants or ignored their arguments.
 
 ### Changed (breaking)
+- `Lottie` with `frameEnd` not after `frameStart` (or `frameStart` past the end of the animation) cancels the render with an error instead of showing nothing.
 - `FrameProvider` and `Composition` are controlled: they take a required `frame` prop and have no clock.
 - 3D components (`DepthGallery3D`, `ShaderImageReveal`, `DitheringEffect`) moved to `motionforge/three`, `Lottie` to `motionforge/lottie`; the main entry no longer imports three.js or lottie-web. `three` and the `@react-three/*` peers are optional; `framer-motion` is no longer a peer dependency (nothing used it).
 - `Sequence`, `Loop`, `Freeze`, `Retiming`, `Reverse` and `Series` shift `useCurrentFrame()` for their children; nested sequences compose. Code inside a `Sequence` that subtracted the sequence start itself must use the local frame now.

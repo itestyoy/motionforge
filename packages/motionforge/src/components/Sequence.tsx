@@ -1,13 +1,16 @@
 'use client';
 
-import React, { ReactNode, createContext, useContext, useMemo } from 'react';
-import { FrameContext, useCurrentFrame } from '../core/context';
+import React, { ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { FrameContext, GateContext, useCurrentFrame } from '../core/context';
+import { GateScope, getGateInternals } from '../core/render-gate';
 
 // Sequence Context
 interface SequenceContextValue {
   relativeFrom: number;
   durationInFrames?: number;
   isActive: boolean;
+  /** True while the sequence is premounted (before its start, invisible). */
+  isPremounted: boolean;
   startFrame: number;
   endFrame: number;
 }
@@ -15,6 +18,7 @@ interface SequenceContextValue {
 const SequenceContext = createContext<SequenceContextValue>({
   relativeFrom: 0,
   isActive: true,
+  isPremounted: false,
   startFrame: 0,
   endFrame: Infinity,
 });
@@ -29,6 +33,13 @@ interface SequenceProps {
   children: ReactNode;
   showInTimeline?: boolean;
   layout?: 'absolute-fill' | 'none';
+  /**
+   * Mount the children this many frames before the start, invisible (opacity
+   * 0, no pointer events) and at their frame 0, so images, video and fonts
+   * load in time. Their delayRender() handles hold the frame only once the
+   * sequence has started. Needs layout 'absolute-fill'.
+   */
+  premountFor?: number;
 }
 
 // Sequence Component - renders children only during specified frame range
@@ -39,28 +50,50 @@ export const Sequence: React.FC<SequenceProps> = ({
   name,
   children,
   layout = 'absolute-fill',
+  premountFor = 0,
 }) => {
   const currentFrame = useCurrentFrame();
   const parent = useContext(FrameContext);
+  const parentGate = useContext(GateContext);
+  if (!Number.isInteger(premountFor) || premountFor < 0) {
+    throw new Error(`Sequence: premountFor must be a non-negative integer, got ${premountFor}`);
+  }
+  if (premountFor > 0 && layout === 'none') {
+    throw new Error('Sequence: premountFor needs layout="absolute-fill" (the wrapper hides the premounted content)');
+  }
   const startFrame = from + offset;
   const endFrame = durationInFrames !== undefined ? startFrame + durationInFrames : Infinity;
-  
-  // Calculate relative frame
-  const relativeFrame = currentFrame - startFrame;
-  
+
   // Check if sequence is active
   const isActive = currentFrame >= startFrame && currentFrame < endFrame;
-  
+  const isPremounted = !isActive && currentFrame >= startFrame - premountFor && currentFrame < startFrame;
+
+  // Premounted content renders at its frame 0.
+  const relativeFrame = isPremounted ? 0 : currentFrame - startFrame;
+
+  // Handles registered by premounted children count once the sequence starts.
+  const [scope] = useState<GateScope>(() => ({ visible: !isPremounted, parent: parentGate?.scope ?? null }));
+  useEffect(() => {
+    if (!parentGate || scope.visible === !isPremounted) return;
+    scope.visible = !isPremounted;
+    getGateInternals(parentGate.gate).changed();
+  }, [isPremounted, parentGate, scope]);
+  const gateValue = useMemo(
+    () => (parentGate && premountFor > 0 ? { gate: parentGate.gate, scope } : parentGate),
+    [parentGate, premountFor, scope],
+  );
+
   const contextValue: SequenceContextValue = {
     relativeFrom: startFrame,
     durationInFrames,
     isActive,
+    isPremounted,
     startFrame,
     endFrame,
   };
 
   // Don't render children if not active (optimization)
-  if (!isActive) {
+  if (!isActive && !isPremounted) {
     return null;
   }
 
@@ -69,10 +102,14 @@ export const Sequence: React.FC<SequenceProps> = ({
   const localDuration =
     durationInFrames ?? (parent ? parent.durationInFrames - startFrame : undefined);
 
+  // The element tree is the same while premounted and while active, so the
+  // children stay mounted when the sequence starts.
   const content = (
-    <SequenceFrameProvider relativeFrame={relativeFrame} durationInFrames={localDuration}>
-      {children}
-    </SequenceFrameProvider>
+    <GateContext.Provider value={gateValue}>
+      <SequenceFrameProvider relativeFrame={relativeFrame} durationInFrames={localDuration}>
+        {children}
+      </SequenceFrameProvider>
+    </GateContext.Provider>
   );
 
   if (layout === 'none') {
@@ -93,6 +130,7 @@ export const Sequence: React.FC<SequenceProps> = ({
           bottom: 0,
           display: 'flex',
           flexDirection: 'column',
+          ...(isPremounted ? { opacity: 0, pointerEvents: 'none' as const } : null),
         }}
       >
         {content}

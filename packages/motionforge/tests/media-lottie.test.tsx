@@ -3,6 +3,7 @@ import React, { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FrameProvider } from '../src/core/context';
+import { createRenderGate, RenderGate } from '../src/core/render-gate';
 import { Audio, Video } from '../src/components/Media';
 import { Lottie } from '../src/components/Lottie';
 
@@ -56,10 +57,10 @@ afterEach(() => {
   container.remove();
 });
 
-const renderAt = (frame: number, node: React.ReactNode) =>
+const renderAt = (frame: number, node: React.ReactNode, gate?: RenderGate) =>
   act(() =>
     root.render(
-      <FrameProvider frame={frame} fps={30} durationInFrames={300} width={100} height={100}>
+      <FrameProvider frame={frame} fps={30} durationInFrames={300} width={100} height={100} gate={gate}>
         {node}
       </FrameProvider>,
     ),
@@ -117,15 +118,35 @@ describe('Lottie', () => {
     expect(container.querySelector('[data-lottie-loaded]')!.getAttribute('data-lottie-loaded')).toBe('false');
   });
 
-  it('shows an error when the data fails to load, and recovers with a new src', () => {
-    renderAt(0, <Lottie src="https://example.com/missing.json" />);
+  it('shows an error when the data fails to load, cancels the render, and recovers with a new src', async () => {
+    const gate = createRenderGate();
+    renderAt(0, <Lottie src="https://example.com/missing.json" />, gate);
     act(() => animations[0].emit('data_failed'));
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       'failed to load animation data from https://example.com/missing.json',
     );
+    await expect(gate.waitUntilReady()).rejects.toThrow(
+      '<Lottie> failed to load animation data from https://example.com/missing.json',
+    );
 
-    renderAt(0, <Lottie src={{ ok: true }} />);
+    renderAt(0, <Lottie src={{ ok: true }} />, gate);
     expect(animations).toHaveLength(2);
     expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('holds the frame until the data is loaded and the frame is set', async () => {
+    const gate = createRenderGate();
+    renderAt(15, <Lottie src={{ layers: [] }} />, gate);
+    expect(gate.getPending().map((p) => p.label)).toEqual(['<Lottie> animation data']);
+    act(() => animations[0].emit('data_ready'));
+    expect(animations[0].goToAndStop).toHaveBeenCalledWith(30, true);
+    await expect(gate.waitUntilReady({ frame: 15 })).resolves.toBeUndefined();
+  });
+
+  it('cancels the render when frameEnd is not after frameStart', async () => {
+    const gate = createRenderGate();
+    renderAt(0, <Lottie src={{}} frameStart={200} />, gate);
+    act(() => animations[0].emit('DOMLoaded'));
+    await expect(gate.waitUntilReady()).rejects.toThrow(/frameEnd \(120\) must be greater than frameStart \(200\)/);
   });
 });

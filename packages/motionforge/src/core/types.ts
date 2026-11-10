@@ -22,6 +22,9 @@ export interface SequenceProps {
   durationInFrames?: number;
   offset?: number;
   name?: string;
+  layout?: 'absolute-fill' | 'none';
+  /** Frames to mount the children before the start, invisible and at their frame 0. */
+  premountFor?: number;
   children: React.ReactNode;
 }
 

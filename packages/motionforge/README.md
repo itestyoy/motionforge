@@ -96,6 +96,60 @@ const Preview = ({ frame }: { frame: number }) => (
 );
 ```
 
+## ⏳ Render readiness
+
+A frame is ready when everything it shows has loaded: images decoded, the video seeked to the frame, fonts loaded, data fetched. Scenes hold the frame with `delayRender()`; the host waits for it before it captures or shows the frame.
+
+**Host:** create one gate per `FrameProvider` and await it after setting the frame.
+
+```tsx
+import { FrameProvider, createRenderGate } from 'motionforge';
+
+const gate = createRenderGate();
+
+// render <FrameProvider gate={gate} frame={n} ...><Scene /></FrameProvider>, then:
+await gate.waitUntilReady({ frame: n, timeoutMs: 10000 });
+// capture frame n
+```
+
+- `waitUntilReady({ frame?, timeoutMs? })` resolves once `FrameProvider` has committed `frame` (React rendered it and ran its effects) and no handle of a visible component is pending. Without `frame` it waits on the frame committed last, so call it only after React has rendered. `timeoutMs` defaults to 30000 (`Infinity` waits forever); on timeout it rejects with an error listing the pending labels.
+- `cancelRender(error)` rejects every current and later `waitUntilReady()` with that error; `gate.error` holds it. A cancelled gate stays cancelled: create a new gate (and remount) to try again.
+- `gate.getPending()` lists the handles holding the frame: `{ handle, label }`.
+- A gate serves one `FrameProvider` at a time. A `FrameProvider` without `gate` inside another one uses the outer gate.
+- **Without a gate** the outermost `FrameProvider` keeps a private one nobody waits on: `delayRender()` and `continueRender()` work and change nothing visible, and a `cancelRender()` error is thrown during render to the nearest error boundary, so it is never lost.
+
+**Scene:** `useDelayRender()` returns `{ delayRender, continueRender, cancelRender }`.
+
+```tsx
+import { useDelayRender } from 'motionforge';
+
+const Chart = () => {
+  const { delayRender, continueRender, cancelRender } = useDelayRender();
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    const handle = delayRender('chart data');
+    fetchData().then(setData, cancelRender).finally(() => continueRender(handle));
+    return () => continueRender(handle);
+  }, []);
+  // ...
+};
+```
+
+- Call `delayRender(label?)` from an effect or a callback, never during render (it throws there: React may render twice and that handle would never be continued). Handles are numbers counted per gate.
+- Handles still pending when the component unmounts are continued automatically, so StrictMode's double effects and unmounting do not leak them. Continuing a handle twice is allowed.
+- Built in: `Img` holds the frame until the image is loaded and decoded (`decode()`), `Video` until it has data and has seeked to the frame (`seeked`), `Lottie` (from `motionforge/lottie`) until its data is ready and the frame is set. Their load errors go to `cancelRender()`.
+
+**Preloading:** `preloadImage(src)`, `preloadVideo(src)`, `preloadAudio(src)` and `preloadFont(family, { weight?, style?, source? })` (CSS Font Loading API; without `source` the family must be declared with `@font-face`) return promises that reject with an error naming the asset. `usePreloadAssets(assets)` holds the frame until all assets are loaded, returns whether they are, and reports a failure through `cancelRender()`:
+
+```tsx
+const ready = usePreloadAssets([
+  { type: 'image', src: '/hero.png' },
+  { type: 'font', family: 'Inter', weight: 700 },
+]);
+```
+
+**Premounting:** `<Sequence from={60} premountFor={30}>` mounts its children 30 frames early, invisible (`opacity: 0`, `pointer-events: none`) and at their frame 0, so their assets load before the sequence starts. While premounted, their `delayRender()` handles do not hold the frame; from the start on, the ones still pending do. It needs `layout="absolute-fill"` (the default).
+
 ## 📦 Entry points
 
 | Import | What it contains | Extra dependencies |
@@ -112,7 +166,7 @@ All entries share one frame context, so components from `motionforge/three` and 
 | Component | Description |
 |-----------|-------------|
 | `AbsoluteFill` | Full-screen container with absolute positioning |
-| `Sequence` | Time-based rendering for scene management; inside it `useCurrentFrame()` counts from the sequence start |
+| `Sequence` | Time-based rendering for scene management; inside it `useCurrentFrame()` counts from the sequence start; `premountFor` mounts it early, invisibly |
 | `Loop` | Loop content infinitely or for a set number of times |
 | `Freeze` | Pause content at a specific frame |
 | `Retiming` | Variable speed playback; with a function rate the content frame is `floor(Σ rate(i), i < frame)` |

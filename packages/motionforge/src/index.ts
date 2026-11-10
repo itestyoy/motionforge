@@ -19,6 +19,20 @@ export {
   FrameProvider,
 } from './core/context';
 
+// Render readiness
+export { createRenderGate } from './core/render-gate';
+export type { RenderGate, PendingDelay, WaitUntilReadyOptions } from './core/render-gate';
+export { useDelayRender } from './core/delay-render';
+export type { DelayRenderApi } from './core/delay-render';
+export {
+  preloadImage,
+  preloadVideo,
+  preloadAudio,
+  preloadFont,
+  usePreloadAssets,
+} from './core/preload';
+export type { PreloadAsset, PreloadFontOptions } from './core/preload';
+
 // Components
 export { Composition, useVideoConfig as useConfig, useComposition } from './components/Composition';
 export {
