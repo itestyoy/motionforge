@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `motionforge/gif` (as `@remotion/gif`): `Gif` and `getGifDurationInSeconds`, decoded in JavaScript (dependency `omggif` 1.0.10).
 - `motionforge/media-utils` (as `@remotion/media-utils`): `getVideoMetadata`, `getImageDimensions`, `getAudioDurationInSeconds`, `getAudioData`, `useAudioData`, `useWindowedAudioData`, `visualizeAudio`, `visualizeAudioWaveform`, `createSmoothSvgPath`; the hooks hold the render gate.
 - `bun run typecheck` also type-checks `tests/`.
+- `motionforge/transitions` (as `@remotion/transitions`): `TransitionSeries` with `.Sequence`, `.Transition` and `.Overlay`, `linearTiming()`, `springTiming()`, `useTransitionProgress()`, and the presentations `fade`, `slide`, `wipe`, `flip`, `clockWipe`, `iris`, `cube`, `none`, `pushCut`, each from its own entry (`motionforge/transitions/fade`, …); they render the same markup as Remotion's. Scenes keep their own frames and length while they overlap and work with `premountFor` and the render gate.
+- SVG path functions of `@remotion/paths` in the main entry: `parsePath`, `serializeInstructions`, `normalizePath`, `reduceInstructions`, `getInstructionIndexAtLength`, `getBoundingBox`, `translatePath`, `scalePath`, `resetPath`, `centerPath`, `reversePath`, `getSubpaths`, `cutPath`, `warpPath`, `interpolatePath`, `interpolatePaths`, `extendViewBox`, and the types `Instruction`, `AbsoluteInstruction`, `ReducedInstruction`, `BoundingBox`, `WarpPathFn`, `CenterPathTarget`, `InterpolatePathsOptions`.
+- `motionforge/shapes` (as `@remotion/shapes`): `makeRect`, `makeCircle`, `makeEllipse`, `makeTriangle`, `makeStar`, `makePolygon`, `makePie`, `makeHeart`, `makeArrow`, `makeSpark`, `makeCallout` and the components `Rect`, `Circle`, `Ellipse`, `Triangle`, `Star`, `Polygon`, `Pie`, `Heart`, `Arrow`, `Spark`, `Callout`, with the same paths as Remotion's.
 
 ### Changed (breaking)
 - `interpolate()` and `useInterpolate()`: `extrapolateLeft`/`extrapolateRight` default to `'extend'` (was `'clamp'`); ranges must contain finite numbers.
@@ -39,6 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ImageProps` is now `ImgProps`; `CompositionProps`, `SequenceProps`, `VideoProps`, `AudioProps` and `TextProps` are the components' real props.
 - `delayRender()` throws on unknown options; calling it during render throws an error that shows the effect-based code to write instead.
 - `Freeze` accepts sub-frames (any finite `frame`), as Remotion does.
+- `getPointAtLength()` and `getTangentAtLength()` return `null` past the end of the path (they clamped the length) and throw for a negative length, as Remotion's; `getTangentAtLength()` returns `{ x: 0, y: 0 }` for a path without length (it threw).
+- `evolvePath(0, d)` returns a dash of 1.5 times the length, as Remotion's, so no dot of the stroke shows.
+- Path parse errors start with `parsePath:` and say "the path" instead of "d".
 
 ### Fixed
 - Fonts split by `unicode-range` (Google Fonts, @fontsource) load all their subsets in `usePreloadAssets()`, so Cyrillic is ready when the frame is captured.
@@ -49,6 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `useLoopInfo()` (use `Loop.useLoop()`), the `useConfig` alias and `Composition`'s duplicate `useVideoConfig`.
 - `Video`'s `pauseOnFrame`, `Sequence`'s unused `showInTimeline`, the `LayerProps` type.
 - `Trail` from the main entry (it rendered identical copies); use `Trail` from `motionforge/motion-blur`.
+- The transition helpers `fade`, `slide`, `scaleTransition`, `rotateTransition`, `zoom`, `wipe`, `blur`, `glitch`, `shakeTransition`, `pulseTransition`, `bounce`, `flash`, `slideWithFade`, `flip`, `combine`, `transitions` and the types `TransitionConfig`, `TransitionName` from the main entry: their names clash with Remotion's presentations. Use `TransitionSeries` and the presentations from `motionforge/transitions`.
+- The SVG element wrappers `Rect` and `Circle` from the main entry: their names clash with Remotion's shapes. Use `<rect>` / `<circle>`, or the shapes from `motionforge/shapes`.
 
 ## [2.0.0] - 2026-11-10
 

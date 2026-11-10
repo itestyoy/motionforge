@@ -180,8 +180,11 @@ There are no `preloadImage` / `preloadVideo` / `preloadAudio` / `preloadFont`: `
 | `motionforge/layout-utils` | `measureText`, `fitText`, `fitTextOnNLines`, `fillTextBox` | — |
 | `motionforge/gif` | `Gif`, `getGifDurationInSeconds` | `omggif` (installed with the package) |
 | `motionforge/media-utils` | `getVideoMetadata`, `getImageDimensions`, `getAudioDurationInSeconds`, `getAudioData`, `useAudioData`, `useWindowedAudioData`, `visualizeAudio`, `visualizeAudioWaveform`, `createSmoothSvgPath` | — |
+| `motionforge/transitions` | `TransitionSeries`, `linearTiming`, `springTiming`, `useTransitionProgress`, `pushCut` | — |
+| `motionforge/transitions/fade`, `/slide`, `/wipe`, `/flip`, `/clock-wipe`, `/iris`, `/cube`, `/none`, `/push-cut` | One presentation each: `fade`, `slide`, `wipe`, `flip`, `clockWipe`, `iris`, `cube`, `none`, `pushCut` | — |
+| `motionforge/shapes` | `Rect`, `Circle`, `Ellipse`, `Triangle`, `Star`, `Polygon`, `Pie`, `Heart`, `Arrow`, `Spark`, `Callout` and their `make*()` functions | — |
 
-They follow Remotion's packages: `@remotion/three`, `@remotion/motion-blur`, `@remotion/layout-utils`, `@remotion/gif`, `@remotion/media-utils`. All entries share one frame context and render gate, so their components read the frame of the `FrameProvider` from `motionforge`.
+They follow Remotion's packages: `@remotion/three`, `@remotion/motion-blur`, `@remotion/layout-utils`, `@remotion/gif`, `@remotion/media-utils`, `@remotion/transitions` (with the same per-presentation entries: `@remotion/transitions/fade` is `motionforge/transitions/fade`), `@remotion/shapes`. The functions of `@remotion/paths` are in the main entry. All entries share one frame context and render gate, so their components read the frame of the `FrameProvider` from `motionforge`.
 
 ## 🎨 Available Components
 
@@ -209,6 +212,64 @@ They follow Remotion's packages: `@remotion/three`, `@remotion/motion-blur`, `@r
 ```
 
 Each `Series.Sequence` starts where the previous one ends, shifted by its `offset` (negative: overlap, positive: gap); the shift carries over to the sequences after it. Overlapping sequences render at the same time, later ones on top. Inside each, `useCurrentFrame()` counts from its start and `useVideoConfig().durationInFrames` is its own `durationInFrames`. `durationInFrames` must be a positive integer and `offset` an integer; any child other than `Series.Sequence` (except `null`, `false` and fragments around them) throws.
+
+### Transitions
+
+`motionforge/transitions` is `@remotion/transitions`: `<TransitionSeries>` is a `<Series>` whose scenes can overlap through a transition.
+
+```tsx
+import { useVideoConfig } from 'motionforge';
+import { TransitionSeries, linearTiming, springTiming } from 'motionforge/transitions';
+import { fade } from 'motionforge/transitions/fade';
+import { wipe } from 'motionforge/transitions/wipe';
+import { clockWipe } from 'motionforge/transitions/clock-wipe';
+
+const Ad = () => {
+  const { width, height } = useVideoConfig();
+  return (
+    <TransitionSeries>
+      <TransitionSeries.Sequence durationInFrames={60}><Hook /></TransitionSeries.Sequence>
+      <TransitionSeries.Transition timing={springTiming({ config: { damping: 20 } })} presentation={fade()} />
+      <TransitionSeries.Sequence durationInFrames={90} premountFor={30}><Gameplay /></TransitionSeries.Sequence>
+      <TransitionSeries.Transition timing={linearTiming({ durationInFrames: 20 })} presentation={clockWipe({ width, height })} />
+      <TransitionSeries.Sequence durationInFrames={45}><EndCard /></TransitionSeries.Sequence>
+    </TransitionSeries>
+  );
+};
+```
+
+- **`<TransitionSeries>`** is itself a `Sequence` (`from`, `durationInFrames`, `name`, `style`, `className`, `premountFor`, …); `layout="none"` throws: the scenes must be absolutely positioned to overlap.
+- **`<TransitionSeries.Sequence durationInFrames offset? name? ...>`**: a scene (a positive integer length). It takes the layout props of `Sequence` (`style`, `className`, `premountFor`, `postmountFor`, `styleWhilePremounted`, `styleWhilePostmounted`). Remotion's `playbackRate`, `trimBefore`, `freeze`, `loop`, `hidden` and `showInTimeline` throw with what to use instead.
+- **`<TransitionSeries.Transition timing presentation?>`** between two scenes: both render while it runs, and the series gets shorter by its length (`40 + 60 - 30 = 70`). `presentation` defaults to `slide()`. A transition first or last animates the entrance of the first scene or the exit of the last.
+- **`<TransitionSeries.Overlay durationInFrames offset?>`** between two scenes: its children render on top of the cut, centered on it (`offset` shifts it, positive later); the scenes keep their lengths. It also takes `premountFor`, `postmountFor`, `styleWhilePremounted`, `styleWhilePostmounted`.
+- Inside each scene `useCurrentFrame()` counts from the scene's start and `useVideoConfig().durationInFrames` is its own length, also while it overlaps its neighbour. `useTransitionProgress()` returns `{ entering, exiting, isInTransitionSeries }`: how far the transitions into (0 → 1, then 1) and out of (0, then 0 → 1) the scene are, to animate its contents along; outside a series `{ entering: 1, exiting: 0, isInTransitionSeries: false }`.
+- The rules of Remotion throw with a clear error: a transition longer than the scene before or after it, two transitions or overlays next to each other, a transition or an overlay without a scene next to it, an overlay that starts before frame 0 or reaches past the scene before or after it.
+- Premounting, postmounting and the render gate work as in `Sequence`: a premounted scene is mounted at its frame 0 and its `delayRender()` handles hold the frame only once it shows. Each scene stays mounted through its transitions.
+
+**Timings**
+
+| Timing | Length | Progress |
+|--------|--------|----------|
+| `linearTiming({ durationInFrames, easing? })` | `durationInFrames` (a positive integer) | 0 → 1 linearly or along `easing`, clamped |
+| `springTiming({ config?, durationInFrames?, durationRestThreshold?, reverse? })` | `durationInFrames`, or until the spring settles (`measureSpring({ config, threshold: durationRestThreshold })`) | `spring()` from 0 to 1; `reverse` plays the spring backwards in time |
+
+A custom timing is `{ getDurationInFrames({ fps }) → non-negative integer, getProgress({ frame, fps }) → number }`. Note: with a damping ratio above 1 (`damping > 2·√(stiffness·mass)`, e.g. `damping: 200`) MotionForge's `spring()` is overdamped and settles much later than Remotion's, which treats such springs as critically damped; `damping: 20` gives the same 23 frames at 30 fps in both.
+
+**Presentations** (each from its own entry, options as in Remotion)
+
+| Presentation | Options | Effect |
+|--------------|---------|--------|
+| `fade()` | `enterStyle`, `exitStyle`, `shouldFadeOutExitingScene` (default `false`) | The entering scene fades in over the exiting one |
+| `slide()` | `direction`: `'from-left'` (default), `'from-right'`, `'from-top'`, `'from-bottom'`; `enterStyle`, `exitStyle` | The entering scene pushes the exiting one out |
+| `wipe()` | `direction`: `'from-left'` (default), `'from-top-left'`, `'from-top'`, `'from-top-right'`, `'from-right'`, `'from-bottom-right'`, `'from-bottom'`, `'from-bottom-left'`; `outerEnterStyle`, `outerExitStyle`, `innerEnterStyle`, `innerExitStyle` | The entering scene is revealed by a moving edge |
+| `flip()` | `direction` (as `slide`), `perspective` (default 1000); outer/inner enter/exit styles | The exiting scene flips over, the entering one is on its back |
+| `clockWipe({ width, height })` | `width`, `height` of the scene (required); outer/inner enter/exit styles | A clock hand sweeps the entering scene in |
+| `iris({ width, height })` | `width`, `height` (required); outer/inner enter/exit styles | A circle grows from the center |
+| `cube({ direction })` | `direction` (required, as `slide`), `perspective` (default 1000) | Both scenes turn as faces of a cube |
+| `none()` | `enterStyle`, `exitStyle` | No effect: animate the scenes with `useTransitionProgress()` |
+| `pushCut()` | `cutProgress` (5/11), `outgoingScale` (1.04), `incomingStartScale` (1.04), `incomingEndScale` (1.07), `transformOrigin`, `flashColor` (`'#f5f2ed'`), `flashOpacity` (0.2), `flashFrames` (2); outer/inner enter/exit styles | A hard cut with a short punch-in and a flash at the cut |
+
+They render the same markup as Remotion's. A custom presentation is `{ component, props }`: the component gets `presentationProgress`, `presentationDirection` (`'entering'` / `'exiting'`), `passedProps`, `presentationDurationInFrames`, `bothEnteringAndExiting` and the scene as `children`. Remotion's canvas presentations (`blurSlide`, `crossZoom`, `dissolve`, `ripple`, … and `makeHtmlInCanvasPresentation`) are not available: they draw the scenes through the experimental HTML-in-canvas API. Wrong options throw.
 
 ### Effect Components
 
@@ -255,7 +316,7 @@ import {
   size={[8, 14]} shape="square" rotation={[0, 360]} spin={[-540, 540]} fadeOut={false} />
 
 // trail: the origin follows a moving object; each particle is born where it was
-<Particles seed="trail" origin={(f) => getPointAtLength(d, (f / 60) * length)} count={120}
+<Particles seed="trail" origin={(f) => getPointAtLength(d, Math.min(f / 60, 1) * length)!} count={120}
   emitDuration={2} lifetime={0.5} speed={[0, 40]} size={[4, 10]} />
 ```
 
@@ -383,31 +444,84 @@ const style = interpolateStyles(frame, [0, 30, 60], [
 
 ## ✏️ SVG paths
 
-Pure functions on a path's `d` string: no DOM, so they work during SSR and in Node, and give the same numbers everywhere. They read `M L H V C S Q T A Z`, absolute and relative.
+The functions of `@remotion/paths`, in the main entry. They need no DOM, so they work during SSR and in Node, and give the same numbers everywhere. They read `M L H V C S Q T A Z`, absolute and relative; path data that does not parse throws, naming the position (a path must start with `M` or `m`).
 
 | Function | Returns |
 |----------|---------|
 | `getLength(d)` | Length of the path (moves do not count), like `getTotalLength()` |
-| `getPointAtLength(d, length)` | `{ x, y }` at `length` along the path; `length` is clamped to `[0, getLength(d)]` |
-| `getTangentAtLength(d, length)` | Unit vector `{ x, y }` of the direction of travel; throws for a path without length |
-| `evolvePath(progress, d)` | `{ strokeDasharray, strokeDashoffset }` that draw `progress` (0–1) of the path |
-| `pathFromPoints(points, { cornerRadius?, closed? })` | A polyline (or polygon) through the points, corners rounded with circular arcs; a radius that does not fit in half of each edge shrinks to fit |
+| `getPointAtLength(d, length)` | `{ x, y }` at `length`; `null` when `length` is greater than the length of the path |
+| `getTangentAtLength(d, length)` | Unit vector `{ x, y }` of the direction of travel; `null` past the end, `{ x: 0, y: 0 }` for a path without length |
+| `getInstructionIndexAtLength(d, length)` | `{ lengthIntoInstruction, index }`: `index` into `parsePath(d)` of the last instruction that ends before `length` (0 at the start), as in Remotion; throws past the end |
+| `evolvePath(progress, d)` | `{ strokeDasharray, strokeDashoffset }` that draw `progress` (0–1) of the path (at 0 the dash is 1.5 × the length, so no dot shows) |
+| `parsePath(d)` | `Instruction[]`: one per command; relative commands stay relative (`{ type: 'l', dx, dy }`), arc flags are booleans, extra pairs after `M` are `L` |
+| `serializeInstructions(instructions)` | The path data again (`'M 0 0 L 10 0 Z'`); throws for an instruction with missing or non-finite values |
+| `normalizePath(d)` | The same path with absolute commands only |
+| `reduceInstructions(instructions)` | `ReducedInstruction[]`: only absolute `M`, `L`, `C`, `Z` (arcs become cubic curves) |
+| `getBoundingBox(d)` | `{ x1, y1, x2, y2, width, height, viewBox }` of the drawn path (curves to their extrema) |
+| `translatePath(d, x, y)` | Moved by `x`, `y` (relative commands stay relative) |
+| `scalePath(d, scaleX, scaleY)` | Scaled around the top left corner of its bounding box (result: `M L C Z`) |
+| `resetPath(d)` | Moved so its bounding box starts at 0, 0 |
+| `centerPath(d, { x, y }?)` | Moved so the center of its bounding box is at the point (default 0, 0) |
+| `reversePath(d)` | The same path drawn from the end to the start |
+| `getSubpaths(d)` | The subpaths (split at each `M` / `m`), each starting with an absolute `M` |
+| `cutPath(d, length)` | The first `length` of the path |
+| `warpPath(d, ({ x, y }) => ({ x, y }), { interpolationThreshold? })` | Every point remapped; lines and curves are first split into pieces no longer than the threshold (default 1% of the larger side of the bounding box), so straight lines bend too |
+| `interpolatePath(value, from, to)` | The path between two paths (0: `from`, 1: `to`); they may have different numbers of points |
+| `interpolatePaths(input, inputRange, outputRange, options?)` | Like `interpolate()` over several paths: `easing`, `posterize`, `extrapolateLeft` / `extrapolateRight` (`'extend'` default, `'clamp'`, `'wrap'`) |
+| `extendViewBox(viewBox, scale)` | The viewBox widened around its center by `scale` |
+| `pathFromPoints(points, { cornerRadius?, closed? })` | A polyline (or polygon) through the points, corners rounded with circular arcs; a radius that does not fit in half of each edge shrinks to fit (MotionForge's own) |
+
+Types: `Instruction`, `AbsoluteInstruction`, `ReducedInstruction`, `BoundingBox`, `WarpPathFn`, `CenterPathTarget`, `InterpolatePathsOptions`, `Point`.
 
 ```tsx
 const d = pathFromPoints([{ x: 80, y: 400 }, { x: 300, y: 260 }, { x: 520, y: 400 }], { cornerRadius: 40 });
 const length = getLength(d);
-const progress = interpolate(frame, [0, 60], [0, 1]);
-const tip = getPointAtLength(d, progress * length);
-const { x, y } = getTangentAtLength(d, progress * length);
+const progress = interpolate(frame, [0, 60], [0, 1], { extrapolateRight: 'clamp' });
+const tip = getPointAtLength(d, progress * length)!;
+const { x, y } = getTangentAtLength(d, progress * length)!;
 
 <svg>
   <path d={d} stroke="#fff" strokeWidth={8} fill="none" {...evolvePath(progress, d)} />
 </svg>
 // a finger tracing the stroke: positioned at the tip, turned along the path
 <img src="/finger.png" style={{ position: 'absolute', left: tip.x, top: tip.y, transform: `rotate(${Math.atan2(y, x)}rad)` }} />
+
+// a star morphing into a heart (makeStar and makeHeart from 'motionforge/shapes')
+const morph = interpolatePaths(frame, [0, 30], [makeStar({ points: 5, innerRadius: 60, outerRadius: 120 }).path, makeHeart({ height: 240 }).path]);
 ```
 
-Wrong input throws: a `d` that does not parse (the error names the position), a non-finite length or progress, fewer than two points.
+`parsePath`, `serializeInstructions`, `normalizePath`, `reduceInstructions`, `getBoundingBox`, `translatePath`, `scalePath`, `resetPath`, `centerPath`, `reversePath`, `getSubpaths`, `warpPath`, `interpolatePath`, `interpolatePaths` and `extendViewBox` return the same as Remotion's, to the last digit. Lengths, points and tangents on curves and arcs (and so `cutPath` inside a curve) are measured exactly (Gauss-Legendre quadrature) and can differ from Remotion's where Remotion approximates: in the fourth digit usually, by up to 1.5% on a curve with a sharp turn. Tangents on arcs point along the direction of travel (Remotion's point backwards on some arcs), and a zero-length segment at the start does not give a `NaN` tangent. Wrong input throws: a non-finite or negative length, non-finite coordinates, an `interpolationThreshold` ≤ 0.
+
+## 🔷 Shapes
+
+`motionforge/shapes` is `@remotion/shapes`. Each `make*()` function returns `{ path, width, height, transformOrigin, instructions }`; each component renders its own `<svg width height viewBox="0 0 width height">` with one `<path>`.
+
+```tsx
+import { Star, makeHeart } from 'motionforge/shapes';
+
+<Star points={5} innerRadius={60} outerRadius={120} cornerRadius={8} fill="#ffd700" style={{ transform: `scale(${pop})` }} />
+
+const { path, width, height } = makeHeart({ height: 200 });
+<svg viewBox={`0 0 ${width} ${height}`}><path d={path} fill="red" {...evolvePath(progress, path)} /></svg>
+```
+
+| Function / component | Options (defaults) |
+|----------------------|--------------------|
+| `makeRect` / `<Rect>` | `width`, `height`, `cornerRadius` (0), `edgeRoundness` (`null`) |
+| `makeCircle` / `<Circle>` | `radius` |
+| `makeEllipse` / `<Ellipse>` | `rx`, `ry` |
+| `makeTriangle` / `<Triangle>` | `length`, `direction` (`'up'`, `'down'`, `'left'`, `'right'`), `cornerRadius`, `edgeRoundness` |
+| `makeStar` / `<Star>` | `points` (≥ 3), `innerRadius`, `outerRadius`, `cornerRadius`, `edgeRoundness` |
+| `makePolygon` / `<Polygon>` | `points` (≥ 3), `radius`, `cornerRadius`, `edgeRoundness` |
+| `makePie` / `<Pie>` | `radius`, `progress` (0–1, clamped), `closePath` (`true`), `counterClockwise` (`false`), `rotation` (0, radians) |
+| `makeHeart` / `<Heart>` | `height`, `aspectRatio` (1.1), `bottomRoundnessAdjustment` (0), `depthAdjustment` (0) |
+| `makeArrow` / `<Arrow>` | `length` (300), `headWidth` (185), `headLength` (120), `shaftWidth` (80), `direction` (`'right'`), `cornerRadius` (0) |
+| `makeSpark` / `<Spark>` | `width`, `height`, `edgeRoundness` (1), `cornerRadius` (0) |
+| `makeCallout` / `<Callout>` | `width` (500), `height` (200), `pointerLength` (40), `pointerBaseWidth` (60), `pointerPosition` (0.5), `pointerDirection` (`'down'`), `cornerRadius`, `edgeRoundness` |
+
+- `cornerRadius` rounds the corners like CSS `border-radius`; `edgeRoundness` bends the edges into curves (0 straight, ~0.5 soft, 1 round); not both at once.
+- Component props besides the options: `style` goes on the `<svg>` (merged after `overflow: visible`); `pathStyle` and every other SVG attribute (`fill`, `stroke`, `strokeWidth`, …) on the `<path>`, with `transform-origin` at the shape's center and `transform-box: fill-box`, as in Remotion, so CSS transforms in `pathStyle` apply around the center. `debug` draws the control points of the curves.
+- The paths are the same as Remotion's, to the last digit. Remotion's `<Sequence>` props on a shape (`from`, `durationInFrames`, `premountFor`, …) and `effects` throw: wrap the shape in a `<Sequence>` instead. Wrong options throw (negative sizes, `points` < 3, both `cornerRadius` and `edgeRoundness`, an unknown direction).
 
 ## 🎞️ Video and Audio
 
