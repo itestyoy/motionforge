@@ -63,8 +63,10 @@ const sampleVolume = (
 /**
  * Registers the track `description` (null: nothing yet, e.g. still
  * rendering) with the FrameProvider's audio collector while the component is
- * mounted. Throws inside Freeze, Retiming and Reverse: their content's frames
- * do not run with the composition's, and a track plays in real time.
+ * mounted: one track per window the component plays in, i.e. one per
+ * iteration of the enclosing Loops, all of them as soon as it mounts. Throws
+ * inside Freeze, Retiming and Reverse: their content's frames do not run with
+ * the composition's, and a track plays in real time.
  */
 export const useAudioTrack = (component: string, description: AudioTrackDescription | null): void => {
   const host = useContext(HostContext);
@@ -80,11 +82,11 @@ export const useAudioTrack = (component: string, description: AudioTrackDescript
   }
   const collector = host.audio;
 
-  const from = timeline.offset + (description?.at ?? 0);
-  const startFrame = Math.max(timeline.start, from);
+  const at = description?.at ?? 0;
   const length = description?.lengthInFrames;
-  // A media ending between two frames is heard during the frame it ends in.
-  const endFrame = Math.min(timeline.end, length === undefined ? Infinity : from + Math.ceil(length - 1e-9));
+  // The windows as a value: a Loop moving to its next iteration gives the
+  // same windows again, which must not register the tracks anew.
+  const windows = timeline.placements.map((p) => `${p.offset},${p.start},${p.end}`).join(';');
   const volume = description?.volume;
   const iterationLength =
     description && description.loop && description.trimAfter !== null
@@ -93,17 +95,27 @@ export const useAudioTrack = (component: string, description: AudioTrackDescript
 
   // The volume function is sampled once per description: a new function
   // object on every render (an inline arrow) is taken to be the same function.
-  const track = useMemo<AudioTrack | null>(() => {
-    if (!description || startFrame >= endFrame) return null;
-    const volumeValue =
-      typeof volume === 'function'
-        ? sampleVolume(component, volume, from, startFrame, endFrame, iterationLength)
-        : volume ?? 1;
-    const { src, buffer, bufferKey, name, trimBefore, trimAfter, playbackRate, loop, muted } = description;
-    const id = hashString(
-      JSON.stringify([src, bufferKey, name, from, startFrame, endFrame, trimBefore, trimAfter, playbackRate, loop, muted, volumeValue]),
-    );
-    return { id, name, src, buffer, from, startFrame, endFrame, trimBefore, trimAfter, playbackRate, loop, muted, volume: volumeValue };
+  const tracks = useMemo<readonly AudioTrack[]>(() => {
+    if (!description) return [];
+    const list: AudioTrack[] = [];
+    for (const window of windows === '' ? [] : windows.split(';')) {
+      const [offset, start, end] = window.split(',').map(Number);
+      const from = offset + at;
+      const startFrame = Math.max(start, from);
+      // A media ending between two frames is heard during the frame it ends in.
+      const endFrame = Math.min(end, length === undefined ? Infinity : from + Math.ceil(length - 1e-9));
+      if (startFrame >= endFrame) continue;
+      const volumeValue =
+        typeof volume === 'function'
+          ? sampleVolume(component, volume, from, startFrame, endFrame, iterationLength)
+          : volume ?? 1;
+      const { src, buffer, bufferKey, name, trimBefore, trimAfter, playbackRate, loop, muted } = description;
+      const id = hashString(
+        JSON.stringify([src, bufferKey, name, from, startFrame, endFrame, trimBefore, trimAfter, playbackRate, loop, muted, volumeValue]),
+      );
+      list.push({ id, name, src, buffer, from, startFrame, endFrame, trimBefore, trimAfter, playbackRate, loop, muted, volume: volumeValue });
+    }
+    return list;
     // `description` is listed by its fields; the volume function by its kind (see above).
   }, [
     component,
@@ -118,14 +130,16 @@ export const useAudioTrack = (component: string, description: AudioTrackDescript
     description?.loop,
     description?.muted,
     typeof volume === 'function' ? 'function' : volume,
-    from,
-    startFrame,
-    endFrame,
+    at,
+    length,
+    windows,
     iterationLength,
   ]);
 
-  useEffect(
-    () => (collector && track ? getAudioCollectorInternals(collector).mount(track) : undefined),
-    [collector, track],
-  );
+  useEffect(() => {
+    if (!collector || tracks.length === 0) return undefined;
+    const internals = getAudioCollectorInternals(collector);
+    const releases = tracks.map((track) => internals.mount(track));
+    return () => releases.forEach((release) => release());
+  }, [collector, tracks]);
 };

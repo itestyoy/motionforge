@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `gate.waitUntilReady()` without `input` rejects when its `FrameProvider` renders an input log: it could resolve on the frame from before an appended event. Pass the log: `waitUntilReady({ frame, input })`.
 
 ### Fixed
+- Sound inside a `Loop` registers the tracks of all its iterations when it first mounts, instead of each iteration's when that iteration starts, so a live host can start the next iteration exactly at the loop boundary instead of up to a frame late. The manifest after rendering every frame is unchanged (one track per iteration).
 - `loadFont()` adds the face to `document.fonts` at once, while it loads (it added it only once loaded), so `usePreloadAssets([{ type: 'font', family }])` for a font that is still loading (`loadFont()` at the top of a module, or in an effect of the same commit) waits for that load instead of cancelling the render with "no font face matches". A face that fails to load is removed again.
 
 ## [3.0.0] - 2026-11-10

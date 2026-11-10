@@ -123,6 +123,70 @@ describe('<Audio> track manifest', () => {
     ]);
   });
 
+  it('registers every iteration of a Loop when the loop mounts, so the host can schedule them ahead', () => {
+    const audio = createAudioCollector();
+    const listener = vi.fn();
+    audio.subscribe(listener);
+    const scene = (
+      <Sequence from={100} durationInFrames={50}>
+        <Loop durationInFrames={20}>
+          <Audio src="music.mp3" trimAfter={20} />
+        </Loop>
+      </Sequence>
+    );
+    renderAt(100, scene, audio);
+    // Known at the loop's first frame, the last iteration cut by the sequence's end.
+    expect(audio.getTracks().map(timing)).toEqual([
+      { src: 'music.mp3', from: 100, startFrame: 100, endFrame: 120 },
+      { src: 'music.mp3', from: 120, startFrame: 120, endFrame: 140 },
+      { src: 'music.mp3', from: 140, startFrame: 140, endFrame: 150 },
+    ]);
+    const tracks = audio.getTracks();
+    const notified = listener.mock.calls.length;
+    // The next iterations add nothing: their tracks are already there.
+    renderAt(119, scene, audio);
+    renderAt(120, scene, audio);
+    renderAt(145, scene, audio);
+    expect(audio.getTracks()).toBe(tracks);
+    expect(listener).toHaveBeenCalledTimes(notified);
+    // The same manifest as rendering every frame.
+    expect(exportPass(scene)).toEqual(tracks);
+  });
+
+  it('places the iterations of nested and partly shown Loops', () => {
+    const nested = exportPass(
+      <Loop durationInFrames={100} times={2}>
+        <Sequence from={10}>
+          <Loop durationInFrames={30} times={2}>
+            <Audio src="beat.mp3" />
+          </Loop>
+        </Sequence>
+      </Loop>,
+      [10],
+    );
+    expect(nested.map(timing)).toEqual([
+      { src: 'beat.mp3', from: 10, startFrame: 10, endFrame: 40 },
+      { src: 'beat.mp3', from: 40, startFrame: 40, endFrame: 70 },
+      { src: 'beat.mp3', from: 110, startFrame: 110, endFrame: 140 },
+      { src: 'beat.mp3', from: 140, startFrame: 140, endFrame: 170 },
+    ]);
+    // A loop that started 45 frames before the composition: the iteration
+    // shown at frame 0 started at -5; the last one is cut at the end.
+    const early = exportPass(
+      <Sequence from={-45}>
+        <Loop durationInFrames={20}>
+          <Audio src="c.mp3" />
+        </Loop>
+      </Sequence>,
+      [0],
+    );
+    expect(early).toHaveLength(16);
+    expect(timing(early[0])).toEqual({ src: 'c.mp3', from: -5, startFrame: 0, endFrame: 15 });
+    expect(timing(early[15])).toEqual({ src: 'c.mp3', from: 295, startFrame: 295, endFrame: DURATION });
+    // times={0} renders nothing.
+    expect(exportPass(<Loop durationInFrames={20} times={0}><Audio src="d.mp3" /></Loop>, [0])).toEqual([]);
+  });
+
   it('gives the same manifest whatever order the frames are rendered in', () => {
     const scene = (
       <>

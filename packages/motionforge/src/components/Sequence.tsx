@@ -1,7 +1,7 @@
 'use client';
 
 import React, { ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { FrameContext, GateContext, TimelineContext, TimelineContextValue, useCurrentFrame } from '../core/context';
+import { FrameContext, GateContext, TimelineContext, TimelineContextValue, TimelinePlacement, useCurrentFrame } from '../core/context';
 import { GateScope, getGateInternals } from '../core/render-gate';
 
 // Sequence Context
@@ -138,9 +138,22 @@ export const Sequence: React.FC<SequenceProps> = (props) => {
   const timelineStart = Math.max(parentTimeline?.start ?? 0, timelineOffset);
   const timelineEnd = Math.min(parentTimeline?.end ?? Infinity, timelineOffset + (durationInFrames ?? Infinity));
   const remappedBy = parentTimeline?.remappedBy ?? null;
+  const parentPlacements = parentTimeline?.placements ?? null;
   const timeline = useMemo<TimelineContextValue>(
-    () => ({ offset: timelineOffset, start: timelineStart, end: timelineEnd, remappedBy }),
-    [timelineOffset, timelineStart, timelineEnd, remappedBy],
+    () => ({
+      offset: timelineOffset,
+      start: timelineStart,
+      end: timelineEnd,
+      remappedBy,
+      // Each window of the parent (one per Loop iteration) shifted and cut the same way.
+      placements: (parentPlacements ?? [{ offset: 0, start: 0, end: Infinity }]).flatMap((p): TimelinePlacement[] => {
+        const offset = p.offset + startFrame;
+        const start = Math.max(p.start, offset);
+        const end = Math.min(p.end, offset + (durationInFrames ?? Infinity));
+        return start < end ? [{ offset, start, end }] : [];
+      }),
+    }),
+    [timelineOffset, timelineStart, timelineEnd, remappedBy, parentPlacements, startFrame, durationInFrames],
   );
 
   // Check if sequence is active
@@ -349,6 +362,28 @@ const LoopRoot: React.FC<LoopProps> = (props) => {
   const iteration = Math.floor(currentFrame / durationInFrames);
   const loopContext = useMemo(() => ({ iteration, durationInFrames }), [iteration, durationInFrames]);
 
+  // The iteration's Sequence places its content in every iteration, not only
+  // the current one: each window of the parent is repeated for every
+  // iteration that is shown in it, shifted so that the Sequence's `from`
+  // (the current iteration's start) lands it there. Audio tracks inside thus
+  // register all iterations at once, and the host can schedule them ahead.
+  const parentTimeline = useContext(TimelineContext);
+  const timeline = useMemo<TimelineContextValue | null>(() => {
+    if (!parentTimeline) return null;
+    const placements = parentTimeline.placements.flatMap((p) => {
+      const count = Math.min(times, Math.ceil((p.end - p.offset) / durationInFrames));
+      if (!Number.isFinite(count)) {
+        throw new Error('Loop: an endless Loop needs an enclosing timeline that ends (a FrameProvider)');
+      }
+      const copies: TimelinePlacement[] = [];
+      for (let k = Math.max(0, Math.floor((p.start - p.offset) / durationInFrames)); k < count; k++) {
+        copies.push({ offset: p.offset + (k - iteration) * durationInFrames, start: p.start, end: p.end });
+      }
+      return copies;
+    });
+    return { ...parentTimeline, placements };
+  }, [parentTimeline, durationInFrames, times, iteration]);
+
   // After the last iteration nothing is rendered.
   if (iteration >= times) {
     return null;
@@ -362,9 +397,11 @@ const LoopRoot: React.FC<LoopProps> = (props) => {
   // The same element every iteration, so the children stay mounted.
   return (
     <LoopContext.Provider value={loopContext}>
-      <Sequence from={iteration * durationInFrames} durationInFrames={durationInFrames} name={name} {...layoutProps}>
-        {children}
-      </Sequence>
+      <TimelineContext.Provider value={timeline}>
+        <Sequence from={iteration * durationInFrames} durationInFrames={durationInFrames} name={name} {...layoutProps}>
+          {children}
+        </Sequence>
+      </TimelineContext.Provider>
     </LoopContext.Provider>
   );
 };

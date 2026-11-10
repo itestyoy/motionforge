@@ -46,6 +46,16 @@ export interface GateContextValue {
 export const GateContext = createContext<GateContextValue | null>(null);
 
 /**
+ * One window of the composition the content plays in: where its local frame
+ * 0 is and the frames it is shown, in composition frames.
+ */
+export interface TimelinePlacement {
+  offset: number;
+  start: number;
+  end: number;
+}
+
+/**
  * Where the content below sits on the composition's timeline: the enclosing
  * Sequences shift the frame, and audio tracks and input events are mapped
  * with it.
@@ -59,6 +69,13 @@ export interface TimelineContextValue {
   end: number;
   /** A component between the FrameProvider and here that remaps time (Freeze, Retiming, Reverse), or null. */
   remappedBy: string | null;
+  /**
+   * Every window the content plays in, the current one (offset, start, end)
+   * included: one per iteration of the enclosing Loops (all of them, also
+   * the ones not rendered now), so audio tracks register every iteration
+   * when the content mounts. Empty windows are left out.
+   */
+  placements: readonly TimelinePlacement[];
 }
 
 export const TimelineContext = createContext<TimelineContextValue | null>(null);
@@ -194,7 +211,7 @@ export const FrameProvider: React.FC<FrameProviderProps> = ({
   );
 
   const timeline = useMemo<TimelineContextValue>(
-    () => ({ offset: 0, start: 0, end: durationInFrames, remappedBy: null }),
+    () => ({ offset: 0, start: 0, end: durationInFrames, remappedBy: null, placements: [{ offset: 0, start: 0, end: durationInFrames }] }),
     [durationInFrames],
   );
   const outerHost = useContext(HostContext);
