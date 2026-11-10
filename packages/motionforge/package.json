@@ -68,6 +68,16 @@
         "types": "./dist/gif/index.d.cts",
         "default": "./dist/gif/index.cjs"
       }
+    },
+    "./media-utils": {
+      "import": {
+        "types": "./dist/media-utils/index.d.ts",
+        "default": "./dist/media-utils/index.js"
+      },
+      "require": {
+        "types": "./dist/media-utils/index.d.cts",
+        "default": "./dist/media-utils/index.cjs"
+      }
     }
   },
   "files": [
