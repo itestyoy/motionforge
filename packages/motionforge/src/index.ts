@@ -37,6 +37,11 @@ export type { Prefetch, PrefetchOptions, PrefetchOnProgress } from './core/prefe
 export { loadFont } from './core/fonts';
 export type { LoadFontOptions } from './core/fonts';
 
+// Playable mode: the scene as a function of the frame and the host's input log
+export { useInputEvents, useEmitInput, useReducedState, useLastEvent } from './core/input';
+export type { LastInputEvent } from './core/input';
+export type { InputEvent, InputEventInit } from './core/input-log';
+
 // Assets: where static files come from is the host's choice
 export { useStaticFile } from './core/use-static-file';
 export type { StaticFiles } from './core/static-files';

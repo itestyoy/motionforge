@@ -6,6 +6,7 @@ import { FrameProvider } from '../core/context';
 import { RenderGate } from '../core/render-gate';
 import { AudioCollector } from '../core/audio-collector';
 import { StaticFiles } from '../core/static-files';
+import { InputEvent } from '../core/input-log';
 
 // Composition Context
 const CompositionContext = createContext<{
@@ -37,6 +38,10 @@ export interface CompositionProps {
   audio?: AudioCollector;
   /** Where static files come from (FrameProvider's staticFiles). */
   staticFiles?: StaticFiles;
+  /** The input log of a playable (FrameProvider's input). */
+  input?: readonly InputEvent[];
+  /** Receives the events the scene emits (FrameProvider's onInput). */
+  onInput?: (event: InputEvent) => void;
 }
 
 // A composition rendered at `frame`, with its config available to useComposition().
@@ -52,6 +57,8 @@ export const Composition: React.FC<CompositionProps> = ({
   gate,
   audio,
   staticFiles,
+  input,
+  onInput,
 }) => {
   return (
     <CompositionContext.Provider
@@ -69,6 +76,8 @@ export const Composition: React.FC<CompositionProps> = ({
         gate={gate}
         audio={audio}
         staticFiles={staticFiles}
+        input={input}
+        onInput={onInput}
       >
         <Component {...defaultProps} />
       </FrameProvider>

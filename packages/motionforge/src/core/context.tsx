@@ -1,10 +1,14 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FrameContextValue } from './types';
 import { GateScope, RenderGate, createRenderGate, getGateInternals, isRenderGate } from './render-gate';
 import { AudioCollector, getAudioCollectorInternals, isAudioCollector } from './audio-collector';
 import { StaticFiles, makeStaticFileResolver } from './static-files';
+import { InputEvent, InputEventInit, checkInputLog } from './input-log';
+
+// Layout effects do not run on the server.
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 // Frame Context - provides the frame being rendered to all children
 const FrameContext = createContext<FrameContextValue | null>(null);
@@ -65,6 +69,10 @@ export interface HostContextValue {
   audio: AudioCollector | null;
   /** Resolves a static file path to its URL (useStaticFile()), or null when the host set none. */
   staticFiles: ((path: string) => string) | null;
+  /** The input log (checked; empty without one), in composition frames. */
+  input: readonly InputEvent[];
+  /** Hands a scene's event, stamped with the frame shown, to the host's onInput (dropped without one). */
+  emit: (event: InputEventInit) => void;
 }
 
 export const HostContext = createContext<HostContextValue | null>(null);
@@ -94,12 +102,29 @@ export interface FrameProviderProps {
    * inside another one uses the outer one's.
    */
   staticFiles?: StaticFiles;
+  /**
+   * The input log of a playable: events `{ frame, type, ... }` in frame
+   * order, owned by the host and only appended to (live taps it recorded, or
+   * a scripted log for a video of the playable). useInputEvents(),
+   * useReducedState() and useLastEvent() read it; the scene sees the events
+   * up to the frame it renders, so a frame is a function of the frame and
+   * the log. A FrameProvider inside another one does not use the outer log.
+   */
+  input?: readonly InputEvent[];
+  /**
+   * Receives the events scenes emit with useEmitInput(), with `frame` set to
+   * the frame shown. The host decides whether to append them to `input`
+   * (live play) or not (a video). Without it they are dropped.
+   */
+  onInput?: (event: InputEvent) => void;
   fps?: number;
   durationInFrames: number;
   width: number;
   height: number;
   children: React.ReactNode;
 }
+
+const NO_EVENTS: readonly InputEvent[] = Object.freeze([]);
 
 const isPositive = (value: number) => typeof value === 'number' && Number.isFinite(value) && value > 0;
 
@@ -143,6 +168,8 @@ export const FrameProvider: React.FC<FrameProviderProps> = ({
   gate,
   audio,
   staticFiles,
+  input,
+  onInput,
   children,
 }) => {
   validateFrameProps({ frame, fps, durationInFrames, width, height });
@@ -175,9 +202,30 @@ export const FrameProvider: React.FC<FrameProviderProps> = ({
     () => (staticFiles === undefined ? outerHost?.staticFiles ?? null : makeStaticFileResolver(staticFiles)),
     [staticFiles, outerHost],
   );
+  if (onInput !== undefined && typeof onInput !== 'function') {
+    throw new Error(`FrameProvider: onInput must be a function (event) => void, got ${JSON.stringify(onInput)}`);
+  }
+  // Checking an appended log costs only the new events.
+  const lastLog = useRef<readonly InputEvent[] | null>(null);
+  const log = input === undefined ? NO_EVENTS : checkInputLog(input, lastLog.current);
+  lastLog.current = log;
+  const emitState = useRef({ frame, onInput });
+  useIsomorphicLayoutEffect(() => {
+    emitState.current = { frame, onInput };
+  });
+  const emit = useCallback((event: InputEventInit) => {
+    if (typeof event !== 'object' || event === null || typeof event.type !== 'string' || event.type === '') {
+      throw new Error(`emitInput: the event must be { type, ... } with a non-empty type, got ${JSON.stringify(event)}`);
+    }
+    if ('frame' in event) {
+      throw new Error('emitInput: leave out frame: the event happens at the frame shown, which MotionForge sets');
+    }
+    const { frame: shown, onInput: handler } = emitState.current;
+    handler?.({ ...event, frame: shown });
+  }, []);
   const host = useMemo<HostContextValue>(
-    () => ({ audio: audio ?? null, staticFiles: resolveStaticFile }),
-    [audio, resolveStaticFile],
+    () => ({ audio: audio ?? null, staticFiles: resolveStaticFile, input: log, emit }),
+    [audio, resolveStaticFile, log, emit],
   );
 
   useEffect(() => (owned ? getGateInternals(owned).attach() : undefined), [owned]);

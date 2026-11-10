@@ -175,6 +175,96 @@ There are no `preloadImage` / `preloadVideo` / `preloadAudio` / `preloadFont`: `
 
 **Premounting:** `<Sequence from={60} premountFor={30}>` mounts its children 30 frames early, invisible (`opacity: 0`, `pointer-events: none`, then `styleWhilePremounted`) and at their frame 0, so their assets load before the sequence starts. While premounted, their `delayRender()` handles do not hold the frame; from the start on, the ones still pending do. `postmountFor` keeps them mounted after the end, invisible (then `styleWhilePostmounted`) and at their last frame; it needs `durationInFrames`. Both need `layout="absolute-fill"` (the default).
 
+## 🕹️ Playable mode
+
+The same scene renders a video (scripted input) and a playable ad (live input). Input is a log the host owns: events `{ frame, type, ... }`, in frame order, only appended to. A frame is a function of the frame number **and** the log, so a recorded session replays to the same frames, and a scripted log turns the playable into its video.
+
+```tsx
+import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig, useEmitInput, useReducedState, useLastEvent } from 'motionforge';
+
+type Tap = { frame: number; type: 'tap'; cell: number };
+
+const Board = () => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const emit = useEmitInput();
+  // State is a fold of the events up to this frame; handlers only emit.
+  const filled = useReducedState<readonly number[], Tap>(
+    (cells, e) => (e.type === 'tap' && !cells.includes(e.cell) ? [...cells, e.cell] : cells),
+    [],
+  );
+  const tap = useLastEvent<Tap>((e) => e.type === 'tap');
+  const pop = tap ? spring({ frame: tap.framesSince, fps }) : 1;  // animate from the moment of the tap
+  const idle = useLastEvent()?.framesSince ?? frame;                // no input for this many frames
+  return (
+    <AbsoluteFill>
+      {CELLS.map((cell) => (
+        <Cell key={cell} on={filled.includes(cell)} scale={tap?.event.cell === cell ? pop : 1}
+          onPointerDown={() => emit({ type: 'tap', cell })} />
+      ))}
+      {idle > 2 * fps && <HintHand />}
+    </AbsoluteFill>
+  );
+};
+```
+
+| API | |
+|-----|-|
+| `FrameProvider input` | The log: events `{ frame, type, ... }` with an integer `frame` ≥ 0 (a composition frame), a non-empty `type` and any (serializable) payload, in frame order. It is checked (only the appended events, when the log grows); a wrong one throws |
+| `FrameProvider onInput` | `(event) => void`: receives what scenes emit, `frame` set to the frame shown. The host appends it (live) or ignores it (a video); without `onInput` emitted events are dropped |
+| `useEmitInput()` | `emit({ type, ... })` for event handlers (`onPointerDown`, ...). Passing `frame` throws. Handlers must not change the scene's own state: what input changes is derived from the log |
+| `useInputEvents()` | The events up to the current frame, oldest first |
+| `useReducedState(reducer, initialState)` | `reducer` folded over the events up to the current frame, like `useReducer` over the log. Each event is folded once: moving forward folds only the new events, seeking back reads a kept state, and a log that does not extend the previous one (a new session) is folded again. The reducer must be pure and return new states (they are kept); `initialState` is read when the fold starts |
+| `useLastEvent(predicate?)` | `{ event, framesSince } \| null`: the latest event (accepted by `predicate`) and `useCurrentFrame() - event.frame`, for animating from an input or for idle hints |
+
+- **Frames.** An event at frame `f` is seen from frame `f` on (`event.frame <= frame`). Live, the host appends a tap at the frame shown and renders that frame again: the reaction is on the same frame as in the scripted video.
+- **Inside a `Sequence`** the hooks count as `useCurrentFrame()` does: `event.frame` is in the sequence's frames (an event at composition frame 40 is at frame 10 in `<Sequence from={30}>`), and events from before the sequence started are not seen (a scene starts with a fresh state; each `Loop` iteration too). A premounted sequence renders its frame 0 with the events of its first frame. Inside `Freeze`, `Retiming` and `Reverse` the events are compared with the frame they show.
+- The log is not shared with a `FrameProvider` inside another one. `Composition` takes `input` and `onInput` too.
+
+**Host runtime.** A minimal player for both modes: the host owns the clock and the log.
+
+```tsx
+import { useEffect, useState } from 'react';
+import { FrameProvider, type InputEvent } from 'motionforge';
+
+const FPS = 30;
+const DURATION = 900;
+
+export const PlayableHost = ({ Scene, script }: { Scene: React.FC; script?: readonly InputEvent[] }) => {
+  const [frame, setFrame] = useState(0);
+  const [recorded, setRecorded] = useState<readonly InputEvent[]>([]);
+  useEffect(() => {
+    // The clock: frame = elapsed time × fps.
+    const start = performance.now();
+    let raf = requestAnimationFrame(function tick(now) {
+      const next = Math.min(DURATION - 1, Math.floor(((now - start) / 1000) * FPS));
+      setFrame(next);
+      if (next < DURATION - 1) raf = requestAnimationFrame(tick);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return (
+    <FrameProvider
+      frame={frame} fps={FPS} durationInFrames={DURATION} width={1080} height={1920}
+      // Auto mode plays a scripted log; live mode records the taps into the log.
+      input={script ?? recorded}
+      onInput={script ? undefined : (event) => setRecorded((log) => [...log, event])}
+    >
+      <Scene />
+    </FrameProvider>
+  );
+};
+```
+
+- **Recording → video.** Save `recorded` (it is plain JSON) and export with `input={recorded}` (the export pass above, with the gate): the video shows the session frame for frame.
+- **Idle → hint** is scene logic (`useLastEvent()?.framesSince`), so the hint shows the same in the video and in the playable; an "auto-play after N idle seconds" mode is the host's: it switches `input` to a scripted log (append the script's events from the current frame on, shifted, so the log stays append-only).
+
+**Playable builds (host concerns, not the SDK's).**
+
+- **MRAID:** start the clock on `mraid.ready` and when `viewableChange` reports visible, pause it when hidden; a CTA in the scene emits `{ type: 'cta' }` and the host's `onInput` calls `mraid.open(storeUrl)`.
+- **Single HTML file:** bundle the scene, the SDK and the assets inline; give `staticFiles` a function that returns `data:` or `blob:` URLs of the embedded files.
+- **Audio only after the first tap:** browsers start an `AudioContext` only from a user gesture. Create or `resume()` it in the first `pointerdown`, then start the tracks of the audio collector that are playing at the current frame (offset into each) and the later ones on schedule. Render `ToneAudio` / `Sfx` buffers before (premount), so the tap starts sound at once.
+
 ## 🗂️ Assets
 
 **Static files.** Where the files of a creative come from is the host's choice: it passes `staticFiles` to `FrameProvider` (or `Composition`), and scenes get URLs from `useStaticFile()`.
@@ -216,7 +306,7 @@ const tile = { left: photo.x + 500 * photo.scaleX, top: photo.y + 300 * photo.sc
 
 | Import | What it contains | Extra dependencies |
 |--------|------------------|--------------------|
-| `motionforge` | Core: `FrameProvider`, frame hooks, sequences, effects, `AnimatedImage`, `createAudioCollector`, utilities | — |
+| `motionforge` | Core: `FrameProvider`, frame hooks, sequences, effects, `AnimatedImage`, `createAudioCollector`, input hooks, `useStaticFile`, `fitRect`, utilities | — |
 | `motionforge/three` | `ThreeCanvas`, `DepthGallery3D`, `ShaderImageReveal`, `DitheringEffect` | `three`, `@react-three/fiber` (and `@react-three/drei` for the ready-made scenes) |
 | `motionforge/lottie` | `Lottie`, `getLottieMetadata` | `lottie-web` (installed with the package) |
 | `motionforge/motion-blur` | `Trail`, `CameraMotionBlur` | — |
