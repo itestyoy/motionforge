@@ -23,15 +23,13 @@ export {
 export { createRenderGate } from './core/render-gate';
 export type { RenderGate, PendingDelay, WaitUntilReadyOptions } from './core/render-gate';
 export { useDelayRender } from './core/delay-render';
-export type { DelayRenderApi } from './core/delay-render';
-export {
-  preloadImage,
-  preloadVideo,
-  preloadAudio,
-  preloadFont,
-  usePreloadAssets,
-} from './core/preload';
-export type { PreloadAsset, PreloadFontOptions } from './core/preload';
+export type { DelayRenderApi, DelayRenderOptions } from './core/delay-render';
+export { usePreloadAssets } from './core/preload';
+export type { PreloadAsset } from './core/preload';
+export { prefetch } from './core/prefetch';
+export type { Prefetch, PrefetchOptions, PrefetchOnProgress } from './core/prefetch';
+export { loadFont } from './core/fonts';
+export type { LoadFontOptions } from './core/fonts';
 
 // Components
 export { Composition, useVideoConfig as useConfig, useComposition } from './components/Composition';

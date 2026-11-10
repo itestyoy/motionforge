@@ -4,53 +4,51 @@ import { useEffect, useRef, useState } from 'react';
 import { useDelayRender } from './delay-render';
 
 /**
- * Asset preloading. The functions warm the browser cache and resolve when the
- * asset can be shown; they reject with an error naming the asset when it
- * cannot be loaded. They need a browser DOM and throw without one.
+ * usePreloadAssets(): holds the frame until images, video, audio and fonts
+ * are ready. The loaders need a browser DOM and fail with an error naming the
+ * asset.
  */
 
-const requireDom = (fn: string) => {
+const requireDom = () => {
   if (typeof document === 'undefined') {
-    throw new Error(`${fn} needs a browser DOM (document is not defined)`);
+    throw new Error('usePreloadAssets needs a browser DOM (document is not defined)');
   }
 };
 
-const checkSrc = (fn: string, src: unknown) => {
+const checkSrc = (src: unknown, index: number) => {
   if (typeof src !== 'string' || src === '') {
-    throw new Error(`${fn}: src must be a non-empty string, got ${JSON.stringify(src)}`);
+    throw new Error(`usePreloadAssets: assets[${index}].src must be a non-empty string, got ${JSON.stringify(src)}`);
   }
 };
 
-/** Resolves with the image once it is loaded and decoded. */
-export const preloadImage = (src: string): Promise<HTMLImageElement> => {
-  checkSrc('preloadImage', src);
-  requireDom('preloadImage');
+// Resolves once the image is loaded and decoded.
+const loadImage = (src: string): Promise<void> => {
   const image = new Image();
   image.src = src;
   return image.decode().then(
-    () => image,
+    () => undefined,
     () => {
-      throw new Error(`preloadImage: could not load or decode ${src}`);
+      throw new Error(`usePreloadAssets: could not load or decode ${src}`);
     },
   );
 };
 
 // Media is ready once its first frame (video) or first samples (audio) are
 // loaded: `loadeddata`.
-const preloadMedia = <T extends HTMLMediaElement>(fn: string, element: T, src: string): Promise<T> => {
-  return new Promise<T>((resolve, reject) => {
+const loadMedia = (element: HTMLMediaElement, src: string): Promise<void> =>
+  new Promise<void>((resolve, reject) => {
     const cleanup = () => {
       element.removeEventListener('loadeddata', onLoaded);
       element.removeEventListener('error', onError);
     };
     const onLoaded = () => {
       cleanup();
-      resolve(element);
+      resolve();
     };
     const onError = () => {
       cleanup();
       const detail = element.error ? `: ${element.error.message || `media error code ${element.error.code}`}` : '';
-      reject(new Error(`${fn}: could not load ${src}${detail}`));
+      reject(new Error(`usePreloadAssets: could not load ${src}${detail}`));
     };
     element.addEventListener('loadeddata', onLoaded);
     element.addEventListener('error', onError);
@@ -58,94 +56,89 @@ const preloadMedia = <T extends HTMLMediaElement>(fn: string, element: T, src: s
     element.src = src;
     element.load();
   });
-};
 
-/** Resolves with the video element once its first frame is loaded. */
-export const preloadVideo = (src: string): Promise<HTMLVideoElement> => {
-  checkSrc('preloadVideo', src);
-  requireDom('preloadVideo');
+const loadVideo = (src: string) => {
   const video = document.createElement('video');
   video.muted = true;
   video.playsInline = true;
-  return preloadMedia('preloadVideo', video, src);
+  return loadMedia(video, src);
 };
 
-/** Resolves with the audio element once its first samples are loaded. */
-export const preloadAudio = (src: string): Promise<HTMLAudioElement> => {
-  checkSrc('preloadAudio', src);
-  requireDom('preloadAudio');
-  return preloadMedia('preloadAudio', document.createElement('audio'), src);
+const WEIGHTS: Record<string, number> = { normal: 400, bold: 700 };
+
+const toWeight = (weight: string | number): number => {
+  const value = typeof weight === 'number' ? weight : WEIGHTS[weight.trim().toLowerCase()] ?? Number(weight);
+  if (!Number.isFinite(value)) throw new Error(`usePreloadAssets: font weight must be a number, 'normal' or 'bold', got ${JSON.stringify(weight)}`);
+  return value;
 };
 
-export interface PreloadFontOptions {
-  /** CSS font-weight, e.g. 400 or 'bold' (default 400). */
-  weight?: string | number;
-  /** CSS font-style, e.g. 'italic' (default 'normal'). */
-  style?: string;
-  /**
-   * URL of the font file. When given, the face is created and added to
-   * document.fonts; without it the family must be declared in CSS (@font-face).
-   */
-  source?: string;
-}
+// Whether a face's weight descriptor ('400', 'bold', or a range '100 900') covers `weight`.
+const coversWeight = (descriptor: string, weight: number) => {
+  const [low, high = low] = descriptor.trim().split(/\s+/).map(toWeight);
+  return weight >= low && weight <= high;
+};
+
+const unquote = (family: string) => family.trim().replace(/^(['"])(.*)\1$/, '$2').toLowerCase();
 
 /**
- * Loads a font face with the CSS Font Loading API. Rejects when the face
- * cannot be loaded or no declared face matches the family, weight and style.
+ * Loads every declared face of `family` (all weights and styles, unless
+ * `weight` / `style` narrow it down). A family from Google Fonts or
+ * @fontsource is split by unicode-range into several faces (latin, cyrillic,
+ * greek, ...); document.fonts.load('900 16px Family') would load only the
+ * subset of its sample text (latin), so other scripts could still be missing
+ * when the frame is captured. Loading every face loads every subset.
  */
-export const preloadFont = (family: string, options: PreloadFontOptions = {}): Promise<void> => {
-  if (typeof family !== 'string' || family.trim() === '') {
-    throw new Error(`preloadFont: family must be a non-empty string, got ${JSON.stringify(family)}`);
+const loadFontFaces = (family: string, weight: string | number | undefined, style: string | undefined): Promise<void> => {
+  if (!document.fonts || typeof document.fonts.forEach !== 'function') {
+    throw new Error('usePreloadAssets: fonts need the CSS Font Loading API (document.fonts)');
   }
-  requireDom('preloadFont');
-  if (!document.fonts) {
-    throw new Error('preloadFont needs the CSS Font Loading API (document.fonts)');
-  }
-  const weight = String(options.weight ?? 400);
-  const style = options.style ?? 'normal';
-  const describe = `${family} ${weight} ${style}`;
-
-  if (options.source !== undefined) {
-    checkSrc('preloadFont', options.source);
-    const face = new FontFace(family, `url(${JSON.stringify(options.source)})`, { weight, style });
-    return face.load().then(
-      (loaded) => {
-        document.fonts.add(loaded);
-      },
-      () => {
-        throw new Error(`preloadFont: could not load ${describe} from ${options.source}`);
-      },
+  const wanted = unquote(family);
+  const wantedWeight = weight === undefined ? undefined : toWeight(weight);
+  const wantedStyle = style?.trim().toLowerCase();
+  const faces: FontFace[] = [];
+  document.fonts.forEach((face) => {
+    if (unquote(face.family) !== wanted) return;
+    if (wantedWeight !== undefined && !coversWeight(face.weight, wantedWeight)) return;
+    if (wantedStyle !== undefined && face.style.trim().toLowerCase().split(/\s+/)[0] !== wantedStyle) return;
+    faces.push(face);
+  });
+  const describe = [family, weight, style].filter((part) => part !== undefined).join(' ');
+  if (faces.length === 0) {
+    return Promise.reject(
+      new Error(`usePreloadAssets: no font face matches ${describe}; declare it with @font-face or load it with loadFont()`),
     );
   }
-
-  return document.fonts.load(`${style} ${weight} 16px ${JSON.stringify(family)}`).then(
-    (faces) => {
-      if (faces.length === 0) {
-        throw new Error(`preloadFont: no font face matches ${describe}; declare it with @font-face or pass source`);
-      }
-    },
+  return Promise.all(faces.map((face) => face.load())).then(
+    () => undefined,
     () => {
-      throw new Error(`preloadFont: could not load ${describe}`);
+      throw new Error(`usePreloadAssets: could not load the font ${describe}`);
     },
   );
 };
 
 export type PreloadAsset =
   | { type: 'image' | 'video' | 'audio'; src: string }
-  | ({ type: 'font'; family: string } & PreloadFontOptions);
+  | {
+      type: 'font';
+      /** A family declared with @font-face (a stylesheet, e.g. Google Fonts) or loaded with loadFont(). */
+      family: string;
+      /** Only the faces covering this weight (default: all). */
+      weight?: string | number;
+      /** Only the faces of this style, e.g. 'italic' (default: all). */
+      style?: string;
+    };
 
-const preloadAsset = (asset: PreloadAsset): Promise<unknown> => {
+const loadAsset = (asset: PreloadAsset): Promise<void> => {
+  requireDom();
   switch (asset.type) {
     case 'image':
-      return preloadImage(asset.src);
+      return loadImage(asset.src);
     case 'video':
-      return preloadVideo(asset.src);
+      return loadVideo(asset.src);
     case 'audio':
-      return preloadAudio(asset.src);
-    case 'font': {
-      const { family, ...options } = asset;
-      return preloadFont(family, options);
-    }
+      return loadMedia(document.createElement('audio'), asset.src);
+    case 'font':
+      return loadFontFaces(asset.family, asset.weight, asset.style);
   }
 };
 
@@ -160,6 +153,13 @@ const checkAssets = (assets: readonly PreloadAsset[]) => {
       throw new Error(
         `usePreloadAssets: assets[${i}] must be { type: 'image' | 'video' | 'audio' | 'font', ... }, got ${JSON.stringify(asset)}`,
       );
+    }
+    if (asset.type === 'font') {
+      if (typeof asset.family !== 'string' || asset.family.trim() === '') {
+        throw new Error(`usePreloadAssets: assets[${i}].family must be a non-empty string, got ${JSON.stringify(asset.family)}`);
+      }
+    } else {
+      checkSrc(asset.src, i);
     }
   });
 };
@@ -186,10 +186,10 @@ export const usePreloadAssets = (assets: readonly PreloadAsset[]): boolean => {
     const current = delayRender(`usePreloadAssets ${list.map((a) => (a.type === 'font' ? a.family : a.src)).join(', ')}`);
     handle.current = current;
     let active = true;
-    // Started inside the promise chain so that a synchronous throw (no DOM, a
-    // bad src) is reported like a load error.
+    // Started inside the promise chain so that a synchronous throw (no DOM)
+    // is reported like a load error.
     Promise.resolve()
-      .then(() => Promise.all(list.map(preloadAsset)))
+      .then(() => Promise.all(list.map(loadAsset)))
       .then(
         () => {
           if (active) setLoadedKey(key);

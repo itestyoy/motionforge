@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FrameProvider, useCurrentFrame } from '../src/core/context';
 import { createRenderGate, RenderGate } from '../src/core/render-gate';
 import { useDelayRender, DelayRenderApi } from '../src/core/delay-render';
-import { usePreloadAssets, preloadFont } from '../src/core/preload';
+import { usePreloadAssets } from '../src/core/preload';
 import { Sequence } from '../src/components/Sequence';
 import { Img, Video } from '../src/components/Media';
 import { Composition } from '../src/components/Composition';
@@ -398,7 +398,7 @@ describe('usePreloadAssets', () => {
     const gate = createRenderGate();
     renderAt(0, <Scene src="gone.png" />, gate);
     await act(async () => {});
-    await expect(gate.waitUntilReady()).rejects.toThrow('preloadImage: could not load or decode gone.png');
+    await expect(gate.waitUntilReady()).rejects.toThrow('usePreloadAssets: could not load or decode gone.png');
   });
 
   it('rejects asset lists it does not understand', () => {
@@ -411,10 +411,4 @@ describe('usePreloadAssets', () => {
     expect(() => renderAt(0, <Bad />)).toThrow(/assets\[0\] must be/);
   });
 
-  it('preloadFont rejects when no declared face matches', async () => {
-    const load = vi.fn(() => Promise.resolve([] as FontFace[]));
-    Object.defineProperty(document, 'fonts', { value: { load }, configurable: true });
-    await expect(preloadFont('Nope', { weight: 700 })).rejects.toThrow(/no font face matches Nope 700 normal/);
-    expect(load).toHaveBeenCalledWith('normal 700 16px "Nope"');
-  });
 });
