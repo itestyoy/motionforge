@@ -5,10 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FrameProvider } from '../src/core/context';
 import { createRenderGate, RenderGate } from '../src/core/render-gate';
 import { Audio, Video } from '../src/components/Media';
-import { Lottie } from '../src/components/Lottie';
+import { Lottie, getLottieMetadata, LottieAnimationData } from '../src/components/Lottie';
 
 // A stand-in for lottie-web: records listeners and the frames it is sent to.
 interface FakeAnimation {
+  params: Record<string, unknown>;
   frameRate: number;
   totalFrames: number;
   listeners: Record<string, Array<() => void>>;
@@ -20,8 +21,9 @@ interface FakeAnimation {
 const { animations } = vi.hoisted(() => ({ animations: [] as FakeAnimation[] }));
 vi.mock('lottie-web', () => ({
   default: {
-    loadAnimation: () => {
+    loadAnimation: (params: Record<string, unknown>) => {
       const animation: FakeAnimation = {
+        params,
         frameRate: 60,
         totalFrames: 120,
         listeners: {},
@@ -70,14 +72,14 @@ const renderAt = (frame: number, node: React.ReactNode, gate?: RenderGate) =>
 describe('Video / Audio', () => {
   it("keeps the internal loaded handler when the caller passes onLoadedData, and maps time with playbackRate", () => {
     const onLoadedData = vi.fn();
-    const node = <Video src="a.mp4" startFrom={30} playbackRate={2} onLoadedData={onLoadedData} />;
+    const node = <Video src="a.mp4" trimBefore={30} playbackRate={2} onLoadedData={onLoadedData} />;
     renderAt(45, node);
     const video = container.querySelector('video')!;
     act(() => {
       video.dispatchEvent(new Event('loadeddata'));
     });
     expect(onLoadedData).toHaveBeenCalledTimes(1);
-    // (startFrom + frame * playbackRate) / fps
+    // (trimBefore + frame * playbackRate) / fps
     expect(video.currentTime).toBeCloseTo((30 + 45 * 2) / 30, 6);
   });
 
@@ -96,65 +98,65 @@ describe('Video / Audio', () => {
   });
 });
 
+// Minimal Lottie JSON: 60 fps, 100 × 100, 120 frames.
+const lottieData = (extra: Record<string, unknown> = {}): LottieAnimationData => ({ fr: 60, w: 100, h: 100, op: 120, ...extra });
+
 describe('Lottie', () => {
   it('maps composition frames to Lottie frames by time', () => {
-    const data = {};
-    renderAt(15, <Lottie src={data} />);
+    const data = lottieData();
+    renderAt(15, <Lottie animationData={data} />);
     act(() => animations[0].emit('DOMLoaded'));
     // 15 frames at 30 fps = 0.5 s = frame 30 of a 60 fps Lottie.
     expect(animations[0].goToAndStop).toHaveBeenLastCalledWith(30, true);
 
-    renderAt(15, <Lottie src={data} playbackRate={0.5} />);
+    renderAt(15, <Lottie animationData={data} playbackRate={0.5} />);
     expect(animations[0].goToAndStop).toHaveBeenLastCalledWith(15, true);
   });
 
   it('starts unloaded again when src changes', () => {
-    renderAt(0, <Lottie src={{ a: 1 }} />);
+    renderAt(0, <Lottie animationData={lottieData({ a: 1 })} />);
     act(() => animations[0].emit('DOMLoaded'));
     expect(container.querySelector('[data-lottie-loaded]')!.getAttribute('data-lottie-loaded')).toBe('true');
 
-    renderAt(0, <Lottie src={{ b: 2 }} />);
+    renderAt(0, <Lottie animationData={lottieData({ b: 2 })} />);
     expect(animations).toHaveLength(2);
     expect(animations[0].destroy).toHaveBeenCalled();
     expect(container.querySelector('[data-lottie-loaded]')!.getAttribute('data-lottie-loaded')).toBe('false');
   });
 
   it('does not reload for a new object with the same data', () => {
-    renderAt(0, <Lottie src={{ layers: [1, 2] }} />);
+    renderAt(0, <Lottie animationData={lottieData({ layers: [1, 2] })} />);
     act(() => animations[0].emit('DOMLoaded'));
-    renderAt(1, <Lottie src={{ layers: [1, 2] }} />);
-    renderAt(2, <Lottie src={JSON.parse('{"layers":[1,2]}')} />);
+    renderAt(1, <Lottie animationData={lottieData({ layers: [1, 2] })} />);
+    renderAt(2, <Lottie animationData={JSON.parse('{"fr":60,"w":100,"h":100,"op":120,"layers":[1,2]}')} />);
     expect(animations).toHaveLength(1);
     expect(animations[0].destroy).not.toHaveBeenCalled();
     expect(container.querySelector('[data-lottie-loaded]')!.getAttribute('data-lottie-loaded')).toBe('true');
   });
 
-  it('throws on a src that is neither a URL nor data', () => {
+  it('throws on animationData that is not an object (a URL included)', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    // @ts-expect-error not a source
-    expect(() => renderAt(0, <Lottie src={null} />)).toThrow(/src must be a URL or animation data/);
-    expect(() => renderAt(0, <Lottie src="" />)).toThrow(/src must be a URL or animation data/);
+    // @ts-expect-error not animation data
+    expect(() => renderAt(0, <Lottie animationData={null} />)).toThrow(/animationData must be the animation JSON as an object/);
+    // @ts-expect-error a URL is not animation data
+    expect(() => renderAt(0, <Lottie animationData="https://example.com/a.json" />)).toThrow(/fetch it and pass the result/);
   });
 
-  it('shows an error when the data fails to load, cancels the render, and recovers with a new src', async () => {
+  it('shows an error when the data fails to load, cancels the render, and recovers with new data', async () => {
     const gate = createRenderGate();
-    renderAt(0, <Lottie src="https://example.com/missing.json" />, gate);
+    renderAt(0, <Lottie animationData={lottieData({ broken: true })} />, gate);
     act(() => animations[0].emit('data_failed'));
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      'failed to load animation data from https://example.com/missing.json',
-    );
-    await expect(gate.waitUntilReady()).rejects.toThrow(
-      '<Lottie> failed to load animation data from https://example.com/missing.json',
-    );
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('failed to load animation data');
+    await expect(gate.waitUntilReady()).rejects.toThrow('<Lottie> failed to load animation data');
 
-    renderAt(0, <Lottie src={{ ok: true }} />, gate);
+    renderAt(0, <Lottie animationData={lottieData({ ok: true })} />, gate);
     expect(animations).toHaveLength(2);
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
   it('holds the frame until the data is loaded and the frame is set', async () => {
     const gate = createRenderGate();
-    renderAt(15, <Lottie src={{ layers: [] }} />, gate);
+    renderAt(15, <Lottie animationData={lottieData({ layers: [] })} />, gate);
     expect(gate.getPending().map((p) => p.label)).toEqual(['<Lottie> animation data']);
     act(() => animations[0].emit('data_ready'));
     expect(animations[0].goToAndStop).toHaveBeenCalledWith(30, true);
@@ -163,8 +165,121 @@ describe('Lottie', () => {
 
   it('cancels the render when frameEnd is not after frameStart', async () => {
     const gate = createRenderGate();
-    renderAt(0, <Lottie src={{}} frameStart={200} />, gate);
+    renderAt(0, <Lottie animationData={lottieData()} frameStart={200} />, gate);
     act(() => animations[0].emit('DOMLoaded'));
     await expect(gate.waitUntilReady()).rejects.toThrow(/frameEnd \(120\) must be greater than frameStart \(200\)/);
+  });
+});
+
+describe('Video / Audio props (Remotion parity)', () => {
+  const loaded = (element: HTMLMediaElement, duration?: number) => {
+    if (duration !== undefined) Object.defineProperty(element, 'duration', { value: duration, configurable: true });
+    act(() => {
+      element.dispatchEvent(new Event('loadeddata'));
+    });
+  };
+
+  it('unmounts at trimAfter, or at trimBefore + durationInFrames', () => {
+    // (60 - 30) / 2 = 15 frames.
+    renderAt(14, <Video src="a.mp4" trimBefore={30} trimAfter={60} playbackRate={2} />);
+    expect(container.querySelector('video')).not.toBeNull();
+    renderAt(15, <Video src="a.mp4" trimBefore={30} trimAfter={60} playbackRate={2} />);
+    expect(container.querySelector('video')).toBeNull();
+    // The earlier of trimAfter and trimBefore + durationInFrames.
+    renderAt(9, <Audio src="a.mp3" trimBefore={30} trimAfter={60} durationInFrames={10} />);
+    expect(container.querySelector('audio')).not.toBeNull();
+    renderAt(10, <Audio src="a.mp3" trimBefore={30} trimAfter={60} durationInFrames={10} />);
+    expect(container.querySelector('audio')).toBeNull();
+  });
+
+  it('loops the range from trimBefore to the end of the media', () => {
+    renderAt(45, <Video src="a.mp4" trimBefore={30} loop />);
+    const video = container.querySelector('video')!;
+    // 2 s = 60 frames: the loop spans media frames 30..60, frame 45 is 15 into the second round.
+    loaded(video, 2);
+    expect(video.currentTime).toBeCloseTo(45 / 30, 6);
+    // With trimAfter the loop spans trimBefore..trimAfter (and it stays mounted).
+    renderAt(100, <Audio src="a.mp3" trimBefore={10} trimAfter={20} loop />);
+    const audio = container.querySelector('audio')!;
+    loaded(audio, 100);
+    expect(audio.currentTime).toBeCloseTo((10 + (100 % 10)) / 30, 6);
+  });
+
+  it('cancels the render when a loop has no finite length', async () => {
+    const gate = createRenderGate();
+    renderAt(5, <Video src="live.m3u8" loop />, gate);
+    loaded(container.querySelector('video')!, Infinity);
+    await expect(gate.waitUntilReady()).rejects.toThrow(/loop needs a media with a finite duration/);
+  });
+
+  it('sets the volume per frame, counted per loop iteration', () => {
+    const volume = vi.fn((frame: number) => frame / 100);
+    renderAt(25, <Audio src="a.mp3" trimAfter={10} loop volume={volume} />);
+    expect(volume).toHaveBeenLastCalledWith(5);
+    expect(container.querySelector('audio')!.volume).toBeCloseTo(0.05, 6);
+    renderAt(25, <Audio src="a.mp3" volume={0.3} />);
+    expect(container.querySelector('audio')!.volume).toBeCloseTo(0.3, 6);
+  });
+
+  it('is not muted by default and fits the picture with objectFit (default contain)', () => {
+    renderAt(0, <Video src="a.mp4" style={{ width: 100 }} />);
+    const video = container.querySelector('video')!;
+    expect(video.muted).toBe(false);
+    expect(video.style.objectFit).toBe('contain');
+    expect(video.style.width).toBe('100px');
+    renderAt(0, <Video src="a.mp4" objectFit="cover" muted />);
+    expect(container.querySelector('video')!.style.objectFit).toBe('cover');
+    expect(container.querySelector('video')!.muted).toBe(true);
+  });
+
+  it('throws on wrong props', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() => renderAt(0, <Video src="a.mp4" trimBefore={-1} />)).toThrow(/<Video>: trimBefore must be a finite number >= 0/);
+    expect(() => renderAt(0, <Video src="a.mp4" trimBefore={10} trimAfter={5} />)).toThrow(/trimAfter \(5\) must be greater than trimBefore \(10\)/);
+    expect(() => renderAt(0, <Audio src="a.mp3" playbackRate={0} />)).toThrow(/<Audio>: playbackRate must be a finite number above 0/);
+    expect(() => renderAt(0, <Audio src="a.mp3" volume={-1} />)).toThrow(/volume must be a number >= 0/);
+    expect(() => renderAt(0, <Video src="a.mp4" objectFit="cover" style={{ objectFit: 'fill' }} />)).toThrow(/disagree/);
+  });
+});
+
+describe('Lottie props (Remotion parity)', () => {
+  it('passes renderer, preserveAspectRatio and assetsPath to lottie-web and reports the animation', () => {
+    const onAnimationLoaded = vi.fn();
+    renderAt(
+      0,
+      <Lottie
+        animationData={lottieData()}
+        renderer="canvas"
+        preserveAspectRatio="xMidYMid slice"
+        assetsPath="/lottie/images/"
+        onAnimationLoaded={onAnimationLoaded}
+      />,
+    );
+    const { params } = animations[0];
+    expect(params.renderer).toBe('canvas');
+    expect(params.assetsPath).toBe('/lottie/images/');
+    expect((params.rendererSettings as Record<string, unknown>).preserveAspectRatio).toBe('xMidYMid slice');
+    expect(params.animationData).toEqual(lottieData());
+    expect(onAnimationLoaded).toHaveBeenCalledWith(animations[0]);
+  });
+
+  it('plays backwards with direction="backward"', () => {
+    renderAt(15, <Lottie animationData={lottieData()} direction="backward" />);
+    act(() => animations[0].emit('DOMLoaded'));
+    // 30 frames into a 120-frame animation, from its end.
+    expect(animations[0].goToAndStop).toHaveBeenLastCalledWith(90, true);
+  });
+
+  it('getLottieMetadata reads fps, duration and size', () => {
+    expect(getLottieMetadata(lottieData({ op: 90.5 }))).toEqual({
+      fps: 60,
+      durationInFrames: 90,
+      durationInSeconds: 90.5 / 60,
+      width: 100,
+      height: 100,
+    });
+    expect(getLottieMetadata({ ...lottieData(), w: 0 })).toBeNull();
+    // @ts-expect-error not animation data
+    expect(() => getLottieMetadata('a.json')).toThrow(/animationData must be the animation JSON/);
   });
 });

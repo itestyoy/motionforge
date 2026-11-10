@@ -66,6 +66,7 @@ export {
   G,
   staticFile,
 } from './components/Media';
+export type { VideoProps, AudioProps, ImgProps } from './components/Media';
 export { HyperFrame } from './components/HyperFrame';
 export { Particles } from './components/Particles';
 export type { ParticlesProps } from './components/Particles';
@@ -236,9 +237,6 @@ export {
 export type {
   VideoConfig,
   CompositionProps,
-  VideoProps,
-  AudioProps,
-  ImageProps,
   TextProps,
   SpringConfig,
   InterpolateOptions,

@@ -1,7 +1,7 @@
 /**
  * MotionForge Lottie component (loads `lottie-web`):
  *
- *   import { Lottie } from 'motionforge/lottie';
+ *   import { Lottie, getLottieMetadata } from 'motionforge/lottie';
  */
-export { Lottie } from './components/Lottie';
-export type { LottieProps } from './components/Lottie';
+export { Lottie, getLottieMetadata } from './components/Lottie';
+export type { LottieProps, LottieAnimationData } from './components/Lottie';

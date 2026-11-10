@@ -3,6 +3,7 @@
 import React, { useCallback, useRef, useEffect, useState, VideoHTMLAttributes, AudioHTMLAttributes, ImgHTMLAttributes } from 'react';
 import { useCurrentFrame, useVideoConfig } from '../core/context';
 import { useDelayRender } from '../core/delay-render';
+import { usePrefetchedSrc } from '../core/prefetch';
 
 // Absolute Fill - Container component
 interface AbsoluteFillProps {
@@ -53,52 +54,181 @@ const useElementRef = <T,>(callerRef: unknown) => {
 };
 
 /**
- * Media time in seconds for a composition frame. `startFrom` is in frames of
- * the media; each composition frame advances `playbackRate` media frames.
+ * Timing props of Video and Audio, as in Remotion. All in frames of the
+ * composition's fps; `trimBefore`, `trimAfter` and `durationInFrames` count
+ * frames of the media, `playbackRate` media frames per composition frame.
  */
-const getMediaTime = (
+interface MediaTimingProps {
+  /** Media frames cut from the start: frame 0 shows media frame `trimBefore`. */
+  trimBefore?: number;
+  /** Media frame to end at (exclusive); the element unmounts once it is reached (unless `loop`). */
+  trimAfter?: number;
+  /** Media frames to play from `trimBefore` (ends at `trimBefore + durationInFrames`, or `trimAfter` if earlier). */
+  durationInFrames?: number;
+  /** Speed (> 0, default 1): composition frame f shows media frame `trimBefore + f × playbackRate`. */
+  playbackRate?: number;
+  /** Repeat the range from `trimBefore` to `trimAfter` (or to the end of the media). */
+  loop?: boolean;
+  /** 0..1, or a function of the frame (counted from the start of the media, per iteration with `loop`). */
+  volume?: number | ((frame: number) => number);
+  muted?: boolean;
+}
+
+interface MediaTiming {
+  trimBefore: number;
+  /** Effective end in media frames, if any. */
+  end: number | undefined;
+  rate: number;
+  loop: boolean;
+  /** Composition frames the media is shown for without `loop`, if it has an end. */
+  shownFor: number | undefined;
+}
+
+const resolveTiming = (
+  component: string,
+  { trimBefore, trimAfter, durationInFrames, playbackRate = 1, loop = false, volume }: MediaTimingProps,
+): MediaTiming => {
+  const fail = (message: string): never => {
+    throw new Error(`<${component}>: ${message}`);
+  };
+  if (trimBefore !== undefined && !(typeof trimBefore === 'number' && Number.isFinite(trimBefore) && trimBefore >= 0)) {
+    fail(`trimBefore must be a finite number >= 0, got ${trimBefore}`);
+  }
+  if (trimAfter !== undefined && !(typeof trimAfter === 'number' && Number.isFinite(trimAfter) && trimAfter > 0)) {
+    fail(`trimAfter must be a positive finite number, got ${trimAfter}`);
+  }
+  if (trimAfter !== undefined && trimBefore !== undefined && trimAfter <= trimBefore) {
+    fail(`trimAfter (${trimAfter}) must be greater than trimBefore (${trimBefore})`);
+  }
+  if (
+    durationInFrames !== undefined &&
+    !(typeof durationInFrames === 'number' && Number.isFinite(durationInFrames) && durationInFrames > 0)
+  ) {
+    fail(`durationInFrames must be a positive finite number, got ${durationInFrames}`);
+  }
+  if (!(typeof playbackRate === 'number' && Number.isFinite(playbackRate) && playbackRate > 0)) {
+    fail(`playbackRate must be a finite number above 0 (playing backwards is not supported), got ${playbackRate}`);
+  }
+  if (typeof loop !== 'boolean') fail(`loop must be a boolean, got ${JSON.stringify(loop)}`);
+  if (
+    volume !== undefined &&
+    typeof volume !== 'function' &&
+    !(typeof volume === 'number' && Number.isFinite(volume) && volume >= 0)
+  ) {
+    fail(`volume must be a number >= 0 or a function (frame) => number, got ${JSON.stringify(volume)}`);
+  }
+  const start = trimBefore ?? 0;
+  const byDuration = durationInFrames === undefined ? undefined : start + durationInFrames;
+  const end =
+    byDuration === undefined ? trimAfter : trimAfter === undefined ? byDuration : Math.min(trimAfter, byDuration);
+  return {
+    trimBefore: start,
+    end,
+    rate: playbackRate,
+    loop,
+    shownFor: end === undefined || loop ? undefined : (end - start) / playbackRate,
+  };
+};
+
+// Length of one loop iteration in media frames: to the end, or to the end of
+// the media (`mediaDuration` seconds).
+const loopSpan = (component: string, timing: MediaTiming, mediaDuration: number, fps: number): number => {
+  const span = (timing.end ?? mediaDuration * fps) - timing.trimBefore;
+  if (!Number.isFinite(span) || span <= 0) {
+    throw new Error(
+      `<${component}>: loop needs a media with a finite duration after trimBefore, or trimAfter / durationInFrames (duration: ${mediaDuration} s)`,
+    );
+  }
+  return span;
+};
+
+/**
+ * Media time in seconds for local frame `frame`: media frame
+ * `trimBefore + frame × playbackRate`, repeated every loop span with `loop`.
+ */
+const getMediaTime = (component: string, frame: number, fps: number, timing: MediaTiming, mediaDuration: number) => {
+  let elapsed = Math.max(0, frame) * timing.rate;
+  if (timing.loop) {
+    elapsed %= loopSpan(component, timing, mediaDuration, fps);
+  }
+  return (timing.trimBefore + elapsed) / fps;
+};
+
+// The frame a volume function sees: from the start of the media, and from the
+// start of each iteration with `loop` (when the iteration length is known).
+const getVolume = (
+  component: string,
+  volume: MediaTimingProps['volume'],
   frame: number,
   fps: number,
-  startFrom: number,
-  playbackRate: number
-): number => (startFrom + frame * playbackRate) / fps;
+  timing: MediaTiming,
+  mediaDuration: number,
+): number => {
+  if (volume === undefined) return 1;
+  if (typeof volume === 'number') return Math.min(1, volume);
+  let volumeFrame = frame;
+  if (timing.loop && (timing.end !== undefined || Number.isFinite(mediaDuration))) {
+    volumeFrame = frame % (loopSpan(component, timing, mediaDuration, fps) / timing.rate);
+  }
+  const value = volume(volumeFrame);
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`<${component}>: volume(${volumeFrame}) must return a finite number, got ${JSON.stringify(value)}`);
+  }
+  // A media element plays at most at full volume.
+  return Math.min(1, Math.max(0, value));
+};
 
 // Seek when the element is more than half a frame away from the frame's time.
 const needsSeek = (currentTime: number, targetTime: number, fps: number): boolean =>
   Math.abs(currentTime - targetTime) > 0.5 / fps;
 
-// Video Component
-interface VideoProps extends Omit<VideoHTMLAttributes<HTMLVideoElement>, 'src'> {
+const OBJECT_FITS = ['contain', 'cover', 'fill', 'none', 'scale-down'] as const;
+
+export interface VideoProps
+  extends Omit<VideoHTMLAttributes<HTMLVideoElement>, 'src' | 'autoPlay' | 'controls' | 'loop' | 'muted'>,
+    MediaTimingProps {
   src: string;
-  startFrom?: number;
-  endAt?: number;
-  volume?: number | ((frame: number) => number);
-  playbackRate?: number;
-  muted?: boolean;
+  /** How the picture fits the element (CSS object-fit, default 'contain'). */
+  objectFit?: (typeof OBJECT_FITS)[number];
   style?: React.CSSProperties;
-  pauseOnFrame?: boolean;
 }
 
 /**
- * Video synced to the frame. It holds the render gate (delayRender) until the
- * element shows the frame's time: until its data is loaded and, when it has
- * to seek, until `seeked`. A load error goes to cancelRender().
+ * Video synced to the frame, with Remotion's props. It holds the render gate
+ * (delayRender) until the element shows the frame's time: until its data is
+ * loaded and, when it has to seek, until `seeked`. A load error goes to
+ * cancelRender(). Without `loop`, it unmounts once `trimAfter` (or
+ * `trimBefore + durationInFrames`) is reached; past the end of the media it
+ * shows the last frame. The element has no default size: size it with
+ * `style` or `className`.
  */
 export const Video: React.FC<VideoProps> = ({
   src,
-  startFrom = 0,
-  endAt,
-  volume = 1,
-  playbackRate = 1,
-  muted = true,
+  trimBefore,
+  trimAfter,
+  durationInFrames,
+  volume,
+  playbackRate,
+  muted = false,
+  loop,
+  objectFit,
   style,
-  pauseOnFrame = true,
   ...props
 }) => {
   const [videoRef, setVideoRef] = useElementRef<HTMLVideoElement>((props as { ref?: unknown }).ref);
   const currentFrame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const { delayRender, continueRender, cancelRender } = useDelayRender();
+  const timing = resolveTiming('Video', { trimBefore, trimAfter, durationInFrames, playbackRate, loop, volume });
+  const { trimBefore: start, end, rate, loop: looping } = timing;
+  const resolvedSrc = usePrefetchedSrc(src);
+  if (objectFit !== undefined && !OBJECT_FITS.includes(objectFit)) {
+    throw new Error(`<Video>: objectFit must be one of ${OBJECT_FITS.join(', ')}, got ${JSON.stringify(objectFit)}`);
+  }
+  if (objectFit !== undefined && style?.objectFit !== undefined && style.objectFit !== objectFit) {
+    throw new Error(`<Video>: objectFit="${objectFit}" and style.objectFit="${style.objectFit}" disagree; pass one`);
+  }
+  const shown = timing.shownFor === undefined || currentFrame < timing.shownFor;
 
   // Show the frame's time, holding the frame until the element is there.
   useEffect(() => {
@@ -117,17 +247,26 @@ export const Video: React.FC<VideoProps> = ({
       removeListeners();
       continueRender(handle);
     }
-    function fail() {
+    function cancel(error: Error) {
       if (settled) return;
       settled = true;
       removeListeners();
-      const detail = video!.error ? `: ${video!.error.message || `media error code ${video!.error.code}`}` : '';
-      cancelRender(new Error(`<Video> could not load ${src}${detail}`));
+      cancelRender(error);
       continueRender(handle);
+    }
+    function fail() {
+      const detail = video!.error ? `: ${video!.error.message || `media error code ${video!.error.code}`}` : '';
+      cancel(new Error(`<Video> could not load ${src}${detail}`));
     }
     function sync() {
       video!.removeEventListener('loadeddata', sync);
-      const time = getMediaTime(currentFrame, fps, startFrom, playbackRate);
+      let time: number;
+      try {
+        time = getMediaTime('Video', currentFrame, fps, { ...timing }, video!.duration);
+      } catch (error) {
+        cancel(error as Error);
+        return;
+      }
       if (needsSeek(video!.currentTime, time, fps)) {
         video!.addEventListener('seeked', done);
         video!.currentTime = time;
@@ -152,57 +291,50 @@ export const Video: React.FC<VideoProps> = ({
         continueRender(handle);
       }
     };
-  }, [currentFrame, fps, startFrom, playbackRate, src, delayRender, continueRender, cancelRender]);
+    // `timing` is derived from the listed props.
+  }, [currentFrame, fps, start, end, rate, looping, resolvedSrc, shown, delayRender, continueRender, cancelRender]);
 
-  // Handle volume
+  // Volume of the frame (a media element plays at most at 1).
   useEffect(() => {
     if (videoRef.current) {
-      const vol = typeof volume === 'function' ? volume(currentFrame) : volume;
-      videoRef.current.volume = Math.max(0, Math.min(1, vol));
+      videoRef.current.volume = getVolume('Video', volume, currentFrame, fps, timing, videoRef.current.duration);
     }
-  }, [currentFrame, volume]);
+  });
 
-  // Handle playback rate
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.playbackRate = playbackRate;
-    }
-  }, [playbackRate]);
+  if (!shown) return null;
 
   return (
     <video
-      src={src}
+      src={resolvedSrc}
       muted={muted}
       playsInline
-      style={{
-        width: '100%',
-        height: '100%',
-        objectFit: 'cover',
-        ...style,
-      }}
+      style={{ ...style, objectFit: objectFit ?? style?.objectFit ?? 'contain' }}
       {...props}
       ref={setVideoRef}
     />
   );
 };
 
-// Audio Component
-interface AudioProps extends Omit<AudioHTMLAttributes<HTMLAudioElement>, 'src'> {
+export interface AudioProps
+  extends Omit<AudioHTMLAttributes<HTMLAudioElement>, 'src' | 'autoPlay' | 'controls' | 'loop' | 'muted'>,
+    MediaTimingProps {
   src: string;
-  startFrom?: number;
-  endAt?: number;
-  volume?: number | ((frame: number) => number);
-  playbackRate?: number;
-  muted?: boolean;
 }
 
+/**
+ * Audio synced to the frame, with Remotion's props: it seeks to the frame's
+ * time once loaded and on every frame (Video's timing rules). It does not
+ * hold the render gate (a frame has no sound to capture).
+ */
 export const Audio: React.FC<AudioProps> = ({
   src,
-  startFrom = 0,
-  endAt,
-  volume = 1,
-  playbackRate = 1,
+  trimBefore,
+  trimAfter,
+  durationInFrames,
+  volume,
+  playbackRate,
   muted = false,
+  loop,
   onLoadedData,
   ...props
 }) => {
@@ -210,31 +342,32 @@ export const Audio: React.FC<AudioProps> = ({
   const currentFrame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const [loaded, setLoaded] = useState(false);
+  const timing = resolveTiming('Audio', { trimBefore, trimAfter, durationInFrames, playbackRate, loop, volume });
+  const { trimBefore: start, end, rate, loop: looping } = timing;
+  const resolvedSrc = usePrefetchedSrc(src);
+  const shown = timing.shownFor === undefined || currentFrame < timing.shownFor;
 
-  // Calculate audio time based on frame
+  // Seek to the frame's time.
   useEffect(() => {
-    if (audioRef.current && loaded) {
-      const time = getMediaTime(currentFrame, fps, startFrom, playbackRate);
-      if (needsSeek(audioRef.current.currentTime, time, fps)) {
-        audioRef.current.currentTime = time;
+    const audio = audioRef.current;
+    if (audio && loaded) {
+      const time = getMediaTime('Audio', currentFrame, fps, { ...timing }, audio.duration);
+      if (needsSeek(audio.currentTime, time, fps)) {
+        audio.currentTime = time;
       }
     }
-  }, [currentFrame, fps, startFrom, playbackRate, loaded]);
+    // `timing` is derived from the listed props.
+  }, [currentFrame, fps, start, end, rate, looping, loaded]);
 
-  // Handle volume
+  // Volume of the frame.
   useEffect(() => {
     if (audioRef.current) {
-      const vol = typeof volume === 'function' ? volume(currentFrame) : volume;
-      audioRef.current.volume = Math.max(0, Math.min(1, vol));
+      audioRef.current.volume = getVolume('Audio', volume, currentFrame, fps, timing, audioRef.current.duration);
     }
-  }, [currentFrame, volume]);
+  });
 
-  // Handle playback rate
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.playbackRate = playbackRate;
-    }
-  }, [playbackRate]);
+  // A new source loads again.
+  useEffect(() => setLoaded(false), [resolvedSrc]);
 
   // The caller's onLoadedData runs after ours; it must not replace it.
   const handleLoadedData = (event: React.SyntheticEvent<HTMLAudioElement>) => {
@@ -242,10 +375,12 @@ export const Audio: React.FC<AudioProps> = ({
     onLoadedData?.(event);
   };
 
+  if (!shown) return null;
+
   return (
     <audio
       ref={audioRef}
-      src={src}
+      src={resolvedSrc}
       muted={muted}
       {...props}
       onLoadedData={handleLoadedData}
@@ -254,7 +389,7 @@ export const Audio: React.FC<AudioProps> = ({
 };
 
 // Image Component
-interface ImgProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> {
+export interface ImgProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> {
   src: string;
   style?: React.CSSProperties;
   startFrom?: number;
@@ -276,6 +411,8 @@ export const Img: React.FC<ImgProps> = ({
   const currentFrame = useCurrentFrame();
   const [imageRef, setImageRef] = useElementRef<HTMLImageElement>((props as { ref?: unknown }).ref);
   const { delayRender, continueRender, cancelRender } = useDelayRender();
+  // From memory once prefetch() has downloaded it.
+  const resolvedSrc = usePrefetchedSrc(src);
 
   // Check if should render based on frame range
   const shown =
@@ -302,7 +439,7 @@ export const Img: React.FC<ImgProps> = ({
       );
     }
     return () => settle();
-  }, [src, shown, delayRender, continueRender, cancelRender]);
+  }, [src, resolvedSrc, shown, delayRender, continueRender, cancelRender]);
 
   if (!shown) {
     return null;
@@ -310,7 +447,7 @@ export const Img: React.FC<ImgProps> = ({
 
   return (
     <img
-      src={src}
+      src={resolvedSrc}
       alt=""
       style={{
         width: '100%',

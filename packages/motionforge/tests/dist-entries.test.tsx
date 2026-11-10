@@ -9,12 +9,20 @@ import { describe, expect, it } from 'vitest';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-// @ts-expect-error — built output, no types needed here
-import * as main from '../dist/index.js';
-// @ts-expect-error — built output
-import * as three from '../dist/three/index.js';
-// @ts-expect-error — built output
-import * as lottie from '../dist/lottie/index.js';
+// The built output is used untyped: before a build there are no declarations
+// (@ts-ignore, not @ts-expect-error, since after one there are), and a stale
+// dist must not fail the type check.
+// @ts-ignore
+import * as mainEntry from '../dist/index.js';
+// @ts-ignore
+import * as threeEntry from '../dist/three/index.js';
+// @ts-ignore
+import * as lottieEntry from '../dist/lottie/index.js';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const main: any = mainEntry;
+const three: any = threeEntry;
+const lottie: any = lottieEntry;
 
 const packageDir = fileURLToPath(new URL('..', import.meta.url));
 const distDir = join(packageDir, 'dist');
@@ -56,7 +64,7 @@ describe('built entries', () => {
     const render = () =>
       renderToStaticMarkup(
         <main.FrameProvider frame={3} durationInFrames={100} width={100} height={100}>
-          <lottie.Lottie src={{}} />
+          <lottie.Lottie animationData={{ fr: 30, w: 10, h: 10, op: 30 }} />
         </main.FrameProvider>,
       );
     expect(render).not.toThrow();

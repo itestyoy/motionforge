@@ -5,94 +5,144 @@ import lottie, { AnimationItem } from 'lottie-web';
 import { useCurrentFrame, useVideoConfig } from '../core/context';
 import { useDelayRender } from '../core/delay-render';
 
+/** Lottie JSON, as in @remotion/lottie: frame rate `fr`, size `w` × `h`, out point `op`. */
+export type LottieAnimationData = {
+  fr: number;
+  w: number;
+  h: number;
+  op: number;
+} & Record<string | number | symbol, unknown>;
+
+type AspectRatioConstraint =
+  | 'none'
+  | 'xMinYMin'
+  | 'xMidYMin'
+  | 'xMaxYMin'
+  | 'xMinYMid'
+  | 'xMidYMid'
+  | 'xMaxYMid'
+  | 'xMinYMax'
+  | 'xMidYMax'
+  | 'xMaxYMax';
+
 export interface LottieProps {
   /**
-   * Source of the Lottie animation. Can be a URL to a JSON file or an imported JSON object.
-   * An object is compared by content: a new object with the same JSON does not reload.
+   * The animation JSON as an object (import it, or fetch it and pass the
+   * result). It is compared by content: a new object with the same JSON does
+   * not reload.
    */
-  src: string | object;
-  /**
-   * The Lottie frame (on the animation's own timeline) to start from.
-   * Default is 0.
-   */
-  frameStart?: number;
-  /**
-   * The Lottie frame (on the animation's own timeline) to stop at.
-   * Default is the last frame of the Lottie animation.
-   */
-  frameEnd?: number;
-  /**
-   * Playback rate of the Lottie animation.
-   * Default is 1.
-   */
-  playbackRate?: number;
-  /**
-   * Whether the Lottie animation should loop.
-   * Default is false.
-   */
+  animationData: LottieAnimationData;
+  /** 'forward' (default) or 'backward': plays the frames from the end. */
+  direction?: 'forward' | 'backward';
+  /** Repeat the animation (default false: it holds its last frame). */
   loop?: boolean;
-  /**
-   * Width of the Lottie container.
-   */
+  /** Speed (> 0, default 1). */
+  playbackRate?: number;
+  /** lottie-web renderer (default 'svg'). */
+  renderer?: 'svg' | 'canvas' | 'html';
+  /** For the svg and canvas renderers: SVG preserveAspectRatio, e.g. 'xMidYMid slice'. */
+  preserveAspectRatio?: AspectRatioConstraint | `${AspectRatioConstraint} ${'slice' | 'meet'}`;
+  /** Base path of the images the animation references. */
+  assetsPath?: string;
+  /** Called with the lottie-web AnimationItem each time new animation data is loaded. */
+  onAnimationLoaded?: (animation: AnimationItem) => void;
+  /** The Lottie frame (on the animation's own timeline) to start from (default 0). */
+  frameStart?: number;
+  /** The Lottie frame to stop at (default: the last frame of the animation). */
+  frameEnd?: number;
+  /** Width of the container (default 100%). */
   width?: number | string;
-  /**
-   * Height of the Lottie container.
-   */
+  /** Height of the container (default 100%). */
   height?: number | string;
-  /**
-   * Style overrides for the Lottie container.
-   */
+  /** Style of the container. */
   style?: React.CSSProperties;
-  /**
-   * CSS class name for the Lottie container.
-   */
+  /** CSS class of the container. */
   className?: string;
 }
 
-// Identity of a source: the URL, or the JSON of the data. The JSON of an
-// object is computed once per object.
+// The JSON of animation data, computed once per object.
 const jsonOfData = new WeakMap<object, string>();
-const sourceKey = (src: unknown): string => {
-  if (typeof src === 'string' && src !== '') return `url:${src}`;
-  if (typeof src === 'object' && src !== null) {
-    let json = jsonOfData.get(src);
-    if (json === undefined) {
-      json = JSON.stringify(src);
-      jsonOfData.set(src, json);
-    }
-    return `data:${json}`;
+const jsonOf = (data: object): string => {
+  let json = jsonOfData.get(data);
+  if (json === undefined) {
+    json = JSON.stringify(data);
+    jsonOfData.set(data, json);
   }
-  throw new Error(`Lottie: src must be a URL or animation data (an object), got ${JSON.stringify(src)}`);
+  return json;
+};
+
+const checkAnimationData = (component: string, animationData: unknown) => {
+  if (typeof animationData !== 'object' || animationData === null || Array.isArray(animationData)) {
+    throw new Error(
+      `${component}: animationData must be the animation JSON as an object, got ${JSON.stringify(animationData)}. ` +
+        'If you have the URL of the JSON file, fetch it and pass the result as animationData.',
+    );
+  }
 };
 
 /**
- * Lottie Component for MotionForge.
+ * Basic metadata of a Lottie animation (as in @remotion/lottie): its frame
+ * rate, duration and size, or null when the data lacks one of them.
+ */
+export const getLottieMetadata = (
+  animationData: LottieAnimationData,
+): { fps: number; durationInSeconds: number; durationInFrames: number; width: number; height: number } | null => {
+  checkAnimationData('getLottieMetadata', animationData);
+  const { w: width, h: height, fr: fps, op } = animationData;
+  if (![width, height, fps, op].every((value) => typeof value === 'number' && Number.isFinite(value) && value > 0)) {
+    return null;
+  }
+  return { durationInFrames: Math.floor(op), durationInSeconds: op / fps, fps, height, width };
+};
+
+const RENDERERS = ['svg', 'canvas', 'html'];
+
+/**
+ * Lottie animation synced to the frame, with the props of @remotion/lottie.
  *
- * Provides production-grade Lottie support with deterministic frame synchronization.
- * Synchronizes with the MotionForge frame system instead of using time-based playback:
- * composition frame `f` shows the Lottie at time f / fps (times `playbackRate`),
- * whatever the Lottie's own frame rate. It holds the render gate
- * (delayRender) until the data is loaded and the first frame is set. If the
- * animation data cannot be loaded, the error goes to cancelRender() and the
- * component shows it instead of rendering nothing.
+ * Composition frame `f` shows the Lottie at time f / fps (times
+ * `playbackRate`), whatever the Lottie's own frame rate. It holds the render
+ * gate (delayRender) until the data is loaded and the frame is set. If the
+ * animation cannot be loaded, the error goes to cancelRender() and the
+ * component shows it.
  */
 export const Lottie: React.FC<LottieProps> = ({
-  src,
+  animationData,
+  direction = 'forward',
+  loop = false,
+  playbackRate = 1,
+  renderer = 'svg',
+  preserveAspectRatio,
+  assetsPath,
+  onAnimationLoaded,
   frameStart = 0,
   frameEnd,
-  playbackRate = 1,
-  loop = false,
   width,
   height,
   style,
   className,
 }) => {
+  checkAnimationData('Lottie', animationData);
+  if (direction !== 'forward' && direction !== 'backward') {
+    throw new Error(`Lottie: direction must be 'forward' or 'backward', got ${JSON.stringify(direction)}`);
+  }
+  if (typeof loop !== 'boolean') {
+    throw new Error(`Lottie: loop must be a boolean, got ${JSON.stringify(loop)}`);
+  }
+  if (typeof playbackRate !== 'number' || !Number.isFinite(playbackRate) || playbackRate <= 0) {
+    throw new Error(`Lottie: playbackRate must be a finite number above 0, got ${playbackRate}`);
+  }
+  if (!RENDERERS.includes(renderer)) {
+    throw new Error(`Lottie: renderer must be one of ${RENDERERS.join(', ')}, got ${JSON.stringify(renderer)}`);
+  }
   const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<AnimationItem | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { delayRender, continueRender, cancelRender } = useDelayRender();
-  const srcKey = sourceKey(src);
+  const dataKey = jsonOf(animationData);
+  const onLoadedRef = useRef(onAnimationLoaded);
+  onLoadedRef.current = onAnimationLoaded;
   // Held from loading until the frame is set on the loaded animation.
   const loadHandle = useRef<number | null>(null);
 
@@ -100,15 +150,15 @@ export const Lottie: React.FC<LottieProps> = ({
   const currentFrame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // Handle initialization
+  // Load the animation.
   useEffect(() => {
-    // A new source starts unloaded, without the previous source's error.
+    // New data starts unloaded, without the previous data's error.
     setIsLoaded(false);
     setError(null);
     if (typeof window === 'undefined' || !containerRef.current) return;
 
     let isCancelled = false;
-    const handle = delayRender(`<Lottie> ${typeof src === 'string' ? src : 'animation data'}`);
+    const handle = delayRender('<Lottie> animation data');
     loadHandle.current = handle;
     const release = () => {
       continueRender(handle);
@@ -120,45 +170,32 @@ export const Lottie: React.FC<LottieProps> = ({
       release();
     };
 
-    const params: any = {
-      container: containerRef.current,
-      renderer: 'svg',
-      loop: false,
-      autoplay: false,
-      rendererSettings: {
-        progressiveLoad: false,
-        hideOnTransparent: true,
-      }
-    };
-
-    if (typeof src === 'string') {
-      params.path = src;
-    } else {
-      params.animationData = src;
-    }
-
     try {
-      const anim = lottie.loadAnimation(params);
+      const anim = lottie.loadAnimation({
+        container: containerRef.current,
+        renderer: renderer as 'svg',
+        loop: false,
+        autoplay: false,
+        animationData: JSON.parse(dataKey),
+        assetsPath,
+        rendererSettings: {
+          progressiveLoad: false,
+          hideOnTransparent: true,
+          ...(preserveAspectRatio !== undefined ? { preserveAspectRatio } : null),
+        },
+      });
       animationRef.current = anim;
 
       const onLoaded = () => {
-        if (!isCancelled) {
-          setIsLoaded(true);
-        }
+        if (!isCancelled) setIsLoaded(true);
       };
-
       // Both events can be useful depending on how Lottie is loaded
       anim.addEventListener('DOMLoaded', onLoaded);
       anim.addEventListener('data_ready', onLoaded);
       anim.addEventListener('data_failed', () => {
-        if (!isCancelled) {
-          fail(
-            typeof src === 'string'
-              ? `failed to load animation data from ${src}`
-              : 'failed to load animation data'
-          );
-        }
+        if (!isCancelled) fail('failed to load animation data');
       });
+      onLoadedRef.current?.(anim);
 
       return () => {
         isCancelled = true;
@@ -170,26 +207,21 @@ export const Lottie: React.FC<LottieProps> = ({
       fail(err instanceof Error ? err.message : String(err));
       return () => {};
     }
-    // Keyed by `srcKey`: `src` is read when its content changes, not on every new object.
-  }, [srcKey, delayRender, continueRender, cancelRender]);
+    // Keyed by the JSON of the data: a new object with the same data does not reload.
+  }, [dataKey, renderer, preserveAspectRatio, assetsPath, delayRender, continueRender, cancelRender]);
 
-  // Handle frame synchronization
+  // Set the frame.
   useEffect(() => {
     if (!animationRef.current || !isLoaded) return;
 
     const anim = animationRef.current;
-
-    // totalFrames is available once loaded
-    const totalLottieFrames = anim.totalFrames;
-
-    // Determine the range of frames to play
     const start = frameStart;
-    const end = frameEnd ?? totalLottieFrames;
+    const end = frameEnd ?? anim.totalFrames;
     const duration = end - start;
 
     if (duration <= 0) {
       cancelRender(
-        new Error(`<Lottie> frameEnd (${end}) must be greater than frameStart (${start}); the animation has ${totalLottieFrames} frames`),
+        new Error(`<Lottie> frameEnd (${end}) must be greater than frameStart (${start}); the animation has ${anim.totalFrames} frames`),
       );
       if (loadHandle.current !== null) {
         continueRender(loadHandle.current);
@@ -201,17 +233,15 @@ export const Lottie: React.FC<LottieProps> = ({
     // Map the composition frame to the Lottie timeline by time: the Lottie
     // has its own frame rate, and playbackRate speeds it up or slows it down.
     let targetFrame = (currentFrame / fps) * anim.frameRate * playbackRate;
-
     if (loop) {
       targetFrame = ((targetFrame % duration) + duration) % duration;
     } else {
       targetFrame = Math.max(0, Math.min(targetFrame, duration - 0.01));
     }
+    // Backward plays the range from its end.
+    const finalFrame = direction === 'backward' ? start + (duration - targetFrame) : start + targetFrame;
 
-    // finalFrame is relative to the Lottie's original timeline
-    const finalFrame = start + targetFrame;
-
-    // goToAndStop(value, isFrame) - second arg true means it's a frame number, not time
+    // goToAndStop(value, isFrame): the second argument says it is a frame, not a time.
     anim.goToAndStop(finalFrame, true);
 
     // The first frame is drawn: the animation is ready.
@@ -219,7 +249,7 @@ export const Lottie: React.FC<LottieProps> = ({
       continueRender(loadHandle.current);
       loadHandle.current = null;
     }
-  }, [currentFrame, fps, isLoaded, frameStart, frameEnd, playbackRate, loop, continueRender, cancelRender]);
+  }, [currentFrame, fps, isLoaded, frameStart, frameEnd, playbackRate, loop, direction, continueRender, cancelRender]);
 
   const containerStyle: React.CSSProperties = useMemo(() => ({
     width: width ?? '100%',
@@ -228,7 +258,7 @@ export const Lottie: React.FC<LottieProps> = ({
   }), [width, height, style]);
 
   // lottie-web owns the inner container; it stays mounted while an error is
-  // shown, so a new `src` can load into it.
+  // shown, so new data can load into it.
   return (
     <div style={containerStyle} className={className} data-lottie-loaded={isLoaded}>
       <div
