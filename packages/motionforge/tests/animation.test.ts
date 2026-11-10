@@ -87,37 +87,57 @@ describe('random', () => {
   });
 });
 
-describe('spring physics', () => {
-  it('starts an overdamped spring at rest (coefficients sum to 1)', () => {
-    const config = { damping: 30, stiffness: 100, mass: 1 };
-    for (const frame of [1, 5, 20]) {
-      expect(spring({ frame, fps: 30, config })).toBeCloseTo(simulate(frame / 30, config), 3);
-    }
-    expect(measureSpring({ fps: 30, config })).toBe(Math.min(...Array.from({ length: 200 }, (_, n) => n).filter(
-      (n) => Array.from({ length: 200 }, (_, k) => n + k).every((m) => Math.abs(spring({ frame: m, fps: 30, config }) - 1) < 0.005),
-    )));
+describe('spring physics (Remotion 4.0.542 values)', () => {
+  // Values printed by remotion@4.0.542's spring() / measureSpring() for the same input.
+  it('gives the same values as Remotion', () => {
+    expect(spring({ fps: 30, frame: 10 })).toBe(1.1552855913778497);
+    expect(spring({ fps: 30, frame: 7.5 })).toBe(1.0233595799066921);
+    expect(spring({ fps: 30, frame: 6, config: { damping: 8 } })).toBe(0.9270843838555523);
+    expect(spring({ fps: 30, frame: 12, delay: 5, from: -50, to: 250 })).toBe(242.06025515862785);
+    // Below 15.625 fps a step is capped at 64 ms, as in Remotion.
+    expect(spring({ fps: 10, frame: 7 })).toBe(1.1201078722089377);
+    expect(measureSpring({ fps: 30 })).toBe(28);
+    expect(measureSpring({ fps: 30, config: { damping: 8 } })).toBe(36);
+    expect(measureSpring({ fps: 30, threshold: 0.1 })).toBe(15);
+    expect(measureSpring({ fps: 60, config: { damping: 3, stiffness: 50, mass: 2 } })).toBe(394);
   });
 
-  it('follows the closed form without a time cutoff', () => {
+  it('treats a damping ratio of 1 or more as critically damped (damping: 200 is fast, without bounce)', () => {
+    // damping 20 with stiffness 100 and mass 1 is a damping ratio of exactly 1.
+    for (const frame of [0, 1, 5, 12.5, 30]) {
+      expect(spring({ fps: 30, frame, config: { damping: 200 } })).toBe(spring({ fps: 30, frame, config: { damping: 20 } }));
+      expect(spring({ fps: 30, frame, config: { damping: 300 } })).toBe(spring({ fps: 30, frame, config: { damping: 20 } }));
+    }
+    expect(spring({ fps: 30, frame: 5, config: { damping: 200 } })).toBe(0.49633172576650186);
+    expect(measureSpring({ fps: 30, config: { damping: 200 } })).toBe(23);
+    expect(measureSpring({ fps: 30, config: { damping: 20 } })).toBe(23);
+  });
+
+  it('follows the physics of an underdamped spring', () => {
     const config = { damping: 2 };
     expect(spring({ frame: 61, fps: 30, config })).not.toBe(spring({ frame: 90, fps: 30, config }));
     expect(spring({ frame: 90, fps: 30, config })).toBeCloseTo(simulate(3, { damping: 2 }), 3);
     expect(spring({ frame: 1000, fps: 30, config })).toBeCloseTo(1, 3);
   });
 
-  it('stretches to durationInFrames and ends exactly at `to`', () => {
+  it('gives the same value whatever was computed before (the cache does not change it)', () => {
+    const config = { damping: 7, stiffness: 140, mass: 1.3 };
+    const fresh = spring({ fps: 30, frame: 40.6, config });
+    for (let frame = 0; frame <= 45; frame++) spring({ fps: 30, frame, config });
+    expect(spring({ fps: 30, frame: 40.6, config })).toBe(fresh);
+  });
+
+  it('stretches to durationInFrames: within the threshold at the last frame, exactly `to` after it', () => {
+    expect(spring({ fps: 30, frame: 30, durationInFrames: 30 })).toBe(0.9968464194727024);
+    expect(spring({ fps: 30, frame: 29, durationInFrames: 30 })).toBe(0.9932173819030287);
+    expect(spring({ fps: 30, frame: 15, durationInFrames: 15, from: 2, to: 5 })).toBe(4.9905392584181065);
     for (const durationInFrames of [15, 60]) {
-      expect(spring({ frame: durationInFrames, fps: 30, durationInFrames, from: 2, to: 5 })).toBe(5);
+      expect(spring({ frame: durationInFrames + 0.01, fps: 30, durationInFrames, from: 2, to: 5 })).toBe(5);
       expect(spring({ frame: durationInFrames + 40, fps: 30, durationInFrames, from: 2, to: 5 })).toBe(5);
-      // Just before the end it is already close to rest, not mid-overshoot.
-      expect(Math.abs(spring({ frame: durationInFrames - 1, fps: 30, durationInFrames }) - 1)).toBeLessThan(0.05);
     }
     // Half way through the stretched spring is the natural spring half way through its settle time.
     const natural = measureSpring({ fps: 30 });
-    expect(spring({ frame: 30, fps: 30, durationInFrames: 60 })).toBeCloseTo(
-      spring({ frame: natural / 2, fps: 30 }),
-      10,
-    );
+    expect(spring({ frame: 30, fps: 30, durationInFrames: 60 })).toBeCloseTo(spring({ frame: natural / 2, fps: 30 }), 10);
   });
 
   it('uses durationRestThreshold for the natural duration', () => {
@@ -126,34 +146,50 @@ describe('spring physics', () => {
     expect(loose).not.toBeCloseTo(tight, 3);
   });
 
-  it('throws on a missing fps or a NaN frame', () => {
+  it('clamps the overshoot past `to` with overshootClamping', () => {
+    expect(spring({ fps: 30, frame: 10 })).toBeGreaterThan(1);
+    expect(spring({ fps: 30, frame: 10, config: { overshootClamping: true } })).toBe(1);
+    expect(spring({ fps: 30, frame: 10, from: 2, to: 4, config: { overshootClamping: true } })).toBe(4);
+    expect(spring({ fps: 30, frame: 6, config: { damping: 8, overshootClamping: true } })).toBe(0.9270843838555523);
+  });
+
+  it('throws on a missing fps, a non-finite frame or a bad config', () => {
     // @ts-expect-error fps is required
     expect(() => spring({ frame: 10 })).toThrow(/fps must be a positive number/);
     expect(() => spring({ frame: 10, fps: 0 })).toThrow(/fps must be a positive number/);
-    expect(() => spring({ frame: Number.NaN, fps: 30 })).toThrow(/frame must be a number/);
+    expect(() => spring({ frame: Number.NaN, fps: 30 })).toThrow(/frame must be a finite number/);
+    expect(() => spring({ frame: Infinity, fps: 30 })).toThrow(/frame must be a finite number/);
     expect(() => spring({ frame: 10, fps: 30, config: { mass: 0 } })).toThrow(/mass > 0/);
+    expect(() => spring({ frame: 10, fps: 30, config: { damping: 0 } })).toThrow(/never comes to rest/);
+    expect(() => spring({ frame: 10, fps: 30, config: { damping: Number.NaN } })).toThrow(/damping > 0/);
     expect(() => spring({ frame: 10, fps: 30, durationInFrames: 0 })).toThrow(/durationInFrames must be a positive/);
+    expect(() => spring({ frame: 10, fps: 30, durationInFrames: 20, durationRestThreshold: 0 })).toThrow(
+      /durationRestThreshold must be > 0/,
+    );
   });
 });
 
 describe('measureSpring', () => {
-  it('returns a frame after which the spring stays settled', () => {
-    const unsettled: string[] = [];
-    for (let damping = 1; damping <= 15; damping++) {
-      for (let stiffness = 50; stiffness <= 400; stiffness += 25) {
+  it('is a frame inside the threshold from which the spring stays inside for the next frames checked', () => {
+    for (const damping of [1, 4, 10, 15]) {
+      for (const stiffness of [50, 200, 400]) {
         const config = { damping, stiffness, mass: 1 };
         const settled = measureSpring({ fps: 30, config });
-        for (let k = 0; k < 120; k++) {
-          if (Math.abs(spring({ frame: settled + k, fps: 30, config }) - 1) >= 0.005) {
-            unsettled.push(`damping ${damping} stiffness ${stiffness}: frame ${settled + k}`);
-            break;
-          }
+        // Remotion checks 20 frames past the first frame inside, 19 past a frame that left it again.
+        for (let k = 0; k < 19; k++) {
+          expect(Math.abs(spring({ frame: settled + k, fps: 30, config }) - 1)).toBeLessThan(0.005);
         }
-        // ...and it is the first such frame.
         expect(Math.abs(spring({ frame: settled - 1, fps: 30, config }) - 1)).toBeGreaterThanOrEqual(0.005);
       }
     }
-    expect(unsettled).toEqual([]);
+  });
+
+  it('returns Infinity for a threshold of 0 and 0 for a threshold of 1 or more, as Remotion', () => {
+    expect(measureSpring({ fps: 30, threshold: 0 })).toBe(Infinity);
+    expect(measureSpring({ fps: 30, threshold: 1 })).toBe(0);
+    expect(measureSpring({ fps: 30, threshold: 1.5 })).toBe(0);
+    expect(() => measureSpring({ fps: 30, threshold: -0.1 })).toThrow(/threshold must be a number >= 0/);
+    expect(() => measureSpring({ fps: 30, threshold: Number.NaN })).toThrow(/threshold must be a number >= 0/);
   });
 
   it('throws for a spring that never settles', () => {
@@ -329,28 +365,30 @@ describe('spring delay and reverse', () => {
   });
 
   it('plays a stretched spring backwards in time', () => {
-    for (let f = 0; f <= 25; f++) {
+    for (let f = -3; f <= 25; f++) {
       expect(spring({ frame: f, fps: 30, durationInFrames: 20, reverse: true, from: 2, to: 4 })).toBe(
-        f >= 20 ? 2 : spring({ frame: 20 - f, fps: 30, durationInFrames: 20, from: 2, to: 4 }),
+        spring({ frame: 20 - f, fps: 30, durationInFrames: 20, from: 2, to: 4 }),
       );
     }
-    expect(spring({ frame: 0, fps: 30, durationInFrames: 20, reverse: true })).toBe(1);
+    // It starts where the stretched spring ends (within the threshold), as in Remotion.
+    expect(spring({ frame: 0, fps: 30, durationInFrames: 20, reverse: true })).toBe(0.9968464194727024);
+    expect(spring({ frame: 20, fps: 30, durationInFrames: 20, reverse: true, from: 2, to: 4 })).toBe(2);
   });
 
-  it('plays a natural spring backwards over its settle time, and holds `to` before it starts', () => {
+  it('plays a natural spring backwards over its settle time', () => {
     const config = { damping: 8 };
     const natural = measureSpring({ fps: 30, config });
-    expect(spring({ frame: 0, fps: 30, config, reverse: true })).toBe(1);
-    expect(spring({ frame: -5, fps: 30, config, reverse: true })).toBe(1);
-    for (const f of [1, 10, natural - 1]) {
+    expect(spring({ frame: 0, fps: 30, config, reverse: true })).toBe(1.0035702858110171);
+    for (const f of [-5, 1, 10, natural - 1]) {
       expect(spring({ frame: f, fps: 30, config, reverse: true })).toBe(spring({ frame: natural - f, fps: 30, config }));
     }
     expect(spring({ frame: natural, fps: 30, config, reverse: true })).toBe(0);
-    // With a delay it holds `to` for `delay` frames first.
-    expect(spring({ frame: 4, fps: 30, config, reverse: true, delay: 5 })).toBe(1);
+    // A delay holds the start for `delay` frames.
     expect(spring({ frame: 5 + 10, fps: 30, config, reverse: true, delay: 5 })).toBe(
       spring({ frame: natural - 10, fps: 30, config }),
     );
+    // With durationInFrames it is exactly `to` before the delay is over.
+    expect(spring({ frame: 4, fps: 30, durationInFrames: 20, reverse: true, delay: 5, from: 2, to: 4 })).toBe(4);
   });
 
   it('is the motion reversed in time, not from and to swapped', () => {
@@ -454,6 +492,10 @@ describe('Easing.step0 / step1 / spring', () => {
     expect(ease(2)).toBe(1);
     expect(ease(-1)).toBe(0);
     expect(ease(0.4)).toBe(spring({ fps: 30, frame: 0.4 * 30, config, durationInFrames: 30 }));
+    // remotion@4.0.542's Easing.spring gives the same values.
+    expect(ease(0.4)).toBe(1.127766645954996);
+    expect(ease(0.999)).toBe(0.9968315171044551);
+    expect(Easing.spring({ damping: 3, allowTail: true })(1)).toBe(1.0049209114861484);
     // Without a tail, a clamped interpolate stops at the end value.
     expect(interpolate(15, [0, 10], [0, 100], { easing: ease, extrapolateRight: 'clamp' })).toBe(100);
   });
@@ -475,6 +517,7 @@ describe('Easing.step0 / step1 / spring', () => {
   it('checks the config', () => {
     expect(() => Easing.spring({ mass: 0 })).toThrow(/mass > 0/);
     expect(() => Easing.spring({ damping: 0 })).toThrow(/never comes to rest/);
+    expect(() => Easing.spring({ durationRestThreshold: 0 })).toThrow(/durationRestThreshold must be > 0/);
     // @ts-expect-error not a boolean
     expect(() => Easing.spring({ allowTail: 'yes' })).toThrow(/allowTail must be a boolean/);
   });

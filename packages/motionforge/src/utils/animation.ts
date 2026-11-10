@@ -195,10 +195,11 @@ export interface EasingSpringConfig {
   stiffness?: number;
   overshootClamping?: boolean;
   /**
-   * Without it (default false) the spring is stretched to settle exactly at
-   * t = 1. With it, t = 1 is the time the spring settles to within
-   * `durationRestThreshold`, and the motion goes on after it: interpolate()
-   * continues it past the end of the segment, even with extrapolateRight 'clamp'.
+   * Without it (default false) the spring is stretched so that it settles (to
+   * within `durationRestThreshold`) at t = 1, and is exactly 1 from t = 1 on.
+   * With it, t = 1 is the time the spring settles, and the motion goes on
+   * after it: interpolate() continues it past the end of the segment, even
+   * with extrapolateRight 'clamp'.
    */
   allowTail?: boolean;
   /** Distance from the target that counts as settled (default 0.005). */
@@ -258,9 +259,9 @@ export const Easing = {
   bounce: pinned((t) => easeOutBounce(clampUnit(t))),
   bezier: cubicBezier,
   /**
-   * A spring as an easing (Remotion's Easing.spring): the spring() motion
-   * from 0 to 1 with this config, on a 30 fps clock. See EasingSpringConfig
-   * for `allowTail`.
+   * A spring as an easing (Remotion's Easing.spring, same values): the
+   * spring() motion from 0 to 1 with this config, on a 30 fps clock. See
+   * EasingSpringConfig for `allowTail`.
    */
   spring: (config: EasingSpringConfig = {}): EasingFunction => {
     if (typeof config !== 'object' || config === null) {
@@ -271,16 +272,18 @@ export const Easing = {
       throw new Error(`Easing.spring: allowTail must be a boolean, got ${JSON.stringify(allowTail)}`);
     }
     resolveSpringConfig('Easing.spring', springConfig);
+    // Checks the threshold now rather than on the first call.
+    const settle = measureSpring({ fps: SPRING_EASING_FPS, config: springConfig, threshold: durationRestThreshold });
+    if (settle === Infinity) {
+      throw new Error('Easing.spring: durationRestThreshold must be > 0 (with 0 the spring never settles)');
+    }
     if (allowTail) {
       // The natural motion: t = 1 is the frame it settles at.
-      const settle = measureSpring({ fps: SPRING_EASING_FPS, config: springConfig, threshold: durationRestThreshold });
       const easing: EasingFunction = (t) =>
         t <= 0 ? 0 : spring({ fps: SPRING_EASING_FPS, frame: t * settle, config: springConfig });
       extendsRight.add(easing);
       return easing;
     }
-    // Throws now for a config that never settles (spring() would on the first call).
-    measureSpring({ fps: SPRING_EASING_FPS, config: springConfig, threshold: durationRestThreshold });
     return (t) => {
       if (t <= 0) return 0;
       if (t >= 1) return 1;
@@ -314,85 +317,138 @@ export const Easing = {
 const isPositive = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0;
 
-const resolveSpringConfig = (fn: string, config: SpringConfig['config'] = {}) => {
+interface ResolvedSpringConfig {
+  damping: number;
+  mass: number;
+  stiffness: number;
+  overshootClamping: boolean;
+}
+
+const resolveSpringConfig = (fn: string, config: SpringConfig['config'] = {}): ResolvedSpringConfig => {
   const { damping = 10, mass = 1, stiffness = 100, overshootClamping = false } = config;
-  if (!isPositive(mass) || !isPositive(stiffness) || !Number.isFinite(damping) || damping < 0) {
+  if (typeof damping === 'number' && damping <= 0) {
+    throw new Error(`${fn}: damping must be > 0 (a spring without damping never comes to rest), got ${damping}`);
+  }
+  if (!isPositive(mass) || !isPositive(stiffness) || !isPositive(damping)) {
     throw new Error(
-      `${fn}: config needs mass > 0, stiffness > 0 and damping >= 0, got mass ${mass}, stiffness ${stiffness}, damping ${damping}`
+      `${fn}: config needs mass > 0, stiffness > 0 and damping > 0, got mass ${mass}, stiffness ${stiffness}, damping ${damping}`
     );
   }
+  return { damping, mass, stiffness, overshootClamping };
+};
+
+// The spring is Remotion's (packages/core/src/spring): a simulation stepped
+// once per frame, each step the exact solution of the damped oscillator over
+// that step (at most 64 ms long). A damping ratio of 1 or more is treated as
+// critically damped. The arithmetic follows Remotion's operation by operation,
+// so the values are the same to the last bit.
+
+interface SpringNode {
+  current: number;
+  velocity: number;
+  lastTimestamp: number;
+}
+
+const advanceSpring = (node: SpringNode, now: number, { damping, mass, stiffness }: ResolvedSpringConfig): SpringNode => {
+  const toValue = 1;
+  const { lastTimestamp, current, velocity } = node;
+  const deltaTime = Math.min(now - lastTimestamp, 64);
+
+  const c = damping;
+  const m = mass;
+  const k = stiffness;
+  const v0 = -velocity;
+  const x0 = toValue - current;
+
+  const zeta = c / (2 * Math.sqrt(k * m)); // damping ratio
+  const omega0 = Math.sqrt(k / m); // undamped angular frequency
+  const omega1 = omega0 * Math.sqrt(1 - zeta ** 2); // damped angular frequency
+
+  const t = deltaTime / 1000;
+
+  if (zeta < 1) {
+    const sin1 = Math.sin(omega1 * t);
+    const cos1 = Math.cos(omega1 * t);
+    const envelope = Math.exp(-zeta * omega0 * t);
+    const frag1 = envelope * (sin1 * ((v0 + zeta * omega0 * x0) / omega1) + x0 * cos1);
+    return {
+      current: toValue - frag1,
+      // The derivative of the position.
+      velocity: zeta * omega0 * frag1 - envelope * (cos1 * (v0 + zeta * omega0 * x0) - omega1 * x0 * sin1),
+      lastTimestamp: now,
+    };
+  }
+  const envelope = Math.exp(-omega0 * t);
   return {
-    omega: Math.sqrt(stiffness / mass),
-    zeta: damping / (2 * Math.sqrt(stiffness * mass)),
-    overshootClamping,
+    current: toValue - envelope * (x0 + (v0 + omega0 * x0) * t),
+    velocity: envelope * (v0 * (t * omega0 - 1) + t * x0 * omega0 * omega0),
+    lastTimestamp: now,
   };
 };
 
-// Position of a spring released at rest from 0 towards 1, after `time` seconds.
-const springStep = (time: number, omega: number, zeta: number): number => {
-  if (zeta < 1 - 1e-6) {
-    // Underdamped
-    const omegaD = omega * Math.sqrt(1 - zeta * zeta);
-    return 1 - Math.exp(-zeta * omega * time) * (
-      Math.cos(omegaD * time) + (zeta * omega / omegaD) * Math.sin(omegaD * time)
-    );
+// Simulated positions and velocities at whole frames, per fps and config, so
+// that rendering frame after frame steps the simulation once per frame. The
+// values do not depend on what is cached: dropping a cache only costs time.
+interface SpringSimulation {
+  current: number[];
+  velocity: number[];
+}
+const SPRING_CACHE_LIMIT = 256;
+const simulations = new Map<string, SpringSimulation>();
+
+const simulationOf = (fps: number, config: ResolvedSpringConfig): SpringSimulation => {
+  const key = `${fps}-${config.damping}-${config.mass}-${config.stiffness}`;
+  let simulation = simulations.get(key);
+  if (!simulation) {
+    if (simulations.size >= SPRING_CACHE_LIMIT) simulations.clear();
+    simulation = { current: [], velocity: [] };
+    simulations.set(key, simulation);
   }
-  if (zeta <= 1 + 1e-6) {
-    // Critically damped
-    return 1 - (1 + omega * time) * Math.exp(-omega * time);
-  }
-  // Overdamped: x = 1 - c1·e^(r1·t) - c2·e^(r2·t) with x(0) = 0 and x'(0) = 0.
-  const root = Math.sqrt(zeta * zeta - 1);
-  const r1 = -omega * (zeta - root);
-  const r2 = -omega * (zeta + root);
-  const c1 = r2 / (r2 - r1);
-  const c2 = -r1 / (r2 - r1);
-  return 1 - c1 * Math.exp(r1 * time) - c2 * Math.exp(r2 * time);
+  return simulation;
 };
 
-// First frame from which the spring stays within `threshold` of its target.
-const settleFrame = (fps: number, omega: number, zeta: number, threshold: number): number => {
-  const off = (n: number) => Math.abs(springStep(n / fps, omega, zeta) - 1);
-
-  if (zeta >= 1 - 1e-6) {
-    // Critically damped and overdamped springs approach 1 without overshoot,
-    // so the first frame inside the threshold is the answer: search for it.
-    let hi = 1;
-    while (off(hi) >= threshold) hi *= 2;
-    let lo = 0;
-    while (hi - lo > 1) {
-      const mid = Math.floor((lo + hi) / 2);
-      if (off(mid) >= threshold) lo = mid;
-      else hi = mid;
-    }
-    return hi;
+// Position of a spring released at rest from 0 towards 1, at `frame` (frames
+// before 0 are frame 0). A fractional frame is one more, shorter step from the
+// whole frame before it.
+const springPosition = (frame: number, fps: number, config: ResolvedSpringConfig): number => {
+  const { current, velocity } = simulationOf(fps, config);
+  const frameClamped = Math.max(0, frame);
+  const whole = Math.floor(frameClamped);
+  for (let f = current.length; f <= whole; f++) {
+    const previous: SpringNode =
+      f === 0
+        ? { current: 0, velocity: 0, lastTimestamp: 0 }
+        : { current: current[f - 1], velocity: velocity[f - 1], lastTimestamp: ((f - 1) / fps) * 1000 };
+    const node = advanceSpring(previous, (f / fps) * 1000, config);
+    current.push(node.current);
+    velocity.push(node.velocity);
   }
-
-  if (zeta === 0) {
-    throw new Error('measureSpring: a spring with damping 0 oscillates forever and never comes to rest');
+  if (frameClamped % 1 > 0) {
+    const node: SpringNode = { current: current[whole], velocity: velocity[whole], lastTimestamp: (whole / fps) * 1000 };
+    return advanceSpring(node, (frameClamped / fps) * 1000, config).current;
   }
-  // |x - 1| never exceeds the envelope e^(-ζωt) / sqrt(1 - ζ²); past the time
-  // the envelope drops below the threshold, the spring has settled for good.
-  // Walk back from there to the last frame that is still outside the threshold.
-  const envelopeTime = Math.log(1 / (threshold * Math.sqrt(1 - zeta * zeta))) / (zeta * omega);
-  for (let n = Math.ceil(envelopeTime * fps); n >= 0; n--) {
-    if (off(n) >= threshold) return n + 1;
-  }
-  return 0;
+  return current[whole];
 };
 
 /**
- * Spring from `from` to `to`, released at rest at frame `delay` (default 0).
+ * Spring from `from` to `to`, as Remotion's spring(): the same values for the
+ * same input.
  *
- * Without `durationInFrames` it follows the physics of `config` and settles
- * when it settles. With `durationInFrames` the motion is stretched in time so
- * that it settles (to within `durationRestThreshold`) at `durationInFrames`,
- * and from that frame on it is exactly `to`.
+ * The spring is released at rest at frame `delay` (default 0) and before that
+ * is at `from`. A damping ratio `damping / (2·√(stiffness·mass))` of 1 or
+ * more is critically damped (as in Remotion, so `damping: 200` is a fast
+ * spring without bounce, not a slow overdamped one). `overshootClamping`
+ * keeps the motion from passing `to`.
  *
- * `reverse` plays the motion backwards in time, as in Remotion: it starts at
- * `to` and comes to rest at `from` after its length (`durationInFrames`, or
- * the natural settle time measureSpring({ fps, config, threshold:
- * durationRestThreshold })). Before it starts it is exactly `to`.
+ * With `durationInFrames` the motion is stretched in time so that its natural
+ * settle time (`measureSpring({ fps, config, threshold:
+ * durationRestThreshold })`) becomes `durationInFrames`: at that frame it is
+ * within the threshold of `to` (not exactly `to`), and after it it is exactly
+ * `to`.
+ *
+ * `reverse` plays the motion backwards in time: it starts near `to` and comes
+ * to rest at `from` after its length (`durationInFrames`, or the natural
+ * settle time); `delay` then holds it at its start for `delay` frames.
  */
 export const spring = ({
   frame,
@@ -401,15 +457,15 @@ export const spring = ({
   from = 0,
   to = 1,
   durationInFrames,
-  durationRestThreshold = 0.005,
+  durationRestThreshold,
   delay = 0,
   reverse = false,
 }: SpringConfig): number => {
   if (!isPositive(fps)) {
     throw new Error(`spring: fps must be a positive number (use useVideoConfig().fps), got ${fps}`);
   }
-  if (typeof frame !== 'number' || Number.isNaN(frame)) {
-    throw new Error(`spring: frame must be a number, got ${frame}`);
+  if (typeof frame !== 'number' || !Number.isFinite(frame)) {
+    throw new Error(`spring: frame must be a finite number, got ${frame}`);
   }
   if (!Number.isFinite(from) || !Number.isFinite(to)) {
     throw new Error(`spring: from and to must be finite numbers, got ${from} and ${to}`);
@@ -423,36 +479,31 @@ export const spring = ({
   if (typeof reverse !== 'boolean') {
     throw new Error(`spring: reverse must be a boolean, got ${reverse}`);
   }
-  const { omega, zeta, overshootClamping } = resolveSpringConfig('spring', config);
+  const resolved = resolveSpringConfig('spring', config);
 
-  const naturalDuration =
-    reverse || durationInFrames !== undefined
-      ? measureSpring({ fps, config, threshold: durationRestThreshold })
-      : 0;
-  // Frames since the release, on the spring's own clock; reversed, the clock
-  // runs from the end of the motion back to its start.
-  const elapsed = frame - delay;
-  const local = reverse ? (durationInFrames ?? naturalDuration) - elapsed : elapsed;
-
-  // Before the spring starts it rests at `from` (the closed form grows without
-  // bound for negative time).
-  if (local <= 0) return from;
-  if (reverse && local >= (durationInFrames ?? naturalDuration)) return to;
-
-  let time = local / fps;
-  if (durationInFrames !== undefined) {
-    if (local >= durationInFrames) return to;
-    time = (local * naturalDuration) / durationInFrames / fps;
+  let naturalDuration = 0;
+  if (reverse || durationInFrames !== undefined) {
+    naturalDuration = measureSpring({ fps, config, threshold: durationRestThreshold });
+    if (naturalDuration === Infinity) {
+      throw new Error('spring: durationRestThreshold must be > 0 with durationInFrames or reverse (with 0 the spring never settles)');
+    }
   }
 
-  let value = springStep(time, omega, zeta);
+  // Remotion's order of operations, so that the frame (and the value) is the same to the last bit.
+  const reverseProcessed = reverse ? (durationInFrames ?? naturalDuration) - frame : frame;
+  const delayProcessed = reverseProcessed + (reverse ? delay : -delay);
+  const durationProcessed =
+    durationInFrames === undefined ? delayProcessed : delayProcessed / (durationInFrames / naturalDuration);
 
-  // Clamp overshoot if needed
-  if (overshootClamping) {
-    value = Math.max(0, Math.min(1, value));
+  if (durationInFrames !== undefined && delayProcessed > durationInFrames) {
+    return to;
   }
 
-  return from + (to - from) * value;
+  const current = springPosition(durationProcessed, fps, resolved);
+  const inner = resolved.overshootClamping ? Math.min(current, 1) : current;
+  if (from === 0 && to === 1) return inner;
+  // interpolate(inner, [0, 1], [from, to]) as Remotion computes it.
+  return from === to ? from : inner * (to - from) + from;
 };
 
 // Index of the segment [inputRange[i], inputRange[i + 1]] that `input` falls in;
@@ -694,10 +745,14 @@ export const useKeyframes = (
   return progress < 0.5 ? prev.value : next.value;
 };
 
+const measureCache = new Map<string, number>();
+
 /**
- * Number of frames until a spring released at frame 0 has settled: from the
- * returned frame on, it stays within `threshold` (a fraction of the distance
- * from `from` to `to`) of its target.
+ * Number of frames until a spring released at frame 0 has settled, as
+ * Remotion's measureSpring() (same values): the first frame within
+ * `threshold` (a fraction of the distance from `from` to `to`, default 0.005)
+ * of its target, moved past any frame within the next 20 that is outside it
+ * again. A threshold of 0 gives Infinity, of 1 or more 0.
  */
 export const measureSpring = ({
   fps,
@@ -711,11 +766,35 @@ export const measureSpring = ({
   if (!isPositive(fps)) {
     throw new Error(`measureSpring: fps must be a positive number, got ${fps}`);
   }
-  if (!isPositive(threshold) || threshold >= 1) {
-    throw new Error(`measureSpring: threshold must be between 0 and 1, got ${threshold}`);
+  if (typeof threshold !== 'number' || !Number.isFinite(threshold) || threshold < 0) {
+    throw new Error(`measureSpring: threshold must be a number >= 0, got ${threshold}`);
   }
-  const { omega, zeta } = resolveSpringConfig('measureSpring', config);
-  return settleFrame(fps, omega, zeta, threshold);
+  const resolved = resolveSpringConfig('measureSpring', config);
+  if (threshold === 0) return Infinity;
+  if (threshold === 1) return 0;
+
+  const key = `${fps}-${resolved.damping}-${resolved.mass}-${resolved.stiffness}-${threshold}`;
+  const cached = measureCache.get(key);
+  if (cached !== undefined) return cached;
+
+  const difference = (n: number) => Math.abs(springPosition(n, fps, resolved) - 1);
+  let frame = 0;
+  while (difference(frame) >= threshold) frame++;
+
+  // A bouncy spring can leave the threshold again: it has settled once it
+  // stays inside for 20 frames (Remotion's loop, counted the same way).
+  let finishedFrame = frame;
+  for (let i = 0; i < 20; i++) {
+    frame++;
+    if (difference(frame) >= threshold) {
+      i = 0;
+      finishedFrame = frame + 1;
+    }
+  }
+
+  if (measureCache.size >= SPRING_CACHE_LIMIT) measureCache.clear();
+  measureCache.set(key, finishedFrame);
+  return finishedFrame;
 };
 
 // Calculate frames from seconds
