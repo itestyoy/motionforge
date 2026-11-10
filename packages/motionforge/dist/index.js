@@ -1,10 +1,5 @@
-export { Player } from './chunk-2CL3HJL7.js';
-export { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, BoxIcon, CalendarIcon, CameraIcon, CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, ClockIcon, CloseIcon, CommentIcon, CopyIcon, DeleteIcon, DownloadIcon, EditIcon, ErrorIcon, FastForwardIcon, FileIcon, FilmIcon, FolderIcon, FullscreenExitIcon, FullscreenIcon, HeartIcon, HeartOutlineIcon, icons_default as Icons, ImageIcon, InfoIcon, LayersIcon, LightningIcon, Loader2Icon, MagicWandIcon, MicIcon, MinusIcon, MusicIcon, PauseIcon, PlayIcon, PlusIcon, QuestionIcon, RefreshIcon, RepeatIcon, ReplayIcon, RewindIcon, SaveIcon, SearchIcon, SettingsIcon, ShareIcon, ShuffleIcon, SkipBackIcon, SkipForwardIcon, SparkleIcon, StarIcon, StarOutlineIcon, StopIcon, SuccessIcon, ThumbDownIcon, ThumbUpIcon, TimerIcon, TypeIcon, UploadIcon, VideoIcon, VolumeHighIcon, VolumeLowIcon, VolumeMediumIcon, VolumeMuteIcon, WarningIcon, ZapIcon } from './chunk-SQF3SIZE.js';
-import { MemoCache } from './chunk-NVLPO7LR.js';
-export { FrameCache, MemoCache, RenderJobManager, buildFFmpegCommand, calculateVideoSize, createDebouncedCache, createThrottledCache, downloadFrame, downloadVideo, estimateRenderTime, frameCache, frameToDataURL, generateFrames, renderCompositionToVideo, renderJobManager, renderVideo, validateRenderConfig } from './chunk-NVLPO7LR.js';
-import { useVideoConfig, FrameProvider, FrameContext, useCurrentFrame } from './chunk-CNOLXIYJ.js';
-export { CompositionManagerProvider, FrameProvider, PlayerProvider, useCurrentFrame, useTimelineState, useVideoConfig } from './chunk-CNOLXIYJ.js';
-export { CanvasRenderer, FrameSequenceEncoder, VideoExportManager, WebMEncoder, calculateProgress, checkEncodingSupport, estimateFileSize, videoExportManager } from './chunk-PWPXXYNF.js';
+import { useVideoConfig, FrameProvider, useCurrentFrame, FrameContext } from './chunk-HRUP2L62.js';
+export { FrameProvider, useCurrentFrame, useVideoConfig } from './chunk-HRUP2L62.js';
 import React2, { createContext, useContext, useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { jsx, jsxs } from 'react/jsx-runtime';
 
@@ -20,6 +15,7 @@ var useVideoConfig2 = () => useVideoConfig();
 var Composition = ({
   id,
   component: Component,
+  frame,
   width = 1920,
   height = 1080,
   fps = 30,
@@ -36,77 +32,16 @@ var Composition = ({
       children: /* @__PURE__ */ jsx(
         FrameProvider,
         {
-          fps,
-          durationInFrames,
-          width,
-          height,
-          children: /* @__PURE__ */ jsx(Component, { ...defaultProps })
-        }
-      )
-    }
-  );
-};
-var PlayerComposition = ({
-  id,
-  component: Component,
-  width = 1920,
-  height = 1080,
-  fps = 30,
-  durationInFrames,
-  defaultProps = {},
-  frame,
-  playing = false,
-  playbackRate = 1
-}) => {
-  return /* @__PURE__ */ jsx(
-    CompositionContext.Provider,
-    {
-      value: {
-        id,
-        config: { width, height, fps, durationInFrames }
-      },
-      children: /* @__PURE__ */ jsx(
-        StaticFrameProvider,
-        {
-          fps,
-          durationInFrames,
-          width,
-          height,
           frame,
-          playing,
-          playbackRate,
+          fps,
+          durationInFrames,
+          width,
+          height,
           children: /* @__PURE__ */ jsx(Component, { ...defaultProps })
         }
       )
     }
   );
-};
-var StaticFrameProvider = ({
-  fps,
-  durationInFrames,
-  width,
-  height,
-  frame,
-  playing,
-  playbackRate,
-  children
-}) => {
-  const value = {
-    frame,
-    fps,
-    durationInFrames,
-    width,
-    height,
-    playing,
-    playbackRate,
-    setFrame: () => {
-    },
-    setPlaying: () => {
-    },
-    setPlaybackRate: () => {
-    }
-  };
-  return /* @__PURE__ */ jsx(FrameContext.Provider, { value, children });
 };
 var SequenceContext = createContext({
   relativeFrom: 0,
@@ -2629,6 +2564,46 @@ var usePulse = (minScale, maxScale, frequency) => {
   const scale2 = interpolate(progress, [0, 1], [minScale, maxScale]);
   return { transform: `scale(${scale2})` };
 };
+
+// src/utils/memoCache.ts
+var MemoCache = class _MemoCache {
+  constructor() {
+    this.cache = /* @__PURE__ */ new Map();
+  }
+  static getInstance() {
+    if (!_MemoCache.instance) {
+      _MemoCache.instance = new _MemoCache();
+    }
+    return _MemoCache.instance;
+  }
+  /**
+   * Get or compute a memoized value
+   */
+  getOrCompute(key, compute, deps = []) {
+    const cached = this.cache.get(key);
+    if (cached && this.depsEqual(cached.deps, deps)) {
+      return cached.value;
+    }
+    const value = compute();
+    this.cache.set(key, { value, deps });
+    return value;
+  }
+  /**
+   * Check if dependencies are equal
+   */
+  depsEqual(a, b) {
+    if (a.length !== b.length) return false;
+    return a.every((val, i) => Object.is(val, b[i]));
+  }
+  /**
+   * Clear all memoized values
+   */
+  clear() {
+    this.cache.clear();
+  }
+};
+
+// src/hooks/performance.ts
 function useMemoizedFrame(compute, deps = []) {
   const frame = useCurrentFrame();
   const memoCache = useMemo(() => MemoCache.getInstance(), []);
@@ -2699,7 +2674,8 @@ function useRenderPriority() {
   return useMemo(() => "high", []);
 }
 /**
- * MotionForge - A React-based framework for creating videos programmatically
+ * MotionForge - headless React SDK for frame-based motion: scenes are a pure
+ * function of the frame; the host app owns time, rendering and playback.
  *
  * Build stunning videos with React components, spring animations,
  * and frame-perfect control. Perfect for data visualization,
@@ -2710,6 +2686,6 @@ function useRenderPriority() {
  * @license MIT
  */
 
-export { AbsoluteFill, Audio, Blur, Bounce, CardExpansionMask, Circle, Composition, Confetti, Counter, Cube3D, AbsoluteFill as Div, Easing, Fade, Flip3D, FlipImageReveal, Freeze, G, Glitch, GradientText, Highlight, HyperFrame, Img, KineticTypography, LetterByLetter, LiquidText, Loop, MaskReveal, NeonGlow, ParticleSystem, Path, Perspective3D, PlayerComposition, ProgressBar, Pulse, RainbowText, Rect, Retiming, Reverse, Rotate, Rotate3D, SVG, Scale, Sequence, Series, ShakeEffect, Slide, StickyGridScroll, Swing, Text, TextStack3D, Trail, Typewriter, Video, WaveText, WordByWord, blur, bounce, combine, Easing as easing, fade, flash, flip, getFramesFromSeconds, getSecondsFromFrames, glitch, interpolate, interpolateColors, measureSpring, noise2D, pulse as pulseTransition, random, range, rotate as rotateTransition, scale as scaleTransition, shake as shakeTransition, slide, slideWithFade, spring, staticFile, transitions, useAnimation, useAnimationValue, useBatchFrameProcessor, useCachedFrame, useComposition, useVideoConfig2 as useConfig, useCycle, useDelay, useDurationInFrames, useFade, useFrameRange, useInterpolate, useKeyframeState, useKeyframes, useLoop, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePerformanceMonitor, usePrecomputeFrames, useProgress, usePulse, useRelativeCurrentFrame, useRenderPriority, useSequence, useShake, useSlide, useSpring, useThrottledFrame, useTimeline, useTransform, useWindowedFrame, wipe, zoom };
+export { AbsoluteFill, Audio, Blur, Bounce, CardExpansionMask, Circle, Composition, Confetti, Counter, Cube3D, AbsoluteFill as Div, Easing, Fade, Flip3D, FlipImageReveal, Freeze, G, Glitch, GradientText, Highlight, HyperFrame, Img, KineticTypography, LetterByLetter, LiquidText, Loop, MaskReveal, NeonGlow, ParticleSystem, Path, Perspective3D, ProgressBar, Pulse, RainbowText, Rect, Retiming, Reverse, Rotate, Rotate3D, SVG, Scale, Sequence, Series, ShakeEffect, Slide, StickyGridScroll, Swing, Text, TextStack3D, Trail, Typewriter, Video, WaveText, WordByWord, blur, bounce, combine, Easing as easing, fade, flash, flip, getFramesFromSeconds, getSecondsFromFrames, glitch, interpolate, interpolateColors, measureSpring, noise2D, pulse as pulseTransition, random, range, rotate as rotateTransition, scale as scaleTransition, shake as shakeTransition, slide, slideWithFade, spring, staticFile, transitions, useAnimation, useAnimationValue, useBatchFrameProcessor, useCachedFrame, useComposition, useVideoConfig2 as useConfig, useCycle, useDelay, useDurationInFrames, useFade, useFrameRange, useInterpolate, useKeyframeState, useKeyframes, useLoop, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePerformanceMonitor, usePrecomputeFrames, useProgress, usePulse, useRelativeCurrentFrame, useRenderPriority, useSequence, useShake, useSlide, useSpring, useThrottledFrame, useTimeline, useTransform, useWindowedFrame, wipe, zoom };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

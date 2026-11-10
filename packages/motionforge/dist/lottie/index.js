@@ -1,4 +1,4 @@
-import { useCurrentFrame } from '../chunk-CNOLXIYJ.js';
+import { useCurrentFrame } from '../chunk-HRUP2L62.js';
 import { useRef, useState, useEffect, useMemo } from 'react';
 import lottie from 'lottie-web';
 import { jsxs, jsx } from 'react/jsx-runtime';

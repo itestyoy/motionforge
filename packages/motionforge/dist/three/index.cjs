@@ -1,6 +1,6 @@
 'use strict';
 
-var chunkFQNRSLFY_cjs = require('../chunk-FQNRSLFY.cjs');
+var chunkA2EVFOWZ_cjs = require('../chunk-A2EVFOWZ.cjs');
 var fiber = require('@react-three/fiber');
 var drei = require('@react-three/drei');
 var jsxRuntime = require('react/jsx-runtime');
@@ -50,7 +50,7 @@ var DepthGallery3D = ({
   className = "",
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const progress = Math.max(0, (frame - startFrame) / durationInFrames);
   return /* @__PURE__ */ jsxRuntime.jsx("div", { className, style: { width: "100%", height: "100%", backgroundColor: "#000", ...style }, children: /* @__PURE__ */ jsxRuntime.jsx(fiber.Canvas, { camera: { position: [0, 0, 5], fov: 75 }, children: /* @__PURE__ */ jsxRuntime.jsx(DeterministicScene, { images, progress }) }) });
 };
@@ -117,7 +117,7 @@ var ShaderImageReveal = ({
   className = "",
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const progress = Math.max(0, Math.min(1, (frame - startFrame) / durationInFrames));
   return /* @__PURE__ */ jsxRuntime.jsx("div", { className, style: { width: "100%", height: "100%", ...style }, children: /* @__PURE__ */ jsxRuntime.jsx(fiber.Canvas, { orthographic: true, camera: { zoom: 100 }, children: /* @__PURE__ */ jsxRuntime.jsx(react.Suspense, { fallback: null, children: /* @__PURE__ */ jsxRuntime.jsx(RevealPlane, { src, progress }) }) }) });
 };

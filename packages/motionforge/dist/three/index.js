@@ -1,4 +1,4 @@
-import { useCurrentFrame } from '../chunk-CNOLXIYJ.js';
+import { useCurrentFrame } from '../chunk-HRUP2L62.js';
 import { Canvas } from '@react-three/fiber';
 import { Image, Text, useTexture } from '@react-three/drei';
 import { jsx, jsxs, Fragment } from 'react/jsx-runtime';

@@ -1,8 +1,92 @@
-import { V as VideoConfig, E as EasingFunction, I as InterpolateOptions, S as SpringConfig, K as Keyframe } from './index-DNOAlcMn.js';
-export { A as AnimationTrack, a as AudioProps, C as CacheStats, b as CanvasRenderer, c as CompositionManager, d as CompositionProps, e as ExportOptions, f as ExportResult, F as FrameCache, g as FrameContextValue, h as FrameSequenceEncoder, i as ImageProps, L as LayerProps, M as MemoCache, R as RenderJob, j as RenderJobManager, k as RenderProgress, l as SequenceProps, T as TextProps, m as TimelineState, n as VideoExportManager, o as VideoProps, p as VideoRendererConfig, W as WebMEncoder, q as buildFFmpegCommand, r as calculateProgress, s as calculateVideoSize, t as checkEncodingSupport, u as createDebouncedCache, v as createThrottledCache, w as downloadFrame, x as downloadVideo, y as estimateFileSize, z as estimateRenderTime, B as frameCache, D as frameToDataURL, G as generateFrames, H as renderCompositionToVideo, J as renderJobManager, N as renderVideo, O as validateRenderConfig, P as videoExportManager } from './index-DNOAlcMn.js';
 import React$1, { ReactNode, AudioHTMLAttributes, ImgHTMLAttributes, VideoHTMLAttributes } from 'react';
-export { Player, PlayerProps } from './player/Player.js';
-export { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, BoxIcon, CalendarIcon, CameraIcon, CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, ClockIcon, CloseIcon, CommentIcon, CopyIcon, DeleteIcon, DownloadIcon, EditIcon, ErrorIcon, FastForwardIcon, FileIcon, FilmIcon, FolderIcon, FullscreenExitIcon, FullscreenIcon, HeartIcon, HeartOutlineIcon, Icons, ImageIcon, InfoIcon, LayersIcon, LightningIcon, Loader2Icon, MagicWandIcon, MicIcon, MinusIcon, MusicIcon, PauseIcon, PlayIcon, PlusIcon, QuestionIcon, RefreshIcon, RepeatIcon, ReplayIcon, RewindIcon, SaveIcon, SearchIcon, SettingsIcon, ShareIcon, ShuffleIcon, SkipBackIcon, SkipForwardIcon, SparkleIcon, StarIcon, StarOutlineIcon, StopIcon, SuccessIcon, ThumbDownIcon, ThumbUpIcon, TimerIcon, TypeIcon, UploadIcon, VideoIcon, VolumeHighIcon, VolumeLowIcon, VolumeMediumIcon, VolumeMuteIcon, WarningIcon, ZapIcon } from './icons/index.js';
+
+interface VideoConfig {
+    width: number;
+    height: number;
+    fps: number;
+    durationInFrames: number;
+}
+interface CompositionProps$1 {
+    id: string;
+    component: React.ComponentType<Record<string, unknown>>;
+    width: number;
+    height: number;
+    fps: number;
+    durationInFrames: number;
+    defaultProps?: Record<string, unknown>;
+}
+interface SequenceProps$1 {
+    from: number;
+    durationInFrames?: number;
+    offset?: number;
+    name?: string;
+    children: React.ReactNode;
+}
+interface LayerProps {
+    index?: number;
+    children: React.ReactNode;
+}
+interface VideoProps$1 {
+    src: string;
+    startFrom?: number;
+    endAt?: number;
+    volume?: number | ((frame: number) => number);
+    playbackRate?: number;
+    muted?: boolean;
+    style?: React.CSSProperties;
+}
+interface AudioProps$1 {
+    src: string;
+    startFrom?: number;
+    endAt?: number;
+    volume?: number | ((frame: number) => number);
+    playbackRate?: number;
+    muted?: boolean;
+}
+interface ImageProps {
+    src: string;
+    style?: React.CSSProperties;
+}
+interface TextProps$1 {
+    style?: React.CSSProperties;
+    children: React.ReactNode;
+}
+interface SpringConfig {
+    frame: number;
+    fps: number;
+    config?: {
+        damping?: number;
+        mass?: number;
+        stiffness?: number;
+        overshootClamping?: boolean;
+    };
+    from?: number;
+    to?: number;
+    durationInFrames?: number;
+    durationRestThreshold?: number;
+}
+interface InterpolateOptions {
+    extrapolateLeft?: 'clamp' | 'extend' | 'identity';
+    extrapolateRight?: 'clamp' | 'extend' | 'identity';
+    easing?: (t: number) => number;
+}
+type EasingFunction = (t: number) => number;
+interface Keyframe {
+    frame: number;
+    value: number | string;
+    easing?: EasingFunction;
+}
+interface AnimationTrack {
+    property: string;
+    keyframes: Keyframe[];
+}
+interface FrameContextValue {
+    frame: number;
+    fps: number;
+    durationInFrames: number;
+    width: number;
+    height: number;
+}
 
 declare const useCurrentFrame: () => number;
 declare const useVideoConfig$1: () => {
@@ -11,33 +95,20 @@ declare const useVideoConfig$1: () => {
     width: number;
     height: number;
 };
-declare const useTimelineState: () => {
-    frame: number;
-    playing: boolean;
-    playbackRate: number;
-    setFrame: (frame: number) => void;
-    setPlaying: (playing: boolean) => void;
-    setPlaybackRate: (rate: number) => void;
-};
 interface FrameProviderProps {
+    /** The frame to render. The host app owns time: it sets this for playback, seeking or export. */
+    frame: number;
     fps?: number;
     durationInFrames: number;
     width: number;
     height: number;
     children: React$1.ReactNode;
-    initialFrame?: number;
 }
+/**
+ * Renders its children at `frame`. MotionForge has no clock of its own; the
+ * same `frame` always renders the same picture, whatever frame came before.
+ */
 declare const FrameProvider: React$1.FC<FrameProviderProps>;
-interface CompositionManagerProviderProps {
-    children: React$1.ReactNode;
-}
-declare const CompositionManagerProvider: React$1.FC<CompositionManagerProviderProps>;
-interface PlayerProviderProps {
-    durationInFrames: number;
-    fps?: number;
-    children: React$1.ReactNode;
-}
-declare const PlayerProvider: React$1.FC<PlayerProviderProps>;
 
 declare const useComposition: () => {
     id: string;
@@ -52,27 +123,15 @@ declare const useVideoConfig: () => {
 interface CompositionProps {
     id: string;
     component: React$1.ComponentType<Record<string, unknown>>;
+    /** The frame to render; the host app drives it. */
+    frame: number;
     width?: number;
     height?: number;
     fps?: number;
     durationInFrames: number;
     defaultProps?: Record<string, unknown>;
-    children?: ReactNode;
 }
 declare const Composition: React$1.FC<CompositionProps>;
-interface PlayerCompositionProps {
-    id: string;
-    component: React$1.ComponentType<Record<string, unknown>>;
-    width?: number;
-    height?: number;
-    fps?: number;
-    durationInFrames: number;
-    defaultProps?: Record<string, unknown>;
-    frame: number;
-    playing?: boolean;
-    playbackRate?: number;
-}
-declare const PlayerComposition: React$1.FC<PlayerCompositionProps>;
 
 interface SequenceContextValue {
     relativeFrom: number;
@@ -882,4 +941,4 @@ declare function usePerformanceMonitor(): {
  */
 declare function useRenderPriority(): 'high' | 'medium' | 'low';
 
-export { AbsoluteFill, Audio, Blur, Bounce, CardExpansionMask, Circle, Composition, CompositionManagerProvider, Confetti, Counter, Cube3D, AbsoluteFill as Div, Easing, EasingFunction, Fade, Flip3D, FlipImageReveal, FrameProvider, Freeze, G, Glitch, GradientText, Highlight, HyperFrame, Img, InterpolateOptions, Keyframe, KineticTypography, LetterByLetter, LiquidText, Loop, MaskReveal, NeonGlow, ParticleSystem, Path, Perspective3D, PlayerComposition, PlayerProvider, ProgressBar, Pulse, RainbowText, Rect, Retiming, Reverse, Rotate, Rotate3D, SVG, Scale, Sequence, Series, ShakeEffect, Slide, SpringConfig, StickyGridScroll, Swing, Text, TextStack3D, Trail, type TransitionConfig, type TransitionName, Typewriter, Video, VideoConfig, WaveText, WordByWord, blur, bounce, combine, Easing as easing, fade, flash, flip, getFramesFromSeconds, getSecondsFromFrames, glitch, interpolate, interpolateColors, measureSpring, noise2D, pulse as pulseTransition, random, range, rotate as rotateTransition, scale as scaleTransition, shake as shakeTransition, slide, slideWithFade, spring, staticFile, transitions, useAnimation, useAnimationValue, useBatchFrameProcessor, useCachedFrame, useComposition, useVideoConfig as useConfig, useCurrentFrame, useCycle, useDelay, useDurationInFrames, useFade, useFrameRange, useInterpolate, useKeyframeState, useKeyframes, useLoop, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePerformanceMonitor, usePrecomputeFrames, useProgress, usePulse, useRelativeCurrentFrame, useRenderPriority, useSequence, useShake, useSlide, useSpring, useThrottledFrame, useTimeline, useTimelineState, useTransform, useVideoConfig$1 as useVideoConfig, useWindowedFrame, wipe, zoom };
+export { AbsoluteFill, type AnimationTrack, Audio, type AudioProps$1 as AudioProps, Blur, Bounce, CardExpansionMask, Circle, Composition, type CompositionProps$1 as CompositionProps, Confetti, Counter, Cube3D, AbsoluteFill as Div, Easing, type EasingFunction, Fade, Flip3D, FlipImageReveal, type FrameContextValue, FrameProvider, Freeze, G, Glitch, GradientText, Highlight, HyperFrame, type ImageProps, Img, type InterpolateOptions, type Keyframe, KineticTypography, type LayerProps, LetterByLetter, LiquidText, Loop, MaskReveal, NeonGlow, ParticleSystem, Path, Perspective3D, ProgressBar, Pulse, RainbowText, Rect, Retiming, Reverse, Rotate, Rotate3D, SVG, Scale, Sequence, type SequenceProps$1 as SequenceProps, Series, ShakeEffect, Slide, type SpringConfig, StickyGridScroll, Swing, Text, type TextProps$1 as TextProps, TextStack3D, Trail, type TransitionConfig, type TransitionName, Typewriter, Video, type VideoConfig, type VideoProps$1 as VideoProps, WaveText, WordByWord, blur, bounce, combine, Easing as easing, fade, flash, flip, getFramesFromSeconds, getSecondsFromFrames, glitch, interpolate, interpolateColors, measureSpring, noise2D, pulse as pulseTransition, random, range, rotate as rotateTransition, scale as scaleTransition, shake as shakeTransition, slide, slideWithFade, spring, staticFile, transitions, useAnimation, useAnimationValue, useBatchFrameProcessor, useCachedFrame, useComposition, useVideoConfig as useConfig, useCurrentFrame, useCycle, useDelay, useDurationInFrames, useFade, useFrameRange, useInterpolate, useKeyframeState, useKeyframes, useLoop, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePerformanceMonitor, usePrecomputeFrames, useProgress, usePulse, useRelativeCurrentFrame, useRenderPriority, useSequence, useShake, useSlide, useSpring, useThrottledFrame, useTimeline, useTransform, useVideoConfig$1 as useVideoConfig, useWindowedFrame, wipe, zoom };

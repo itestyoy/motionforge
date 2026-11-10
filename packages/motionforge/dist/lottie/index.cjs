@@ -1,6 +1,6 @@
 'use strict';
 
-var chunkFQNRSLFY_cjs = require('../chunk-FQNRSLFY.cjs');
+var chunkA2EVFOWZ_cjs = require('../chunk-A2EVFOWZ.cjs');
 var react = require('react');
 var lottie = require('lottie-web');
 var jsxRuntime = require('react/jsx-runtime');
@@ -24,7 +24,7 @@ var Lottie = ({
   const animationRef = react.useRef(null);
   const [isLoaded, setIsLoaded] = react.useState(false);
   const [error, setError] = react.useState(null);
-  const currentFrame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   react.useEffect(() => {
     if (typeof window === "undefined" || !containerRef.current) return;
     let isCancelled = false;

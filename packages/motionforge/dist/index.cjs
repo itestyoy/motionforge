@@ -1,10 +1,6 @@
 'use strict';
 
-var chunkXW2CW5JV_cjs = require('./chunk-XW2CW5JV.cjs');
-var chunkCNG7H7JT_cjs = require('./chunk-CNG7H7JT.cjs');
-var chunkZFZVF56F_cjs = require('./chunk-ZFZVF56F.cjs');
-var chunkFQNRSLFY_cjs = require('./chunk-FQNRSLFY.cjs');
-var chunkAQRDM75R_cjs = require('./chunk-AQRDM75R.cjs');
+var chunkA2EVFOWZ_cjs = require('./chunk-A2EVFOWZ.cjs');
 var React2 = require('react');
 var jsxRuntime = require('react/jsx-runtime');
 
@@ -20,10 +16,11 @@ var useComposition = () => {
   }
   return context;
 };
-var useVideoConfig2 = () => chunkFQNRSLFY_cjs.useVideoConfig();
+var useVideoConfig2 = () => chunkA2EVFOWZ_cjs.useVideoConfig();
 var Composition = ({
   id,
   component: Component,
+  frame,
   width = 1920,
   height = 1080,
   fps = 30,
@@ -38,79 +35,18 @@ var Composition = ({
         config: { width, height, fps, durationInFrames }
       },
       children: /* @__PURE__ */ jsxRuntime.jsx(
-        chunkFQNRSLFY_cjs.FrameProvider,
+        chunkA2EVFOWZ_cjs.FrameProvider,
         {
-          fps,
-          durationInFrames,
-          width,
-          height,
-          children: /* @__PURE__ */ jsxRuntime.jsx(Component, { ...defaultProps })
-        }
-      )
-    }
-  );
-};
-var PlayerComposition = ({
-  id,
-  component: Component,
-  width = 1920,
-  height = 1080,
-  fps = 30,
-  durationInFrames,
-  defaultProps = {},
-  frame,
-  playing = false,
-  playbackRate = 1
-}) => {
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    CompositionContext.Provider,
-    {
-      value: {
-        id,
-        config: { width, height, fps, durationInFrames }
-      },
-      children: /* @__PURE__ */ jsxRuntime.jsx(
-        StaticFrameProvider,
-        {
-          fps,
-          durationInFrames,
-          width,
-          height,
           frame,
-          playing,
-          playbackRate,
+          fps,
+          durationInFrames,
+          width,
+          height,
           children: /* @__PURE__ */ jsxRuntime.jsx(Component, { ...defaultProps })
         }
       )
     }
   );
-};
-var StaticFrameProvider = ({
-  fps,
-  durationInFrames,
-  width,
-  height,
-  frame,
-  playing,
-  playbackRate,
-  children
-}) => {
-  const value = {
-    frame,
-    fps,
-    durationInFrames,
-    width,
-    height,
-    playing,
-    playbackRate,
-    setFrame: () => {
-    },
-    setPlaying: () => {
-    },
-    setPlaybackRate: () => {
-    }
-  };
-  return /* @__PURE__ */ jsxRuntime.jsx(chunkFQNRSLFY_cjs.FrameContext.Provider, { value, children });
 };
 var SequenceContext = React2.createContext({
   relativeFrom: 0,
@@ -127,7 +63,7 @@ var Sequence = ({
   children,
   layout = "absolute-fill"
 }) => {
-  const currentFrame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const startFrame = from + offset;
   const endFrame = durationInFrames !== void 0 ? startFrame + durationInFrames : Infinity;
   const relativeFrame = currentFrame - startFrame;
@@ -165,12 +101,12 @@ var SequenceFrameProvider = ({
   relativeFrame,
   children
 }) => {
-  const parent = React2.useContext(chunkFQNRSLFY_cjs.FrameContext);
+  const parent = React2.useContext(chunkA2EVFOWZ_cjs.FrameContext);
   const frameValue = React2.useMemo(
     () => parent ? { ...parent, frame: relativeFrame } : null,
     [parent, relativeFrame]
   );
-  return /* @__PURE__ */ jsxRuntime.jsx(chunkFQNRSLFY_cjs.FrameContext.Provider, { value: frameValue, children: /* @__PURE__ */ jsxRuntime.jsx(RelativeFrameContext.Provider, { value: relativeFrame, children }) });
+  return /* @__PURE__ */ jsxRuntime.jsx(chunkA2EVFOWZ_cjs.FrameContext.Provider, { value: frameValue, children: /* @__PURE__ */ jsxRuntime.jsx(RelativeFrameContext.Provider, { value: relativeFrame, children }) });
 };
 var RelativeFrameContext = React2.createContext(null);
 var useRelativeCurrentFrame = () => React2.useContext(RelativeFrameContext);
@@ -180,7 +116,7 @@ var Loop = ({
   children,
   name
 }) => {
-  const currentFrame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const totalFrames = times === Infinity ? durationInFrames : durationInFrames * times;
   const loopedFrame = currentFrame % durationInFrames;
   const currentLoop = Math.floor(currentFrame / durationInFrames);
@@ -199,7 +135,7 @@ var Freeze = ({
   durationInFrames,
   children
 }) => {
-  const currentFrame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const displayFrame = currentFrame < durationInFrames ? freezeFrame : currentFrame - durationInFrames + freezeFrame;
   return /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame: displayFrame, children });
 };
@@ -208,7 +144,7 @@ var Retiming = ({
   playbackRate,
   name
 }) => {
-  const currentFrame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const rate = typeof playbackRate === "function" ? playbackRate(currentFrame) : playbackRate;
   const retimedFrame = Math.floor(currentFrame * rate);
   return /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame: retimedFrame, children });
@@ -217,12 +153,12 @@ var Reverse = ({
   children,
   durationInFrames
 }) => {
-  const currentFrame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const reversedFrame = durationInFrames - 1 - currentFrame % durationInFrames;
   return /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame: reversedFrame, children });
 };
 var Series = ({ children }) => {
-  const currentFrame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   let accumulatedFrames = 0;
   let activeChildIndex = -1;
   let relativeFrame = currentFrame;
@@ -282,8 +218,8 @@ var Video = ({
   ...props
 }) => {
   const videoRef = React2.useRef(null);
-  const currentFrame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { fps } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
   const [loaded, setLoaded] = React2.useState(false);
   React2.useEffect(() => {
     if (videoRef.current && loaded) {
@@ -338,8 +274,8 @@ var Audio = ({
   ...props
 }) => {
   const audioRef = React2.useRef(null);
-  const currentFrame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { fps } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
   const [loaded, setLoaded] = React2.useState(false);
   React2.useEffect(() => {
     if (audioRef.current && loaded) {
@@ -384,7 +320,7 @@ var Img = ({
   endAt,
   ...props
 }) => {
-  const currentFrame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   if (startFrom !== void 0 && currentFrame < startFrom) {
     return null;
   }
@@ -530,8 +466,8 @@ var HyperFrame = ({
   className,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { width, height, fps } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { width, height, fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
   const iframeRef = React2.useRef(null);
   const isLoadedRef = React2.useRef(false);
   React2.useEffect(() => {
@@ -976,7 +912,7 @@ var Fade = ({
   startFrame = 0,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const opacity = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -994,7 +930,7 @@ var Scale = ({
   easing = Easing.easeOutCubic,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1013,7 +949,7 @@ var Slide = ({
   easing = Easing.easeOutCubic,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1046,7 +982,7 @@ var Rotate = ({
   easing = Easing.linear,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const rotation = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1063,7 +999,7 @@ var Typewriter = ({
   cursor = true,
   cursorChar = "|"
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1086,7 +1022,7 @@ var Counter = ({
   style,
   format = (v) => Math.round(v).toLocaleString()
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const value = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1134,7 +1070,7 @@ var Glitch = ({
   intensity = 10,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const shouldGlitch = frame % 10 < 3;
   const offset = shouldGlitch ? Math.random() * intensity : 0;
   return /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { position: "relative", ...style }, children: [
@@ -1175,7 +1111,7 @@ var Trail = ({
   opacityDecay = 0.2,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   return /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { position: "relative", ...style }, children: [
     Array.from({ length: trailLength }, (_, i) => {
       const trailFrame = frame - i * 2;
@@ -1204,7 +1140,7 @@ var ShakeEffect = ({
   active = true,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   if (!active) {
     return /* @__PURE__ */ jsxRuntime.jsx("div", { style, children });
   }
@@ -1258,7 +1194,7 @@ var NeonGlow = ({
   intensity = 1,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const pulseIntensity = 0.8 + Math.sin(frame * 0.1) * 0.2;
   return /* @__PURE__ */ jsxRuntime.jsx(
     "div",
@@ -1288,7 +1224,7 @@ var Rotate3D = ({
   easing = Easing.easeInOutCubic,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1319,7 +1255,7 @@ var Flip3D = ({
   perspective = 1e3,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1376,7 +1312,7 @@ var Perspective3D = ({
   startFrame = 0,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1407,7 +1343,7 @@ var Cube3D = ({
   },
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const rotateY = interpolate(frame, [0, durationInFrames], [0, 360], {
     extrapolateRight: "extend"
   });
@@ -1460,8 +1396,8 @@ var ParticleSystem = ({
   particleShape = "circle",
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { width, height } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { width, height } = chunkA2EVFOWZ_cjs.useVideoConfig();
   const particles = React2__default.default.useMemo(() => {
     const seed = (n) => {
       const x = Math.sin(n * 9999) * 1e4;
@@ -1554,7 +1490,7 @@ var LetterByLetter = ({
   style,
   letterStyle
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexWrap: "wrap", ...style }, children: text.split("").map((char, index) => {
     const letterStart = startFrame + index * delayPerLetter;
     const progress = interpolate(
@@ -1604,7 +1540,7 @@ var WordByWord = ({
   style,
   wordStyle
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const words = text.split(" ");
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexWrap: "wrap", gap: "0.3em", ...style }, children: words.map((word, index) => {
     const wordStart = startFrame + index * delayPerWord;
@@ -1650,7 +1586,7 @@ var WaveText = ({
   style,
   letterStyle
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", alignItems: "center", ...style }, children: text.split("").map((char, index) => {
     const offset = Math.sin(frame * speed + index * frequency) * amplitude;
     return /* @__PURE__ */ jsxRuntime.jsx(
@@ -1675,7 +1611,7 @@ var RainbowText = ({
   style,
   letterStyle
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexWrap: "wrap", ...style }, children: text.split("").map((char, index) => {
     const hue = (frame * speed + index * 20) % 360;
     const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
@@ -1700,7 +1636,7 @@ var GradientText = ({
   angle = 90,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const offset = frame * speed % 100;
   const gradientStops = colors.map((color, i) => {
     const position = (i * 100 / (colors.length - 1) + offset) % 100;
@@ -1729,7 +1665,7 @@ var Blur = ({
   startFrame = 0,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const blur2 = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1747,8 +1683,8 @@ var Bounce = ({
   damping = 0.7,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { fps } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1768,7 +1704,7 @@ var Pulse = ({
   speed = 0.1,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const scale2 = minScale + (maxScale - minScale) * (0.5 + Math.sin(frame * speed) * 0.5);
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { transform: `scale(${scale2})`, ...style }, children });
 };
@@ -1780,7 +1716,7 @@ var Swing = ({
   durationInFrames = 120,
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const dampFactor = Math.pow(damping, frame);
   const rotation = Math.sin(frame * speed) * angle * dampFactor;
   return /* @__PURE__ */ jsxRuntime.jsx(
@@ -1800,8 +1736,8 @@ var Confetti = ({
   colors = ["#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#ec4899"],
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { width, height } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { width, height } = chunkA2EVFOWZ_cjs.useVideoConfig();
   const confettiPieces = React2__default.default.useMemo(() => {
     const seed = (n) => {
       const x = Math.sin(n * 9999) * 1e4;
@@ -1855,8 +1791,8 @@ var KineticTypography = ({
   type = "velocity",
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { fps } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
   const characters = text.split("");
   return /* @__PURE__ */ jsxRuntime.jsx(
     "div",
@@ -1968,7 +1904,7 @@ var LiquidText = ({
   className = "",
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const id = React2__default.default.useId().replace(/:/g, "");
   const wavePath = React2__default.default.useMemo(() => {
     let path = `M 0 ${height}`;
@@ -2054,7 +1990,7 @@ var TextStack3D = ({
   className = "",
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const progress = interpolate(
     frame - startFrame,
     [0, durationInFrames],
@@ -2125,8 +2061,8 @@ var StickyGridScroll = ({
   className = "",
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { height } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { height } = chunkA2EVFOWZ_cjs.useVideoConfig();
   const progress = interpolate(
     frame - startFrame,
     [0, scrollDuration],
@@ -2194,8 +2130,8 @@ var FlipImageReveal = ({
   className = "",
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { width: videoWidth, height: videoHeight } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { width: videoWidth, height: videoHeight } = chunkA2EVFOWZ_cjs.useVideoConfig();
   const progress = interpolate(
     frame - startFrame,
     [0, durationInFrames],
@@ -2271,7 +2207,7 @@ var CardExpansionMask = ({
   className = "",
   style
 }) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   React2__default.default.useId().replace(/:/g, "");
   const progress = interpolate(
     frame - startFrame,
@@ -2443,8 +2379,8 @@ var transitions = {
 
 // src/hooks/animation.ts
 var useSpring = (options = {}) => {
-  const currentFrame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { fps: videoFps } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { fps: videoFps } = chunkA2EVFOWZ_cjs.useVideoConfig();
   const {
     fps = videoFps,
     frame = currentFrame,
@@ -2463,7 +2399,7 @@ var useSpring = (options = {}) => {
   });
 };
 var useInterpolate = (inputRange, outputRange, options) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   return interpolate(frame, inputRange, outputRange, options);
 };
 var useCycle = (items, frame, durationPerItem) => {
@@ -2471,25 +2407,25 @@ var useCycle = (items, frame, durationPerItem) => {
   return items[index];
 };
 var useDurationInFrames = (seconds) => {
-  const { fps } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const { fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
   return Math.round(seconds * fps);
 };
 var useDelay = (delayInFrames) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   return frame >= delayInFrames;
 };
 var useProgress = () => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { durationInFrames } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { durationInFrames } = chunkA2EVFOWZ_cjs.useVideoConfig();
   return frame / (durationInFrames - 1);
 };
 var useLoop = (loopDuration) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   return frame % loopDuration;
 };
 var useTimeline = () => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { durationInFrames, fps } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { durationInFrames, fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
   return {
     frame,
     durationInFrames,
@@ -2502,13 +2438,13 @@ var useTimeline = () => {
   };
 };
 var useWindowedFrame = (startFrame, endFrame) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const isInWindow = frame >= startFrame && frame < endFrame;
   const relativeFrame = frame - startFrame;
   return { isInWindow, relativeFrame: isInWindow ? relativeFrame : 0 };
 };
 var useAnimation = (startFrame, endFrame) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const isAnimating = frame >= startFrame && frame < endFrame;
   const isComplete = frame >= endFrame;
   const progress = isAnimating ? (frame - startFrame) / (endFrame - startFrame) : isComplete ? 1 : 0;
@@ -2520,7 +2456,7 @@ var useAnimation = (startFrame, endFrame) => {
   };
 };
 var useKeyframeState = (keyframes) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const sorted = [...keyframes].sort((a, b) => a.frame - b.frame);
   let prev = sorted[0];
   let next = sorted[sorted.length - 1];
@@ -2540,7 +2476,7 @@ var useKeyframeState = (keyframes) => {
   };
 };
 var useTransform = (options) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const transforms = [];
   if (options.translateX) {
     transforms.push(`translateX(${options.translateX(frame)}px)`);
@@ -2564,8 +2500,8 @@ var useTransform = (options) => {
   return style;
 };
 var useFade = (fadeInDuration, fadeOutDuration, options) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { durationInFrames } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { durationInFrames } = chunkA2EVFOWZ_cjs.useVideoConfig();
   const startFrame = options?.startFrame ?? 0;
   const endFrame = options?.endFrame ?? durationInFrames;
   if (frame < startFrame + fadeInDuration) {
@@ -2587,7 +2523,7 @@ var useFade = (fadeInDuration, fadeOutDuration, options) => {
   return 1;
 };
 var useSlide = (direction, distance, duration, startFrame = 0) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + duration],
@@ -2614,7 +2550,7 @@ var useSlide = (direction, distance, duration, startFrame = 0) => {
   return { transform };
 };
 var useShake = (intensity, duration, startFrame = 0) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + duration],
@@ -2627,33 +2563,73 @@ var useShake = (intensity, duration, startFrame = 0) => {
   return { transform: `translate(${shakeX}px, ${shakeY}px)` };
 };
 var usePulse = (minScale, maxScale, frequency) => {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { fps } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
   const progress = (Math.sin(frame / fps * frequency * Math.PI * 2) + 1) / 2;
   const scale2 = interpolate(progress, [0, 1], [minScale, maxScale]);
   return { transform: `scale(${scale2})` };
 };
+
+// src/utils/memoCache.ts
+var MemoCache = class _MemoCache {
+  constructor() {
+    this.cache = /* @__PURE__ */ new Map();
+  }
+  static getInstance() {
+    if (!_MemoCache.instance) {
+      _MemoCache.instance = new _MemoCache();
+    }
+    return _MemoCache.instance;
+  }
+  /**
+   * Get or compute a memoized value
+   */
+  getOrCompute(key, compute, deps = []) {
+    const cached = this.cache.get(key);
+    if (cached && this.depsEqual(cached.deps, deps)) {
+      return cached.value;
+    }
+    const value = compute();
+    this.cache.set(key, { value, deps });
+    return value;
+  }
+  /**
+   * Check if dependencies are equal
+   */
+  depsEqual(a, b) {
+    if (a.length !== b.length) return false;
+    return a.every((val, i) => Object.is(val, b[i]));
+  }
+  /**
+   * Clear all memoized values
+   */
+  clear() {
+    this.cache.clear();
+  }
+};
+
+// src/hooks/performance.ts
 function useMemoizedFrame(compute, deps = []) {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const memoCache = React2.useMemo(() => chunkZFZVF56F_cjs.MemoCache.getInstance(), []);
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const memoCache = React2.useMemo(() => MemoCache.getInstance(), []);
   const key = React2.useMemo(() => `frame:${frame}:${JSON.stringify(deps)}`, [frame, deps]);
   return React2.useMemo(() => {
     return memoCache.getOrCompute(key, compute, [frame, ...deps]);
   }, [key, compute, memoCache, frame, deps]);
 }
 function useAnimationValue(compute, _frameDeps) {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
   return React2.useMemo(() => compute(frame), [frame, compute]);
 }
 function useCachedFrame(compositionId, renderer) {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { width, height } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { width, height } = chunkA2EVFOWZ_cjs.useVideoConfig();
   return React2.useMemo(() => {
     return renderer(frame);
   }, [compositionId, frame, width, height, renderer]);
 }
 function useThrottledFrame(_throttleMs) {
-  return chunkFQNRSLFY_cjs.useCurrentFrame();
+  return chunkA2EVFOWZ_cjs.useCurrentFrame();
 }
 function useBatchFrameProcessor(processor, _batchSize) {
   return React2.useCallback((items) => {
@@ -2670,8 +2646,8 @@ function useFrameRange(startFrame, endFrame) {
   }, [startFrame, endFrame]);
 }
 function usePrecomputeFrames(compute, lookahead = 10) {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { durationInFrames } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { durationInFrames } = chunkA2EVFOWZ_cjs.useVideoConfig();
   return React2.useMemo(() => {
     const cache = /* @__PURE__ */ new Map();
     for (let i = frame; i < Math.min(frame + lookahead, durationInFrames); i++) {
@@ -2681,8 +2657,8 @@ function usePrecomputeFrames(compute, lookahead = 10) {
   }, [frame, lookahead, durationInFrames, compute]);
 }
 function useOptimizedSpring(config, from = 0, to = 1) {
-  const frame = chunkFQNRSLFY_cjs.useCurrentFrame();
-  const { fps } = chunkFQNRSLFY_cjs.useVideoConfig();
+  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const { fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
   return React2.useMemo(() => {
     return spring({ frame, fps, config, from, to });
   }, [frame, fps, config, from, to]);
@@ -2703,7 +2679,8 @@ function useRenderPriority() {
   return React2.useMemo(() => "high", []);
 }
 /**
- * MotionForge - A React-based framework for creating videos programmatically
+ * MotionForge - headless React SDK for frame-based motion: scenes are a pure
+ * function of the frame; the host app owns time, rendering and playback.
  *
  * Build stunning videos with React components, spring animations,
  * and frame-perfect control. Perfect for data visualization,
@@ -2714,413 +2691,17 @@ function useRenderPriority() {
  * @license MIT
  */
 
-Object.defineProperty(exports, "Player", {
-  enumerable: true,
-  get: function () { return chunkXW2CW5JV_cjs.Player; }
-});
-Object.defineProperty(exports, "ArrowDownIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ArrowDownIcon; }
-});
-Object.defineProperty(exports, "ArrowLeftIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ArrowLeftIcon; }
-});
-Object.defineProperty(exports, "ArrowRightIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ArrowRightIcon; }
-});
-Object.defineProperty(exports, "ArrowUpIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ArrowUpIcon; }
-});
-Object.defineProperty(exports, "BoxIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.BoxIcon; }
-});
-Object.defineProperty(exports, "CalendarIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.CalendarIcon; }
-});
-Object.defineProperty(exports, "CameraIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.CameraIcon; }
-});
-Object.defineProperty(exports, "CheckIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.CheckIcon; }
-});
-Object.defineProperty(exports, "ChevronDownIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ChevronDownIcon; }
-});
-Object.defineProperty(exports, "ChevronLeftIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ChevronLeftIcon; }
-});
-Object.defineProperty(exports, "ChevronRightIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ChevronRightIcon; }
-});
-Object.defineProperty(exports, "ChevronUpIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ChevronUpIcon; }
-});
-Object.defineProperty(exports, "ClockIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ClockIcon; }
-});
-Object.defineProperty(exports, "CloseIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.CloseIcon; }
-});
-Object.defineProperty(exports, "CommentIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.CommentIcon; }
-});
-Object.defineProperty(exports, "CopyIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.CopyIcon; }
-});
-Object.defineProperty(exports, "DeleteIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.DeleteIcon; }
-});
-Object.defineProperty(exports, "DownloadIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.DownloadIcon; }
-});
-Object.defineProperty(exports, "EditIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.EditIcon; }
-});
-Object.defineProperty(exports, "ErrorIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ErrorIcon; }
-});
-Object.defineProperty(exports, "FastForwardIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.FastForwardIcon; }
-});
-Object.defineProperty(exports, "FileIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.FileIcon; }
-});
-Object.defineProperty(exports, "FilmIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.FilmIcon; }
-});
-Object.defineProperty(exports, "FolderIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.FolderIcon; }
-});
-Object.defineProperty(exports, "FullscreenExitIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.FullscreenExitIcon; }
-});
-Object.defineProperty(exports, "FullscreenIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.FullscreenIcon; }
-});
-Object.defineProperty(exports, "HeartIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.HeartIcon; }
-});
-Object.defineProperty(exports, "HeartOutlineIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.HeartOutlineIcon; }
-});
-Object.defineProperty(exports, "Icons", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.icons_default; }
-});
-Object.defineProperty(exports, "ImageIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ImageIcon; }
-});
-Object.defineProperty(exports, "InfoIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.InfoIcon; }
-});
-Object.defineProperty(exports, "LayersIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.LayersIcon; }
-});
-Object.defineProperty(exports, "LightningIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.LightningIcon; }
-});
-Object.defineProperty(exports, "Loader2Icon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.Loader2Icon; }
-});
-Object.defineProperty(exports, "MagicWandIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.MagicWandIcon; }
-});
-Object.defineProperty(exports, "MicIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.MicIcon; }
-});
-Object.defineProperty(exports, "MinusIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.MinusIcon; }
-});
-Object.defineProperty(exports, "MusicIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.MusicIcon; }
-});
-Object.defineProperty(exports, "PauseIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.PauseIcon; }
-});
-Object.defineProperty(exports, "PlayIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.PlayIcon; }
-});
-Object.defineProperty(exports, "PlusIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.PlusIcon; }
-});
-Object.defineProperty(exports, "QuestionIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.QuestionIcon; }
-});
-Object.defineProperty(exports, "RefreshIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.RefreshIcon; }
-});
-Object.defineProperty(exports, "RepeatIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.RepeatIcon; }
-});
-Object.defineProperty(exports, "ReplayIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ReplayIcon; }
-});
-Object.defineProperty(exports, "RewindIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.RewindIcon; }
-});
-Object.defineProperty(exports, "SaveIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.SaveIcon; }
-});
-Object.defineProperty(exports, "SearchIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.SearchIcon; }
-});
-Object.defineProperty(exports, "SettingsIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.SettingsIcon; }
-});
-Object.defineProperty(exports, "ShareIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ShareIcon; }
-});
-Object.defineProperty(exports, "ShuffleIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ShuffleIcon; }
-});
-Object.defineProperty(exports, "SkipBackIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.SkipBackIcon; }
-});
-Object.defineProperty(exports, "SkipForwardIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.SkipForwardIcon; }
-});
-Object.defineProperty(exports, "SparkleIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.SparkleIcon; }
-});
-Object.defineProperty(exports, "StarIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.StarIcon; }
-});
-Object.defineProperty(exports, "StarOutlineIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.StarOutlineIcon; }
-});
-Object.defineProperty(exports, "StopIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.StopIcon; }
-});
-Object.defineProperty(exports, "SuccessIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.SuccessIcon; }
-});
-Object.defineProperty(exports, "ThumbDownIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ThumbDownIcon; }
-});
-Object.defineProperty(exports, "ThumbUpIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ThumbUpIcon; }
-});
-Object.defineProperty(exports, "TimerIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.TimerIcon; }
-});
-Object.defineProperty(exports, "TypeIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.TypeIcon; }
-});
-Object.defineProperty(exports, "UploadIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.UploadIcon; }
-});
-Object.defineProperty(exports, "VideoIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.VideoIcon; }
-});
-Object.defineProperty(exports, "VolumeHighIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.VolumeHighIcon; }
-});
-Object.defineProperty(exports, "VolumeLowIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.VolumeLowIcon; }
-});
-Object.defineProperty(exports, "VolumeMediumIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.VolumeMediumIcon; }
-});
-Object.defineProperty(exports, "VolumeMuteIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.VolumeMuteIcon; }
-});
-Object.defineProperty(exports, "WarningIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.WarningIcon; }
-});
-Object.defineProperty(exports, "ZapIcon", {
-  enumerable: true,
-  get: function () { return chunkCNG7H7JT_cjs.ZapIcon; }
-});
-Object.defineProperty(exports, "FrameCache", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.FrameCache; }
-});
-Object.defineProperty(exports, "MemoCache", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.MemoCache; }
-});
-Object.defineProperty(exports, "RenderJobManager", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.RenderJobManager; }
-});
-Object.defineProperty(exports, "buildFFmpegCommand", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.buildFFmpegCommand; }
-});
-Object.defineProperty(exports, "calculateVideoSize", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.calculateVideoSize; }
-});
-Object.defineProperty(exports, "createDebouncedCache", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.createDebouncedCache; }
-});
-Object.defineProperty(exports, "createThrottledCache", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.createThrottledCache; }
-});
-Object.defineProperty(exports, "downloadFrame", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.downloadFrame; }
-});
-Object.defineProperty(exports, "downloadVideo", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.downloadVideo; }
-});
-Object.defineProperty(exports, "estimateRenderTime", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.estimateRenderTime; }
-});
-Object.defineProperty(exports, "frameCache", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.frameCache; }
-});
-Object.defineProperty(exports, "frameToDataURL", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.frameToDataURL; }
-});
-Object.defineProperty(exports, "generateFrames", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.generateFrames; }
-});
-Object.defineProperty(exports, "renderCompositionToVideo", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.renderCompositionToVideo; }
-});
-Object.defineProperty(exports, "renderJobManager", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.renderJobManager; }
-});
-Object.defineProperty(exports, "renderVideo", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.renderVideo; }
-});
-Object.defineProperty(exports, "validateRenderConfig", {
-  enumerable: true,
-  get: function () { return chunkZFZVF56F_cjs.validateRenderConfig; }
-});
-Object.defineProperty(exports, "CompositionManagerProvider", {
-  enumerable: true,
-  get: function () { return chunkFQNRSLFY_cjs.CompositionManagerProvider; }
-});
 Object.defineProperty(exports, "FrameProvider", {
   enumerable: true,
-  get: function () { return chunkFQNRSLFY_cjs.FrameProvider; }
-});
-Object.defineProperty(exports, "PlayerProvider", {
-  enumerable: true,
-  get: function () { return chunkFQNRSLFY_cjs.PlayerProvider; }
+  get: function () { return chunkA2EVFOWZ_cjs.FrameProvider; }
 });
 Object.defineProperty(exports, "useCurrentFrame", {
   enumerable: true,
-  get: function () { return chunkFQNRSLFY_cjs.useCurrentFrame; }
-});
-Object.defineProperty(exports, "useTimelineState", {
-  enumerable: true,
-  get: function () { return chunkFQNRSLFY_cjs.useTimelineState; }
+  get: function () { return chunkA2EVFOWZ_cjs.useCurrentFrame; }
 });
 Object.defineProperty(exports, "useVideoConfig", {
   enumerable: true,
-  get: function () { return chunkFQNRSLFY_cjs.useVideoConfig; }
-});
-Object.defineProperty(exports, "CanvasRenderer", {
-  enumerable: true,
-  get: function () { return chunkAQRDM75R_cjs.CanvasRenderer; }
-});
-Object.defineProperty(exports, "FrameSequenceEncoder", {
-  enumerable: true,
-  get: function () { return chunkAQRDM75R_cjs.FrameSequenceEncoder; }
-});
-Object.defineProperty(exports, "VideoExportManager", {
-  enumerable: true,
-  get: function () { return chunkAQRDM75R_cjs.VideoExportManager; }
-});
-Object.defineProperty(exports, "WebMEncoder", {
-  enumerable: true,
-  get: function () { return chunkAQRDM75R_cjs.WebMEncoder; }
-});
-Object.defineProperty(exports, "calculateProgress", {
-  enumerable: true,
-  get: function () { return chunkAQRDM75R_cjs.calculateProgress; }
-});
-Object.defineProperty(exports, "checkEncodingSupport", {
-  enumerable: true,
-  get: function () { return chunkAQRDM75R_cjs.checkEncodingSupport; }
-});
-Object.defineProperty(exports, "estimateFileSize", {
-  enumerable: true,
-  get: function () { return chunkAQRDM75R_cjs.estimateFileSize; }
-});
-Object.defineProperty(exports, "videoExportManager", {
-  enumerable: true,
-  get: function () { return chunkAQRDM75R_cjs.videoExportManager; }
+  get: function () { return chunkA2EVFOWZ_cjs.useVideoConfig; }
 });
 exports.AbsoluteFill = AbsoluteFill;
 exports.Audio = Audio;
@@ -3153,7 +2734,6 @@ exports.NeonGlow = NeonGlow;
 exports.ParticleSystem = ParticleSystem;
 exports.Path = Path;
 exports.Perspective3D = Perspective3D;
-exports.PlayerComposition = PlayerComposition;
 exports.ProgressBar = ProgressBar;
 exports.Pulse = Pulse;
 exports.RainbowText = RainbowText;
