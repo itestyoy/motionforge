@@ -107,12 +107,12 @@ describe('durationInFrames inside sequences', () => {
     expect(valueOf(renderAt(25, <Loop durationInFrames={10}><ShowDuration id="d" /></Loop>), 'd')).toBe('10');
   });
 
-  it("is the active child's duration inside a Series", () => {
+  it("is each Series.Sequence's own duration inside a Series", () => {
     const html = renderAt(
       15,
       <Series>
-        <Sequence from={0} durationInFrames={10}><ShowDuration id="first" /></Sequence>
-        <Sequence from={0} durationInFrames={20}><ShowDuration id="second" /></Sequence>
+        <Series.Sequence durationInFrames={10}><ShowDuration id="first" /></Series.Sequence>
+        <Series.Sequence durationInFrames={20}><ShowDuration id="second" /></Series.Sequence>
       </Series>,
     );
     expect(valueOf(html, 'second')).toBe('20');

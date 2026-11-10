@@ -171,7 +171,20 @@ All entries share one frame context, so components from `motionforge/three` and 
 | `Freeze` | Pause content at a specific frame |
 | `Retiming` | Variable speed playback; with a function rate the content frame is `floor(Σ rate(i), i < frame)` |
 | `Reverse` | Play content backwards |
-| `Series` | Sequential scene management |
+| `Series` | Scenes one after another: `<Series.Sequence durationInFrames offset? name? layout? premountFor?>` children only |
+
+### Series
+
+```tsx
+<Series>
+  <Series.Sequence durationInFrames={45}><Hook /></Series.Sequence>
+  {/* starts 10 frames before the hook ends: both render during the overlap */}
+  <Series.Sequence durationInFrames={60} offset={-10} premountFor={15}><Gameplay /></Series.Sequence>
+  <Series.Sequence durationInFrames={30}><EndCard /></Series.Sequence>
+</Series>
+```
+
+Each `Series.Sequence` starts where the previous one ends, shifted by its `offset` (negative: overlap, positive: gap); the shift carries over to the sequences after it. Overlapping sequences render at the same time, later ones on top. Inside each, `useCurrentFrame()` counts from its start and `useVideoConfig().durationInFrames` is its own `durationInFrames`. `durationInFrames` must be a positive integer and `offset` an integer; any child other than `Series.Sequence` (except `null`, `false` and fragments around them) throws.
 
 ### Effect Components
 

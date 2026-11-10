@@ -22,6 +22,7 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - `usePerformanceMonitor`, `useThrottledFrame`, `useBatchFrameProcessor` and `useRenderPriority`: they returned constants or ignored their arguments.
 
 ### Changed (breaking)
+- `Series` takes only `<Series.Sequence durationInFrames offset? name? layout? premountFor?>` children and throws on anything else; children with a `durationInFrames` prop are no longer read. All sequences render in their range, so overlapping ones (negative `offset`) play together; positive `offset` leaves a gap.
 - `Lottie` with `frameEnd` not after `frameStart` (or `frameStart` past the end of the animation) cancels the render with an error instead of showing nothing.
 - `FrameProvider` and `Composition` are controlled: they take a required `frame` prop and have no clock.
 - 3D components (`DepthGallery3D`, `ShaderImageReveal`, `DitheringEffect`) moved to `motionforge/three`, `Lottie` to `motionforge/lottie`; the main entry no longer imports three.js or lottie-web. `three` and the `@react-three/*` peers are optional; `framer-motion` is no longer a peer dependency (nothing used it).
@@ -39,7 +40,7 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - `GradientText` animates `backgroundPosition` over a fixed, seamlessly repeating gradient; it throws when `colors` is empty.
 - `Lottie` maps composition frames to Lottie frames by time (`frame / fps × Lottie frame rate × playbackRate`), not one to one. Its root is now a wrapper element around the lottie-web container.
 - `FrameProvider` and `Composition` throw when `frame` is not an integer from 0 to `durationInFrames - 1`, or when `fps`, `width`, `height` or `durationInFrames` is not positive.
-- Inside `Sequence`, `Loop` and `Series`, `useVideoConfig().durationInFrames` is the length of the sequence (`Sequence`: its `durationInFrames`, or the rest of the parent when it has none; `Loop`: one iteration; `Series`: the active child).
+- Inside `Sequence`, `Loop` and `Series.Sequence`, `useVideoConfig().durationInFrames` is the length of the sequence (`Sequence`: its `durationInFrames`, or the rest of the parent when it has none; `Loop`: one iteration; `Series.Sequence`: its own).
 - The `Loop` context hook is exported as `useLoopInfo()` (it was unreachable: `useLoop` is the frame-modulo hook from `hooks/animation`).
 - `Retiming` with a function `playbackRate` advances by the rate on each frame: the content frame is `floor(Σ playbackRate(i) for i < frame)`, so speed ramps no longer jump or run backwards.
 - `useFade()` without `endFrame` fades out to 0 on the last frame (`durationInFrames - 1`).

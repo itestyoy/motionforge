@@ -336,49 +336,86 @@ export const Reverse: React.FC<ReverseProps> = ({
   );
 };
 
-// Series Component - plays sequences in series
-interface SeriesProps {
-  children: ReactNode;
+// Series: sequences one after another.
+interface SeriesSequenceProps {
+  /** Length of this sequence in frames (a positive integer). */
+  durationInFrames: number;
+  /**
+   * Shift of this sequence's start (and so of all following ones) in frames:
+   * negative overlaps the previous sequence, positive leaves a gap.
+   */
+  offset?: number;
+  name?: string;
+  layout?: 'absolute-fill' | 'none';
+  /** See Sequence premountFor. */
+  premountFor?: number;
+  children?: ReactNode;
 }
 
-export const Series: React.FC<SeriesProps> = ({ children }) => {
-  const currentFrame = useCurrentFrame();
-  
-  // Calculate cumulative frames for each child
-  let accumulatedFrames = 0;
-  let activeChildIndex = -1;
-  let activeDuration = 0;
-  let relativeFrame = currentFrame;
-
-  const childArray = React.Children.toArray(children);
-  
-  for (let i = 0; i < childArray.length; i++) {
-    const child = childArray[i];
-    if (React.isValidElement<{ durationInFrames?: number }>(child) && child.props.durationInFrames) {
-      const childDuration = child.props.durationInFrames;
-      
-      if (currentFrame >= accumulatedFrames && currentFrame < accumulatedFrames + childDuration) {
-        activeChildIndex = i;
-        activeDuration = childDuration;
-        relativeFrame = currentFrame - accumulatedFrames;
-        break;
-      }
-      
-      accumulatedFrames += childDuration;
-    }
-  }
-
-  if (activeChildIndex === -1) {
-    return null;
-  }
-
-  const activeChild = childArray[activeChildIndex];
-  
-  return (
-    <SequenceFrameProvider relativeFrame={relativeFrame} durationInFrames={activeDuration}>
-      {activeChild}
-    </SequenceFrameProvider>
-  );
+const SeriesSequence: React.FC<SeriesSequenceProps> = () => {
+  throw new Error('<Series.Sequence> must be a direct child of <Series>');
 };
+
+const describeChild = (child: ReactNode): string => {
+  if (typeof child === 'string') return `the string ${JSON.stringify(child)}`;
+  if (React.isValidElement(child)) {
+    const type = child.type as string | { displayName?: string; name?: string };
+    const name = typeof type === 'string' ? type : type.displayName ?? type.name ?? 'Component';
+    return `<${name}>`;
+  }
+  return String(child);
+};
+
+// Children with fragments opened up, each keyed by its path.
+const flattenChildren = (children: ReactNode, prefix = ''): Array<{ key: string; child: ReactNode }> =>
+  React.Children.toArray(children).flatMap((child, index) => {
+    const key = `${prefix}${React.isValidElement(child) && child.key !== null ? child.key : index}`;
+    if (React.isValidElement<{ children?: ReactNode }>(child) && child.type === React.Fragment) {
+      return flattenChildren(child.props.children, `${key}/`);
+    }
+    return [{ key, child }];
+  });
+
+/**
+ * Plays its `<Series.Sequence>` children one after another. Each starts where
+ * the previous one ends, shifted by its `offset`; overlapping sequences render
+ * at the same time (later ones on top). Inside each, useCurrentFrame() counts
+ * from its start and useVideoConfig().durationInFrames is its own length.
+ */
+const SeriesRoot: React.FC<{ children?: ReactNode }> = ({ children }) => {
+  let start = 0;
+  const sequences = flattenChildren(children).map(({ key, child }, index) => {
+    if (typeof child === 'string' && child.trim() === '') return null;
+    if (!React.isValidElement<SeriesSequenceProps>(child) || child.type !== SeriesSequence) {
+      throw new Error(`Series: children must be <Series.Sequence> elements, got ${describeChild(child)} at index ${index}`);
+    }
+    const { durationInFrames, offset = 0, name, layout, premountFor, children: content } = child.props;
+    if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
+      throw new Error(
+        `Series.Sequence: durationInFrames must be a positive integer, got ${durationInFrames} at index ${index}`,
+      );
+    }
+    if (!Number.isInteger(offset)) {
+      throw new Error(`Series.Sequence: offset must be an integer, got ${offset} at index ${index}`);
+    }
+    const from = start + offset;
+    start = from + durationInFrames;
+    return (
+      <Sequence
+        key={key}
+        from={from}
+        durationInFrames={durationInFrames}
+        name={name}
+        layout={layout}
+        premountFor={premountFor}
+      >
+        {content}
+      </Sequence>
+    );
+  });
+  return <>{sequences}</>;
+};
+
+export const Series = Object.assign(SeriesRoot, { Sequence: SeriesSequence });
 
 export { SequenceContext };
