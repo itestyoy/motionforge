@@ -60,6 +60,12 @@ export {
   G,
   staticFile,
 } from './components/Media';
+export { AnimatedImage } from './components/animated-image/AnimatedImage';
+export type {
+  AnimatedImageProps,
+  AnimatedImageFillMode,
+  AnimatedImageLoopBehavior,
+} from './components/animated-image/AnimatedImage';
 export { HyperFrame } from './components/HyperFrame';
 export { Particles } from './components/Particles';
 export type { ParticlesProps } from './components/Particles';
