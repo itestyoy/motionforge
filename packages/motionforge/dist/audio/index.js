@@ -93,11 +93,53 @@ var checkSeed = (component, seed) => {
 
 // src/components/audio/generated-utils.ts
 var describe = (value) => {
+  if (typeof value === "function") return "a function";
   try {
     return JSON.stringify(value) ?? String(value);
   } catch {
     return String(value);
   }
+};
+var editDistance = (a, b) => {
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j++) {
+      current[j] = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    previous = current;
+  }
+  return previous[b.length];
+};
+var closestProp = (name, spec) => {
+  const lower = name.toLowerCase().replace(/[-_\s]/g, "");
+  if (Object.prototype.hasOwnProperty.call(spec.aliases, lower)) return spec.aliases[lower];
+  let best = null;
+  let bestDistance = Infinity;
+  for (const accepted of spec.accepted) {
+    const distance = editDistance(lower, accepted.toLowerCase());
+    const limit = accepted.length >= 6 ? 2 : 1;
+    if (distance <= limit && distance < bestDistance) {
+      best = accepted;
+      bestDistance = distance;
+    }
+  }
+  return best;
+};
+var checkKnownProps = (spec, props) => {
+  const unknown = Object.keys(props).filter((name) => !spec.accepted.includes(name));
+  if (unknown.length === 0) return;
+  const notes = spec.notes ?? {};
+  const explained = unknown.map((name) => {
+    const lower = name.toLowerCase().replace(/[-_\s]/g, "");
+    if (Object.prototype.hasOwnProperty.call(notes, lower)) return `\`${name}\` (${notes[lower]})`;
+    const meant = closestProp(name, spec);
+    return meant ? `\`${name}\` (did you mean \`${meant}\`?)` : `\`${name}\``;
+  });
+  const takes = spec.accepted.map((name) => spec.required.includes(name) ? `${name} (required)` : name).join(", ");
+  throw new Error(
+    `${spec.component}: unknown ${spec.noun}${unknown.length > 1 ? "s" : ""} ${explained.join(", ")}. ${spec.subject ?? spec.component} takes ${takes}, e.g. ${spec.example}`
+  );
 };
 var checkJson = (component, name, value, seen = /* @__PURE__ */ new Set()) => {
   if (value === null || typeof value === "string" || typeof value === "boolean") return;
@@ -187,12 +229,24 @@ var toneAudio = (job) => generatedAudio(
   toneKey(job.render, job.deps, job.durationInFrames, job.fps, job.sampleRate, job.channels, job.seed),
   () => renderQueued(job)
 );
-var checkToneProps = (component, { durationInFrames, render, deps, sampleRate, channels }) => {
+var RENDER_EXAMPLE = "(Tone) => { new Tone.Synth().toDestination().triggerAttackRelease('C5', '8n', 0); }";
+var usage = (style, name, value) => style === "jsx" ? `${name}={${value}}` : `${name}: ${value}`;
+var checkToneProps = (component, { durationInFrames, render, deps, sampleRate, channels }, style = "jsx") => {
+  if (durationInFrames === void 0) {
+    throw new Error(
+      `${component}: pass the length of the sound in frames as \`${usage(style, "durationInFrames", "30")}\` (got no \`durationInFrames\`)`
+    );
+  }
   if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
     throw new Error(`${component}: durationInFrames must be a positive integer, got ${JSON.stringify(durationInFrames)}`);
   }
+  if (render === void 0) {
+    throw new Error(`${component}: pass the Tone.js code as \`${usage(style, "render", RENDER_EXAMPLE)}\` (got no \`render\`)`);
+  }
   if (typeof render !== "function") {
-    throw new Error(`${component}: render must be a function (Tone) => { ... }, got ${JSON.stringify(render)}`);
+    throw new Error(
+      `${component}: \`render\` must be a function of Tone with the Tone.js code, e.g. \`${usage(style, "render", RENDER_EXAMPLE)}\`, got ${describe(render)}`
+    );
   }
   if (deps !== void 0 && !Array.isArray(deps)) {
     throw new Error(`${component}: deps must be an array, got ${JSON.stringify(deps)}`);
@@ -205,8 +259,53 @@ var checkToneProps = (component, { durationInFrames, render, deps, sampleRate, c
     throw new Error(`${component}: channels must be 1 or 2, got ${JSON.stringify(channels)}`);
   }
 };
+var TONE_ALIASES = {
+  ...Object.fromEntries(
+    ["duration", "durationframes", "length", "lengthinframes", "frames", "numframes"].map((name) => [name, "durationInFrames"])
+  ),
+  ...Object.fromEntries(
+    ["code", "fn", "func", "function", "synth", "callback", "cb", "play", "compose", "build", "tone", "music", "onrender", "children"].map(
+      (name) => [name, "render"]
+    )
+  ),
+  ...Object.fromEntries(["dependencies", "dependson", "inputs", "data"].map((name) => [name, "deps"])),
+  ...Object.fromEntries(["gain", "vol", "level", "loudness"].map((name) => [name, "volume"])),
+  ...Object.fromEntries(["mute", "silent"].map((name) => [name, "muted"])),
+  ...Object.fromEntries(["label", "title", "trackname"].map((name) => [name, "name"])),
+  ...Object.fromEntries(["rate", "hz"].map((name) => [name, "sampleRate"])),
+  ...Object.fromEntries(["channelcount", "numberofchannels", "numchannels"].map((name) => [name, "channels"])),
+  ...Object.fromEntries(["randomseed", "rngseed"].map((name) => [name, "seed"]))
+};
+var TONE_NOTES = {
+  ...Object.fromEntries(
+    ["at", "from", "start", "startat", "startframe", "startfrom", "frame", "delay", "offset", "time", "when"].map((name) => [
+      name,
+      "<ToneAudio> starts at the start of its sequence: put it in <Sequence from={12}>, or schedule notes later inside render"
+    ])
+  ),
+  ...Object.fromEntries(
+    ["durationinseconds", "seconds"].map((name) => [name, "the length is durationInFrames, in frames (seconds \xD7 fps)"])
+  ),
+  ...Object.fromEntries(
+    ["zzfx", "params", "parameters", "preset"].map((name) => [
+      name,
+      "a ZzFX sound is <Sfx zzfx={[1, 0, 900, 0, 0.02, 0.04]} />, also from 'motionforge/audio'"
+    ])
+  ),
+  ...Object.fromEntries(["src", "url", "file"].map((name) => [name, `a sound file is <Audio src="..." /> from 'motionforge'`]))
+};
+var TONE_PROPS = {
+  component: "<ToneAudio>",
+  noun: "prop",
+  accepted: ["durationInFrames", "render", "deps", "seed", "sampleRate", "channels", "volume", "muted", "name"],
+  required: ["durationInFrames", "render"],
+  aliases: TONE_ALIASES,
+  notes: TONE_NOTES,
+  example: `<ToneAudio durationInFrames={30} render={${RENDER_EXAMPLE}} />`
+};
 var ToneAudio = (props) => {
   const { durationInFrames, render, deps = [], seed = 0, sampleRate = 48e3, channels = 2, volume, muted = false, name } = props;
+  checkKnownProps(TONE_PROPS, props);
   checkToneProps("<ToneAudio>", { ...props, sampleRate, channels });
   checkSeed("<ToneAudio>", seed);
   if (typeof muted !== "boolean") throw new Error(`<ToneAudio>: muted must be a boolean, got ${JSON.stringify(muted)}`);
@@ -374,9 +473,15 @@ var buildZzfxSamples = (sampleRate, random, parameters) => {
 
 // src/components/audio/Sfx.tsx
 var MAX_PARAMS = 21;
-var checkParams = (component, params) => {
+var ZZFX_EXAMPLE = "[1, 0, 900, 0, 0.02, 0.04]";
+var checkParams = (component, params, usage2 = `zzfx={${ZZFX_EXAMPLE}}`, name = "zzfx") => {
+  if (params === void 0) {
+    throw new Error(`${component}: pass the ZzFX parameters as \`${usage2}\` (got no \`${name}\`)`);
+  }
   if (!Array.isArray(params)) {
-    throw new Error(`${component}: the ZzFX parameters must be an array of numbers, got ${JSON.stringify(params)}`);
+    throw new Error(
+      `${component}: \`${name}\` must be an array of numbers (the ZzFX parameters), e.g. \`${usage2}\`, got ${describe(params)}`
+    );
   }
   if (params.length > MAX_PARAMS) {
     throw new Error(`${component}: ZzFX takes at most ${MAX_PARAMS} parameters, got ${params.length}`);
@@ -396,7 +501,7 @@ var checkSampleRate = (component, sampleRate) => {
   return sampleRate;
 };
 var renderZzfx = (params, sampleRate = 44100, seed = 0) => {
-  const values = checkParams("renderZzfx", params);
+  const values = checkParams("renderZzfx", params, `renderZzfx(${ZZFX_EXAMPLE})`, "params");
   checkSampleRate("renderZzfx", sampleRate);
   checkSeed("renderZzfx", seed);
   const samples = buildZzfxSamples(sampleRate, seededRandom(seed), values);
@@ -423,11 +528,53 @@ var sfxAudio = (params, sampleRate, seed) => {
     length: () => zzfxSamples(key, params, sampleRate, seed).length
   };
 };
-var Sfx = ({ zzfx, at = 0, seed = 0, sampleRate = 44100, volume, muted = false, name }) => {
+var SFX_ALIASES = {
+  ...Object.fromEntries(
+    ["params", "param", "parameters", "zzfxparams", "zzfxparameters", "sound", "sfx", "preset", "effect", "args", "values", "settings", "config"].map(
+      (name) => [name, "zzfx"]
+    )
+  ),
+  ...Object.fromEntries(
+    ["start", "startat", "startframe", "startfrom", "from", "frame", "atframe", "delay", "offset", "time", "when"].map((name) => [name, "at"])
+  ),
+  ...Object.fromEntries(["gain", "vol", "level", "loudness"].map((name) => [name, "volume"])),
+  ...Object.fromEntries(["mute", "silent"].map((name) => [name, "muted"])),
+  ...Object.fromEntries(["label", "title", "trackname"].map((name) => [name, "name"])),
+  ...Object.fromEntries(["rate", "hz"].map((name) => [name, "sampleRate"])),
+  ...Object.fromEntries(["randomseed", "rngseed"].map((name) => [name, "seed"]))
+};
+var SFX_NOTES = {
+  ...Object.fromEntries(
+    ["duration", "durationinframes", "length", "lengthinframes", "frames"].map((name) => [
+      name,
+      "a ZzFX sound is as long as its parameters make it: attack, sustain and release, zzfx[3], zzfx[4] and zzfx[5], in seconds"
+    ])
+  ),
+  ...Object.fromEntries(
+    ["render", "code", "fn", "synth"].map((name) => [
+      name,
+      "Tone.js code is <ToneAudio durationInFrames={30} render={(Tone) => { ... }} />, also from 'motionforge/audio'"
+    ])
+  ),
+  ...Object.fromEntries(["src", "url", "file"].map((name) => [name, `a sound file is <Audio src="..." /> from 'motionforge'`])),
+  children: "<Sfx> renders nothing and takes no children"
+};
+var SFX_PROPS = {
+  component: "<Sfx>",
+  noun: "prop",
+  accepted: ["zzfx", "at", "seed", "sampleRate", "volume", "muted", "name"],
+  required: ["zzfx"],
+  aliases: SFX_ALIASES,
+  notes: SFX_NOTES,
+  example: `<Sfx at={12} zzfx={${ZZFX_EXAMPLE}} />`
+};
+var Sfx = (props) => {
+  const { zzfx, at = 0, seed = 0, sampleRate = 44100, volume, muted = false, name } = props;
   const host = useContext(HostContext);
   const timeline = useContext(TimelineContext);
   const collecting = useIsCollectingAudio();
   const { fps } = useVideoConfig();
+  checkKnownProps(SFX_PROPS, props);
   const params = checkParams("<Sfx>", zzfx);
   checkSampleRate("<Sfx>", sampleRate);
   checkSeed("<Sfx>", seed);
@@ -470,18 +617,40 @@ var Sfx = ({ zzfx, at = 0, seed = 0, sampleRate = 44100, volume, muted = false, 
   );
   return null;
 };
-var describe2 = (value) => {
-  try {
-    return JSON.stringify(value) ?? String(value);
-  } catch {
-    return String(value);
+var PLAYBACK = ["at", "volume", "muted", "name"];
+var soundKeys = (type, where, accepted, required, aliases, example) => {
+  const component = type === "sfx" ? "<Sfx>" : "<ToneAudio>";
+  const playback = (name) => `where and how a sound plays (\`${name}\`) goes on the ${component} that plays it, not in the prepared sound`;
+  const notes = Object.fromEntries(PLAYBACK.map((name) => [name.toLowerCase(), playback(name)]));
+  const own = {};
+  for (const [alias, name] of Object.entries(aliases)) {
+    if (accepted.includes(name)) own[alias] = name;
+    else if (PLAYBACK.includes(name)) notes[alias] = playback(name);
   }
+  return { component: where, subject: `A ${type} sound`, noun: "key", accepted, required, aliases: own, notes, example };
 };
-var SFX_KEYS = ["type", "zzfx", "seed", "sampleRate"];
-var TONE_KEYS = ["type", "durationInFrames", "render", "deps", "seed", "sampleRate", "channels"];
+var sfxKeys = (where) => soundKeys("sfx", where, ["type", "zzfx", "seed", "sampleRate"], ["type", "zzfx"], SFX_ALIASES, `{ type: 'sfx', zzfx: ${ZZFX_EXAMPLE} }`);
+var toneKeys = (where) => soundKeys(
+  "tone",
+  where,
+  ["type", "durationInFrames", "render", "deps", "seed", "sampleRate", "channels"],
+  ["type", "durationInFrames", "render"],
+  TONE_ALIASES,
+  "{ type: 'tone', durationInFrames: 30, render: (Tone) => { new Tone.Synth().toDestination().triggerAttackRelease('C5', '8n', 0); } }"
+);
+var SOUND_SHAPES = `{ type: 'sfx', zzfx: ${ZZFX_EXAMPLE} } (a ZzFX sound) or { type: 'tone', durationInFrames: 30, render: (Tone) => { ... } } (Tone.js code)`;
+var typeHint = (sound) => {
+  const keys = Object.keys(sound).map((key) => key.toLowerCase());
+  const type = typeof sound.type === "string" ? sound.type.toLowerCase() : null;
+  if (type === "zzfx" || keys.includes("zzfx")) return ` (with \`zzfx\` it is \`type: 'sfx'\`)`;
+  if (type === "toneaudio" || keys.includes("render") || keys.includes("durationinframes")) {
+    return ` (with \`render\` it is \`type: 'tone'\`)`;
+  }
+  return "";
+};
 var usePrepareAudio = (sounds) => {
   if (!Array.isArray(sounds)) {
-    throw new Error(`usePrepareAudio: sounds must be an array, got ${describe2(sounds)}`);
+    throw new Error(`usePrepareAudio: sounds must be an array, got ${describe(sounds)}`);
   }
   const host = useContext(HostContext);
   const listened = Boolean(host?.audio);
@@ -490,27 +659,25 @@ var usePrepareAudio = (sounds) => {
   const { delayRender, continueRender, cancelRender } = useDelayRender();
   const keys = sounds.map((sound, index) => {
     const where = `usePrepareAudio: sounds[${index}]`;
-    if (typeof sound !== "object" || sound === null || sound.type !== "sfx" && sound.type !== "tone") {
-      throw new Error(`${where} must be { type: 'sfx', zzfx, ... } or { type: 'tone', durationInFrames, render, ... }, got ${describe2(sound)}`);
+    if (typeof sound !== "object" || sound === null || Array.isArray(sound)) {
+      throw new Error(`${where} must be ${SOUND_SHAPES}, got ${describe(sound)}`);
     }
-    const allowed = sound.type === "sfx" ? SFX_KEYS : TONE_KEYS;
-    for (const key2 of Object.keys(sound)) {
-      if (!allowed.includes(key2)) {
-        throw new Error(
-          `${where}: a ${sound.type} sound takes ${allowed.join(", ")}, not ${JSON.stringify(key2)} (where and how it plays is the component's)`
-        );
-      }
+    if (sound.type !== "sfx" && sound.type !== "tone") {
+      const raw = sound;
+      const got = "type" in raw ? `\`type: ${describe(raw.type)}\`` : "no `type`";
+      throw new Error(`${where} must be ${SOUND_SHAPES}${typeHint(raw)}, got ${got}: ${describe(raw)}`);
     }
+    checkKnownProps(sound.type === "sfx" ? sfxKeys(where) : toneKeys(where), sound);
     const seed = sound.seed ?? 0;
     checkSeed(where, seed);
     if (sound.type === "sfx") {
       const sampleRate2 = sound.sampleRate ?? 44100;
       checkSampleRate(where, sampleRate2);
-      return sfxKey(checkParams(where, sound.zzfx), sampleRate2, seed);
+      return sfxKey(checkParams(where, sound.zzfx, `zzfx: ${ZZFX_EXAMPLE}`), sampleRate2, seed);
     }
     const sampleRate = sound.sampleRate ?? 48e3;
     const channels = sound.channels ?? 2;
-    checkToneProps(where, { ...sound, sampleRate, channels });
+    checkToneProps(where, { ...sound, sampleRate, channels }, "object");
     return toneKey(sound.render, sound.deps ?? [], sound.durationInFrames, fps, sampleRate, channels, seed);
   });
   const key = keys.join("\n");
