@@ -18,7 +18,12 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - `FrameProvider` and `Composition` are controlled: they take a required `frame` prop and have no clock.
 - 3D components (`DepthGallery3D`, `ShaderImageReveal`, `DitheringEffect`) moved to `motionforge/three`, `Lottie` to `motionforge/lottie`; the main entry no longer imports three.js or lottie-web. `three` and the `@react-three/*` peers are optional; `framer-motion` is no longer a peer dependency (nothing used it).
 - `Sequence`, `Loop`, `Freeze`, `Retiming`, `Reverse` and `Series` shift `useCurrentFrame()` for their children; nested sequences compose. Code inside a `Sequence` that subtracted the sequence start itself must use the local frame now.
-- `interpolateColors()` throws on colors it cannot parse instead of returning black.
+- `interpolateColors()` throws on colors it cannot parse instead of returning black, including malformed hex (`#abcde`, `#zzzzzz`).
+- `interpolate()` and `interpolateColors()` throw on a descending `inputRange` or NaN input/ranges; a zero-length segment is a step at its end instead of NaN.
+- `spring()` and `measureSpring()` throw on a missing or non-positive `fps`, a NaN `frame`, or a config without `mass > 0`, `stiffness > 0`, `damping >= 0`; `measureSpring()` throws for `damping: 0` (it never settles).
+- `spring()` with `durationInFrames` stretches the natural motion (settled to `durationRestThreshold`) over `durationInFrames` and is exactly `to` from that frame on; without it, it follows the physics with no time cutoff (it used to stop at 2 s).
+- `noise2D()` is 2D value noise in [0, 1): it depends on both coordinates and is continuous; its values differ from before.
+- `Easing.bezier()` throws when `x1` or `x2` is outside [0, 1].
 - `FrameProvider` and `Composition` throw when `frame` is not an integer from 0 to `durationInFrames - 1`, or when `fps`, `width`, `height` or `durationInFrames` is not positive.
 - Inside `Sequence`, `Loop` and `Series`, `useVideoConfig().durationInFrames` is the length of the sequence (`Sequence`: its `durationInFrames`, or the rest of the parent when it has none; `Loop`: one iteration; `Series`: the active child).
 - The `Loop` context hook is exported as `useLoopInfo()` (it was unreachable: `useLoop` is the frame-modulo hook from `hooks/animation`).
@@ -33,6 +38,10 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - `random()` gives unrelated values for neighbouring seeds.
 - `useMemoizedFrame()` keeps the value per component (it used a process-wide cache keyed only by frame and deps, so components read each other's values and the cache never shrank).
 - `Sequence layout="none"` renders no wrapper element.
+- Overdamped springs start at rest (the coefficients of the closed form did not sum to 1).
+- `measureSpring()` returns the frame from which the spring stays within the threshold, not the first zero crossing.
+- `interpolateColors()` reads `#rgba` and the space/slash syntax `rgb(255 0 0 / 50%)` with percentage alpha and channels.
+- `Easing.bezier()` is accurate for steep curves (Newton with a bisection fallback; it was off by up to 0.06).
 - `Freeze` holds the frame for exactly `durationInFrames` frames, then continues from the frame after it.
 - `useProgress()` and `useTimeline().progress` return 1 instead of NaN for a one-frame composition.
 

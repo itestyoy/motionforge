@@ -98,33 +98,142 @@ export const Easing = {
       ? (1 - Easing.easeOutBounce(1 - 2 * t)) / 2
       : (1 + Easing.easeOutBounce(2 * t - 1)) / 2,
   
-  // Bezier curve easing
+  // Cubic bezier easing, like CSS cubic-bezier(x1, y1, x2, y2). The curve's x
+  // is solved for t with Newton's method from a sampled guess, falling back to
+  // bisection where Newton does not converge (steep or flat parts).
   bezier: (x1: number, y1: number, x2: number, y2: number): EasingFunction => {
-    const epsilon = 1e-6;
-    
-    const sampleCurveX = (t: number): number => 
-      3 * x1 * t * (1 - t) * (1 - t) + 3 * x2 * t * t * (1 - t) + t * t * t;
-    
-    const sampleCurveY = (t: number): number =>
-      3 * y1 * t * (1 - t) * (1 - t) + 3 * y2 * t * t * (1 - t) + t * t * t;
-    
-    const solveCurveX = (x: number): number => {
-      let t = x;
-      for (let i = 0; i < 8; i++) {
-        const xEst = sampleCurveX(t) - x;
-        if (Math.abs(xEst) < epsilon) return t;
-        const d = (3 * x1 * (1 - t) * (1 - t) + 6 * x2 * t * (1 - t) + 3 * t * t);
-        if (Math.abs(d) < epsilon) break;
-        t -= xEst / d;
+    if (![x1, y1, x2, y2].every(Number.isFinite) || x1 < 0 || x1 > 1 || x2 < 0 || x2 > 1) {
+      throw new Error(
+        `Easing.bezier: control points must be finite and x1, x2 must be in [0, 1], got (${x1}, ${y1}, ${x2}, ${y2})`
+      );
+    }
+    if (x1 === y1 && x2 === y2) return (t: number) => t;
+
+    // Polynomial coefficients of one coordinate: ((a*t + b)*t + c)*t.
+    const coefficients = (p1: number, p2: number) => [1 - 3 * p2 + 3 * p1, 3 * p2 - 6 * p1, 3 * p1];
+    const [ax, bx, cx] = coefficients(x1, x2);
+    const [ay, by, cy] = coefficients(y1, y2);
+    const curveX = (t: number) => ((ax * t + bx) * t + cx) * t;
+    const curveY = (t: number) => ((ay * t + by) * t + cy) * t;
+    const slopeX = (t: number) => (3 * ax * t + 2 * bx) * t + cx;
+
+    const samples = 11;
+    const step = 1 / (samples - 1);
+    const table = Array.from({ length: samples }, (_, i) => curveX(i * step));
+
+    const solveT = (x: number): number => {
+      let i = 0;
+      while (i < samples - 2 && table[i + 1] <= x) i++;
+      const lo = i * step;
+      const hi = lo + step;
+      const span = table[i + 1] - table[i];
+      let t = span > 0 ? lo + ((x - table[i]) / span) * step : lo;
+
+      for (let k = 0; k < 8; k++) {
+        const error = curveX(t) - x;
+        if (Math.abs(error) < 1e-12) return t;
+        const slope = slopeX(t);
+        if (Math.abs(slope) < 1e-9) break;
+        t -= error / slope;
       }
-      return t;
+      // Outside [0, 1] (extrapolated input) only Newton applies.
+      if (x < 0 || x > 1) return t;
+      if (t >= lo && t <= hi && Math.abs(curveX(t) - x) < 1e-12) return t;
+
+      // x(t) is monotonic on [0, 1] when x1, x2 are in [0, 1].
+      let a = lo;
+      let b = hi;
+      for (let k = 0; k < 60; k++) {
+        t = (a + b) / 2;
+        if (curveX(t) < x) a = t;
+        else b = t;
+        if (b - a < 1e-12) break;
+      }
+      return (a + b) / 2;
     };
-    
-    return (t: number): number => sampleCurveY(solveCurveX(t));
+
+    return (x: number): number => (x === 0 ? 0 : x === 1 ? 1 : curveY(solveT(x)));
   },
 };
 
-// Spring animation
+const isPositive = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+const resolveSpringConfig = (fn: string, config: SpringConfig['config'] = {}) => {
+  const { damping = 10, mass = 1, stiffness = 100, overshootClamping = false } = config;
+  if (!isPositive(mass) || !isPositive(stiffness) || !Number.isFinite(damping) || damping < 0) {
+    throw new Error(
+      `${fn}: config needs mass > 0, stiffness > 0 and damping >= 0, got mass ${mass}, stiffness ${stiffness}, damping ${damping}`
+    );
+  }
+  return {
+    omega: Math.sqrt(stiffness / mass),
+    zeta: damping / (2 * Math.sqrt(stiffness * mass)),
+    overshootClamping,
+  };
+};
+
+// Position of a spring released at rest from 0 towards 1, after `time` seconds.
+const springStep = (time: number, omega: number, zeta: number): number => {
+  if (zeta < 1 - 1e-6) {
+    // Underdamped
+    const omegaD = omega * Math.sqrt(1 - zeta * zeta);
+    return 1 - Math.exp(-zeta * omega * time) * (
+      Math.cos(omegaD * time) + (zeta * omega / omegaD) * Math.sin(omegaD * time)
+    );
+  }
+  if (zeta <= 1 + 1e-6) {
+    // Critically damped
+    return 1 - (1 + omega * time) * Math.exp(-omega * time);
+  }
+  // Overdamped: x = 1 - c1·e^(r1·t) - c2·e^(r2·t) with x(0) = 0 and x'(0) = 0.
+  const root = Math.sqrt(zeta * zeta - 1);
+  const r1 = -omega * (zeta - root);
+  const r2 = -omega * (zeta + root);
+  const c1 = r2 / (r2 - r1);
+  const c2 = -r1 / (r2 - r1);
+  return 1 - c1 * Math.exp(r1 * time) - c2 * Math.exp(r2 * time);
+};
+
+// First frame from which the spring stays within `threshold` of its target.
+const settleFrame = (fps: number, omega: number, zeta: number, threshold: number): number => {
+  const off = (n: number) => Math.abs(springStep(n / fps, omega, zeta) - 1);
+
+  if (zeta >= 1 - 1e-6) {
+    // Critically damped and overdamped springs approach 1 without overshoot,
+    // so the first frame inside the threshold is the answer: search for it.
+    let hi = 1;
+    while (off(hi) >= threshold) hi *= 2;
+    let lo = 0;
+    while (hi - lo > 1) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (off(mid) >= threshold) lo = mid;
+      else hi = mid;
+    }
+    return hi;
+  }
+
+  if (zeta === 0) {
+    throw new Error('measureSpring: a spring with damping 0 oscillates forever and never comes to rest');
+  }
+  // |x - 1| never exceeds the envelope e^(-ζωt) / sqrt(1 - ζ²); past the time
+  // the envelope drops below the threshold, the spring has settled for good.
+  // Walk back from there to the last frame that is still outside the threshold.
+  const envelopeTime = Math.log(1 / (threshold * Math.sqrt(1 - zeta * zeta))) / (zeta * omega);
+  for (let n = Math.ceil(envelopeTime * fps); n >= 0; n--) {
+    if (off(n) >= threshold) return n + 1;
+  }
+  return 0;
+};
+
+/**
+ * Spring from `from` to `to`, released at rest at frame 0.
+ *
+ * Without `durationInFrames` it follows the physics of `config` and settles
+ * when it settles. With `durationInFrames` the motion is stretched in time so
+ * that it settles (to within `durationRestThreshold`) at `durationInFrames`,
+ * and from that frame on it is exactly `to`.
+ */
 export const spring = ({
   frame,
   fps,
@@ -134,53 +243,38 @@ export const spring = ({
   durationInFrames,
   durationRestThreshold = 0.005,
 }: SpringConfig): number => {
-  const {
-    damping = 10,
-    mass = 1,
-    stiffness = 100,
-    overshootClamping = false,
-  } = config;
+  if (!isPositive(fps)) {
+    throw new Error(`spring: fps must be a positive number (use useVideoConfig().fps), got ${fps}`);
+  }
+  if (typeof frame !== 'number' || Number.isNaN(frame)) {
+    throw new Error(`spring: frame must be a number, got ${frame}`);
+  }
+  if (!Number.isFinite(from) || !Number.isFinite(to)) {
+    throw new Error(`spring: from and to must be finite numbers, got ${from} and ${to}`);
+  }
+  if (durationInFrames !== undefined && !isPositive(durationInFrames)) {
+    throw new Error(`spring: durationInFrames must be a positive number, got ${durationInFrames}`);
+  }
+  const { omega, zeta, overshootClamping } = resolveSpringConfig('spring', config);
 
-  // Calculate natural frequency and damping ratio
-  const omega = Math.sqrt(stiffness / mass);
-  const zeta = damping / (2 * Math.sqrt(stiffness * mass));
-  
-  // Before the spring starts it rests at `from` (the closed form below grows
-  // without bound for negative time).
+  // Before the spring starts it rests at `from` (the closed form grows without
+  // bound for negative time).
   if (frame <= 0) return from;
 
-  // Calculate duration if not provided
-  const actualDuration = durationInFrames ?? Math.ceil(fps * 2);
-  
-  // Normalize time
-  const t = Math.min(frame / actualDuration, 1);
-  const time = t * actualDuration / fps;
-  
-  let value: number;
-  
-  if (zeta < 1) {
-    // Underdamped
-    const omegaD = omega * Math.sqrt(1 - zeta * zeta);
-    value = 1 - Math.exp(-zeta * omega * time) * (
-      Math.cos(omegaD * time) + (zeta * omega / omegaD) * Math.sin(omegaD * time)
-    );
-  } else if (zeta === 1) {
-    // Critically damped
-    value = 1 - (1 + omega * time) * Math.exp(-omega * time);
-  } else {
-    // Overdamped
-    const r1 = -omega * (zeta - Math.sqrt(zeta * zeta - 1));
-    const r2 = -omega * (zeta + Math.sqrt(zeta * zeta - 1));
-    const c2 = (1 - r1 / (r1 - r2)) / (r1 - r2);
-    const c1 = 1 / (r1 - r2) - c2;
-    value = 1 - c1 * Math.exp(r1 * time) - c2 * Math.exp(r2 * time);
+  let time = frame / fps;
+  if (durationInFrames !== undefined) {
+    if (frame >= durationInFrames) return to;
+    const naturalDuration = measureSpring({ fps, config, threshold: durationRestThreshold });
+    time = (frame * naturalDuration) / durationInFrames / fps;
   }
-  
+
+  let value = springStep(time, omega, zeta);
+
   // Clamp overshoot if needed
   if (overshootClamping) {
     value = Math.max(0, Math.min(1, value));
   }
-  
+
   return from + (to - from) * value;
 };
 
@@ -193,6 +287,31 @@ const findSegment = (input: number, inputRange: number[]): number => {
   }
   return inputRange.length - 2;
 };
+
+// Shared argument checks of interpolate() and interpolateColors().
+const checkRanges = (fn: string, input: number, inputRange: number[], outputLength: number) => {
+  if (typeof input !== 'number' || Number.isNaN(input)) {
+    throw new Error(`${fn}: input must be a number, got ${input}`);
+  }
+  if (inputRange.length !== outputLength) {
+    throw new Error(`${fn}: inputRange and outputRange must have the same length`);
+  }
+  if (inputRange.length < 2) {
+    throw new Error(`${fn}: inputRange must have at least 2 elements`);
+  }
+  for (let i = 0; i < inputRange.length; i++) {
+    if (typeof inputRange[i] !== 'number' || Number.isNaN(inputRange[i])) {
+      throw new Error(`${fn}: inputRange must contain numbers, got [${inputRange.join(', ')}]`);
+    }
+    if (i > 0 && inputRange[i] < inputRange[i - 1]) {
+      throw new Error(`${fn}: inputRange must be ascending, got [${inputRange.join(', ')}]`);
+    }
+  }
+};
+
+// Progress through [start, end]; a zero-length segment is a step at `end`.
+const segmentProgress = (input: number, start: number, end: number): number =>
+  end === start ? (input >= end ? 1 : 0) : (input - start) / (end - start);
 
 // Interpolate function
 export const interpolate = (
@@ -207,13 +326,12 @@ export const interpolate = (
     easing,
   } = options;
 
-  if (inputRange.length !== outputRange.length) {
-    throw new Error('inputRange and outputRange must have the same length');
-  }
-
-  if (inputRange.length < 2) {
-    throw new Error('inputRange must have at least 2 elements');
-  }
+  checkRanges('interpolate', input, inputRange, outputRange.length);
+  outputRange.forEach((value) => {
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+      throw new Error(`interpolate: outputRange must contain numbers, got [${outputRange.join(', ')}]`);
+    }
+  });
 
   // Check if input is outside the range
   if (input < inputRange[0]) {
@@ -241,8 +359,12 @@ export const interpolate = (
   const outputStart = outputRange[segmentIndex];
   const outputEnd = outputRange[segmentIndex + 1];
 
+  if (inputEnd === inputStart) {
+    return segmentProgress(input, inputStart, inputEnd) === 1 ? outputEnd : outputStart;
+  }
+
   // Calculate progress
-  let progress = (input - inputStart) / (inputEnd - inputStart);
+  let progress = segmentProgress(input, inputStart, inputEnd);
   
   // Apply easing
   if (easing) {
@@ -253,38 +375,48 @@ export const interpolate = (
 };
 
 // Interpolate colors
-// Parses #rgb, #rrggbb, #rrggbbaa, rgb() and rgba(); channels are 0–255, alpha 0–1.
+// Parses #rgb, #rgba, #rrggbb, #rrggbbaa, and rgb()/rgba() in both the comma
+// syntax `rgb(255, 0, 0, 0.5)` and the space syntax `rgb(255 0 0 / 50%)`;
+// channels may be numbers (0–255) or percentages, alpha a number (0–1) or a
+// percentage. Anything else throws.
+const NUMBER = '[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:e[+-]?\\d+)?%?';
+const COMMA_RGB = new RegExp(
+  `^rgba?\\(\\s*(${NUMBER})\\s*,\\s*(${NUMBER})\\s*,\\s*(${NUMBER})\\s*(?:,\\s*(${NUMBER})\\s*)?\\)$`,
+  'i'
+);
+const SPACE_RGB = new RegExp(
+  `^rgba?\\(\\s*(${NUMBER})\\s+(${NUMBER})\\s+(${NUMBER})\\s*(?:\\/\\s*(${NUMBER})\\s*)?\\)$`,
+  'i'
+);
+const HEX = /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+
 const parseColor = (color: string): [number, number, number, number] => {
-  const value = color.trim();
-  if (value.startsWith('#')) {
-    const hex = value.slice(1);
-    if (hex.length === 3) {
-      return [
-        parseInt(hex[0] + hex[0], 16),
-        parseInt(hex[1] + hex[1], 16),
-        parseInt(hex[2] + hex[2], 16),
-        1,
-      ];
-    }
+  const value = typeof color === 'string' ? color.trim() : '';
+
+  const hex = value.match(HEX)?.[1];
+  if (hex) {
+    const digits = hex.length <= 4 ? hex.split('').map((d) => d + d) : hex.match(/../g)!;
+    const [r, g, b] = digits.map((d) => parseInt(d, 16));
+    return [r, g, b, digits.length === 4 ? parseInt(digits[3], 16) / 255 : 1];
+  }
+
+  const rgb = value.match(COMMA_RGB) ?? value.match(SPACE_RGB);
+  if (rgb) {
+    const channel = (part: string) =>
+      part.endsWith('%') ? (parseFloat(part) / 100) * 255 : parseFloat(part);
+    const alpha = (part: string | undefined) =>
+      part === undefined ? 1 : part.endsWith('%') ? parseFloat(part) / 100 : parseFloat(part);
     return [
-      parseInt(hex.slice(0, 2), 16),
-      parseInt(hex.slice(2, 4), 16),
-      parseInt(hex.slice(4, 6), 16),
-      hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1,
+      channel(rgb[1]),
+      channel(rgb[2]),
+      channel(rgb[3]),
+      Math.max(0, Math.min(1, alpha(rgb[4]))),
     ];
   }
-  if (value.startsWith('rgb')) {
-    const match = value.match(/-?\d*\.?\d+/g);
-    if (match && match.length >= 3) {
-      return [
-        parseFloat(match[0]),
-        parseFloat(match[1]),
-        parseFloat(match[2]),
-        match[3] !== undefined ? parseFloat(match[3]) : 1,
-      ];
-    }
-  }
-  throw new Error(`interpolateColors: unsupported color "${color}"`);
+
+  throw new Error(
+    `interpolateColors: unsupported color "${color}" (use #rgb, #rgba, #rrggbb, #rrggbbaa, rgb() or rgba())`
+  );
 };
 
 const formatColor = ([r, g, b, a]: [number, number, number, number]): string => {
@@ -301,12 +433,7 @@ export const interpolateColors = (
   inputRange: number[],
   outputRange: string[]
 ): string => {
-  if (inputRange.length !== outputRange.length) {
-    throw new Error('inputRange and outputRange must have the same length');
-  }
-  if (inputRange.length < 2) {
-    throw new Error('inputRange must have at least 2 elements');
-  }
+  checkRanges('interpolateColors', input, inputRange, outputRange.length);
 
   // Colors do not extrapolate: outside the range the end color holds.
   const clamped = Math.max(inputRange[0], Math.min(inputRange[inputRange.length - 1], input));
@@ -317,7 +444,7 @@ export const interpolateColors = (
   const colorStart = parseColor(outputRange[segmentIndex]);
   const colorEnd = parseColor(outputRange[segmentIndex + 1]);
 
-  const progress = inputEnd === inputStart ? 1 : (clamped - inputStart) / (inputEnd - inputStart);
+  const progress = segmentProgress(clamped, inputStart, inputEnd);
   const mix = (i: number) => colorStart[i] + progress * (colorEnd[i] - colorStart[i]);
 
   return formatColor([mix(0), mix(1), mix(2), mix(3)]);
@@ -368,7 +495,11 @@ export const useKeyframes = (
   return progress < 0.5 ? prev.value : next.value;
 };
 
-// Measure spring duration
+/**
+ * Number of frames until a spring released at frame 0 has settled: from the
+ * returned frame on, it stays within `threshold` (a fraction of the distance
+ * from `from` to `to`) of its target.
+ */
 export const measureSpring = ({
   fps,
   config = {},
@@ -378,41 +509,14 @@ export const measureSpring = ({
   config?: SpringConfig['config'];
   threshold?: number;
 }): number => {
-  const { damping = 10, mass = 1, stiffness = 100 } = config;
-  const omega = Math.sqrt(stiffness / mass);
-  const zeta = damping / (2 * Math.sqrt(stiffness * mass));
-  
-  // Estimate time to settle
-  let time = 0;
-  const dt = 1 / fps;
-  const maxTime = 10; // 10 seconds max
-  
-  while (time < maxTime) {
-    let value: number;
-    
-    if (zeta < 1) {
-      const omegaD = omega * Math.sqrt(1 - zeta * zeta);
-      value = 1 - Math.exp(-zeta * omega * time) * (
-        Math.cos(omegaD * time) + (zeta * omega / omegaD) * Math.sin(omegaD * time)
-      );
-    } else if (zeta === 1) {
-      value = 1 - (1 + omega * time) * Math.exp(-omega * time);
-    } else {
-      const r1 = -omega * (zeta - Math.sqrt(zeta * zeta - 1));
-      const r2 = -omega * (zeta + Math.sqrt(zeta * zeta - 1));
-      const c2 = (1 - r1 / (r1 - r2)) / (r1 - r2);
-      const c1 = 1 / (r1 - r2) - c2;
-      value = 1 - c1 * Math.exp(r1 * time) - c2 * Math.exp(r2 * time);
-    }
-    
-    if (Math.abs(value - 1) < threshold) {
-      return Math.ceil(time * fps);
-    }
-    
-    time += dt;
+  if (!isPositive(fps)) {
+    throw new Error(`measureSpring: fps must be a positive number, got ${fps}`);
   }
-  
-  return Math.ceil(maxTime * fps);
+  if (!isPositive(threshold) || threshold >= 1) {
+    throw new Error(`measureSpring: threshold must be between 0 and 1, got ${threshold}`);
+  }
+  const { omega, zeta } = resolveSpringConfig('measureSpring', config);
+  return settleFrame(fps, omega, zeta, threshold);
 };
 
 // Calculate frames from seconds
@@ -453,28 +557,31 @@ export const random = (seed: string | number, min: number = 0, max: number = 1):
   return min + normalized * (max - min);
 };
 
-// Noise function (simple implementation)
+/**
+ * 2D value noise: smooth (continuous) in x and y, deterministic, in [0, 1).
+ * Each integer lattice point gets a value from random(); between them the
+ * values are mixed bilinearly with smoothstep weights.
+ */
 export const noise2D = (x: number, y: number): number => {
-  const X = Math.floor(x) & 255;
-  const Y = Math.floor(y) & 255;
-  
-  x -= Math.floor(x);
-  y -= Math.floor(y);
-  
-  const u = x * x * (3 - 2 * x);
-  const v = y * y * (3 - 2 * y);
-  
-  const A = (X + Y * 256) % 256;
-  const B = (X + 1 + Y * 256) % 256;
-  const C = (X + (Y + 1) * 256) % 256;
-  const D = (X + 1 + (Y + 1) * 256) % 256;
-  
-  const a = Math.sin(A * 12.9898 + 78.233) * 43758.5453 % 1;
-  const b = Math.sin(B * 12.9898 + 78.233) * 43758.5453 % 1;
-  const c = Math.sin(C * 12.9898 + 78.233) * 43758.5453 % 1;
-  const d = Math.sin(D * 12.9898 + 78.233) * 43758.5453 % 1;
-  
-  return a + u * (b - a + v * (d - b - (d - c))) + v * (c - a);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new Error(`noise2D: x and y must be finite numbers, got ${x}, ${y}`);
+  }
+  const X = Math.floor(x);
+  const Y = Math.floor(y);
+  const fx = x - X;
+  const fy = y - Y;
+  const u = fx * fx * (3 - 2 * fx);
+  const v = fy * fy * (3 - 2 * fy);
+
+  const lattice = (i: number, j: number) => random(`noise2D:${i}:${j}`);
+  const a = lattice(X, Y);
+  const b = lattice(X + 1, Y);
+  const c = lattice(X, Y + 1);
+  const d = lattice(X + 1, Y + 1);
+
+  const top = a + (b - a) * u;
+  const bottom = c + (d - c) * u;
+  return top + (bottom - top) * v;
 };
 
 export { Easing as easing };

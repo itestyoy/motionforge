@@ -214,11 +214,12 @@ const scale = useOptimizedSpring({ damping: 10 }, 0, 1);
 
 | Function | Description |
 |----------|-------------|
-| `spring({ frame, fps, config })` | Calculate spring animation value |
-| `interpolate(input, inputRange, outputRange, options)` | Map values between ranges |
-| `interpolateColors(input, inputRange, outputRange)` | Smooth color transitions |
+| `spring({ frame, fps, config })` | Calculate spring animation value; with `durationInFrames` the motion is stretched to settle at that frame and is exactly `to` from then on |
+| `measureSpring({ fps, config, threshold })` | Frames until a spring stays within `threshold` of its target |
+| `interpolate(input, inputRange, outputRange, options)` | Map values between ranges; `inputRange` must be ascending |
+| `interpolateColors(input, inputRange, outputRange)` | Smooth color transitions between `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()` / `rgba()` (comma or `rgb(r g b / a)` syntax) |
 | `random(seed)` | Deterministic random number generator |
-| `noise2D(x, y)` | Perlin noise function |
+| `noise2D(x, y)` | Smooth deterministic 2D value noise in [0, 1) |
 
 ## 🎭 Using Lottie in MotionForge
 
