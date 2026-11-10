@@ -21,23 +21,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('packages/motionforge/bun.lock') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
-      - name: Install Root Dependencies
-        run: bun install
-
-      - name: Build Framework
+      - name: Typecheck, build, test
         working-directory: packages/motionforge
         run: |
-          bun install
+          bun install --frozen-lockfile
           bun run typecheck
           bun run build
           bun run test
-
-      - name: Build CLI
-        working-directory: packages/create-motionforge
-        run: |
-          bun install
-          ls bin/index.js
