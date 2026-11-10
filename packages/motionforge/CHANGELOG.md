@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `AbsoluteFill` takes `ref` (a prop, React 19) and passes every other `<div>` attribute through (`id`, `data-*`, `aria-*`, event handlers, ...), as Remotion's does; its props type is exported as `AbsoluteFillProps`.
+
 ### Fixed
 - `loadFont()` adds the face to `document.fonts` at once, while it loads (it added it only once loaded), so `usePreloadAssets([{ type: 'font', family }])` for a font that is still loading (`loadFont()` at the top of a module, or in an effect of the same commit) waits for that load instead of cancelling the render with "no font face matches". A face that fails to load is removed again.
 

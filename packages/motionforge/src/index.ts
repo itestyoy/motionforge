@@ -79,7 +79,7 @@ export {
   Path,
   G,
 } from './components/Media';
-export type { VideoProps, AudioProps, ImgProps } from './components/Media';
+export type { AbsoluteFillProps, VideoProps, AudioProps, ImgProps } from './components/Media';
 export { AnimatedImage } from './components/animated-image/AnimatedImage';
 export type {
   AnimatedImageProps,

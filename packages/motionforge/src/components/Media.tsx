@@ -6,38 +6,36 @@ import { useDelayRender } from '../core/delay-render';
 import { usePrefetchedSrc } from '../core/prefetch';
 import { AudioTrackDescription, AudioVolume, useAudioTrack } from '../core/audio-track';
 
-// Absolute Fill - Container component
-interface AbsoluteFillProps {
-  children?: React.ReactNode;
-  style?: React.CSSProperties;
-  className?: string;
-}
-
-export const AbsoluteFill: React.FC<AbsoluteFillProps> = ({
-  children,
-  style,
-  className,
-}) => {
-  return (
-    <div
-      className={className}
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        ...style,
-      }}
-    >
-      {children}
-    </div>
-  );
+/**
+ * Props of AbsoluteFill: every attribute of a `<div>` (`id`, `className`,
+ * `data-*`, `aria-*`, event handlers, ...) and `ref` (a prop in React 19).
+ */
+export type AbsoluteFillProps = React.HTMLAttributes<HTMLDivElement> & {
+  ref?: React.Ref<HTMLDivElement>;
 };
+
+/**
+ * A `<div>` filling its parent (absolute, inset 0, flex column), as
+ * Remotion's AbsoluteFill: `style` is merged over these defaults, and every
+ * other attribute and `ref` go to the element.
+ */
+export const AbsoluteFill: React.FC<AbsoluteFillProps> = ({ style, ...props }) => (
+  <div
+    {...props}
+    style={{
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      ...style,
+    }}
+  />
+);
 
 // The element ref is needed internally; a caller's ref (a prop in React 19)
 // gets the element too.

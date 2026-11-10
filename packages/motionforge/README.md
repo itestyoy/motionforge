@@ -326,7 +326,7 @@ They follow Remotion's packages: `@remotion/three`, `@remotion/motion-blur`, `@r
 
 | Component | Description |
 |-----------|-------------|
-| `AbsoluteFill` | Full-screen container with absolute positioning |
+| `AbsoluteFill` | A `<div>` filling its parent (absolute, inset 0, flex column), as in Remotion: `style` is merged over these defaults; `ref` and every other `<div>` attribute (`id`, `className`, `data-*`, `aria-*`, event handlers) go to the element |
 | `Sequence` | Time-based rendering for scene management; inside it `useCurrentFrame()` counts from the sequence start. Props as in Remotion: `from` (default 0), `durationInFrames`, `name`, `width` / `height` (what the children see in `useVideoConfig()`, and the wrapper size), `layout` (`'absolute-fill'` default, or `'none'`: no element, so no `style` / `className` / mounting props), `style`, `className`, `premountFor`, `postmountFor`, `styleWhilePremounted`, `styleWhilePostmounted`; plus `offset` |
 | `Loop` | Repeats its children every `durationInFrames` (a positive integer), `times` times (a non-negative integer, default `Infinity`). Each iteration is a `Sequence`: `layout`, `style`, `className` and `name` as there. `Loop.useLoop()` returns `{ iteration, durationInFrames }` inside a Loop and `null` outside |
 | `Freeze` | `<Freeze frame={n} active?>`: the children see frame `n` while `active` (a boolean or `(frame) => boolean`, default `true`), the current frame otherwise. `n` may be a sub-frame (e.g. `12.5`), as in Remotion |
