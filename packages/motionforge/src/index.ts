@@ -123,10 +123,11 @@ export {
   getSecondsFromFrames,
   range,
   random,
-  noise2D,
   Easing,
   easing,
 } from './utils/animation';
+export type { EasingSpringConfig, InterpolateColorsOptions } from './utils/animation';
+export { noise2D, noise3D, noise4D } from './utils/noise';
 
 // SVG path geometry (no DOM needed)
 export {

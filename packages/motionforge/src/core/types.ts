@@ -84,10 +84,14 @@ export interface SpringConfig {
 export type ExtrapolateType = 'clamp' | 'extend' | 'identity' | 'wrap';
 
 export interface InterpolateOptions {
+  /** Left of the input range (default 'extend', as in Remotion). */
   extrapolateLeft?: ExtrapolateType;
+  /** Right of the input range (default 'extend', as in Remotion). */
   extrapolateRight?: ExtrapolateType;
   /** One easing for every segment, or one per segment (length inputRange.length - 1). */
   easing?: EasingFunction | readonly EasingFunction[];
+  /** Steps the input: it is rounded down to a multiple of this positive number first. */
+  posterize?: number;
 }
 
 export type EasingFunction = (t: number) => number;

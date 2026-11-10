@@ -242,7 +242,7 @@ export const useFade = (
       frame,
       [startFrame, startFrame + fadeInDuration],
       [0, 1],
-      { extrapolateRight: 'clamp' }
+      { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
     );
   }
   
@@ -252,7 +252,7 @@ export const useFade = (
       frame,
       [endFrame - fadeOutDuration, endFrame],
       [1, 0],
-      { extrapolateLeft: 'clamp' }
+      { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
     );
   }
   

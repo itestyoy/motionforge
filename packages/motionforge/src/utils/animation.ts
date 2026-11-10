@@ -1,6 +1,7 @@
 // Animation utilities for Remotion-like framework
 
-import { SpringConfig, InterpolateOptions, EasingFunction, Keyframe } from '../core/types';
+import { SpringConfig, InterpolateOptions, EasingFunction, ExtrapolateType, Keyframe } from '../core/types';
+import { parseColor } from './colors';
 
 // Easing functions. Every easing returns exactly 0 at 0 and 1 at 1.
 const pinned = (fn: EasingFunction): EasingFunction => (t: number) => (t === 0 ? 0 : t === 1 ? 1 : fn(t));
@@ -182,20 +183,51 @@ const checkNumber = (name: string, value: unknown, min = -Infinity): number => {
 
 const easeCurve = cubicBezier(0.42, 0, 1, 1);
 
+// Easings whose motion continues past t = 1 (Easing.spring({ allowTail: true })):
+// interpolate() lets them run on past the end of their segment even when the
+// right side is clamped, as in Remotion.
+const extendsRight = new WeakSet<EasingFunction>();
+
+/** Options of Easing.spring(): a spring config, as in Remotion. */
+export interface EasingSpringConfig {
+  damping?: number;
+  mass?: number;
+  stiffness?: number;
+  overshootClamping?: boolean;
+  /**
+   * Without it (default false) the spring is stretched to settle exactly at
+   * t = 1. With it, t = 1 is the time the spring settles to within
+   * `durationRestThreshold`, and the motion goes on after it: interpolate()
+   * continues it past the end of the segment, even with extrapolateRight 'clamp'.
+   */
+  allowTail?: boolean;
+  /** Distance from the target that counts as settled (default 0.005). */
+  durationRestThreshold?: number;
+}
+
+// The spring easing runs on a 30 fps clock of 30 frames, as in Remotion.
+const SPRING_EASING_FPS = 30;
+
 /**
  * Easing functions for interpolate(). Two families:
  *
  * - Remotion's (from React Native): base curves `linear`, `ease`, `quad`,
  *   `cubic`, `poly(n)`, `sin`, `circle`, `exp`, `elastic(bounciness)`,
- *   `back(s)`, `bounce`, `bezier(x1, y1, x2, y2)`, composed with
- *   `Easing.in(f)` (as is), `Easing.out(f)` (mirrored) and `Easing.inOut(f)`
- *   (in for the first half, out for the second): `Easing.out(Easing.cubic)`.
+ *   `back(s)`, `bounce`, `bezier(x1, y1, x2, y2)`, `step0`, `step1`,
+ *   `spring(config)`, composed with `Easing.in(f)` (as is), `Easing.out(f)`
+ *   (mirrored) and `Easing.inOut(f)` (in for the first half, out for the
+ *   second): `Easing.out(Easing.cubic)`.
  * - Named curves: `easeInQuad`, `easeOutCubic`, `easeInOutBack`, ...
  *
- * Every easing returns exactly 0 at 0 and 1 at 1.
+ * Every easing returns exactly 0 at 0 and 1 at 1 (a spring with `allowTail`
+ * is at its settle threshold at 1, not exactly 1).
  */
 export const Easing = {
   ...namedEasings,
+  /** 1 for any t > 0, else 0. */
+  step0: (t: number): number => (t > 0 ? 1 : 0),
+  /** 1 for any t >= 1, else 0. */
+  step1: (t: number): number => (t >= 1 ? 1 : 0),
   linear: (t: number): number => t,
   /** Remotion's `ease`: bezier(0.42, 0, 1, 1). */
   ease: easeCurve,
@@ -225,8 +257,48 @@ export const Easing = {
   },
   bounce: pinned((t) => easeOutBounce(clampUnit(t))),
   bezier: cubicBezier,
+  /**
+   * A spring as an easing (Remotion's Easing.spring): the spring() motion
+   * from 0 to 1 with this config, on a 30 fps clock. See EasingSpringConfig
+   * for `allowTail`.
+   */
+  spring: (config: EasingSpringConfig = {}): EasingFunction => {
+    if (typeof config !== 'object' || config === null) {
+      throw new Error(`Easing.spring: expects a config object, got ${JSON.stringify(config)}`);
+    }
+    const { allowTail = false, durationRestThreshold, ...springConfig } = config;
+    if (typeof allowTail !== 'boolean') {
+      throw new Error(`Easing.spring: allowTail must be a boolean, got ${JSON.stringify(allowTail)}`);
+    }
+    resolveSpringConfig('Easing.spring', springConfig);
+    if (allowTail) {
+      // The natural motion: t = 1 is the frame it settles at.
+      const settle = measureSpring({ fps: SPRING_EASING_FPS, config: springConfig, threshold: durationRestThreshold });
+      const easing: EasingFunction = (t) =>
+        t <= 0 ? 0 : spring({ fps: SPRING_EASING_FPS, frame: t * settle, config: springConfig });
+      extendsRight.add(easing);
+      return easing;
+    }
+    // Throws now for a config that never settles (spring() would on the first call).
+    measureSpring({ fps: SPRING_EASING_FPS, config: springConfig, threshold: durationRestThreshold });
+    return (t) => {
+      if (t <= 0) return 0;
+      if (t >= 1) return 1;
+      return spring({
+        fps: SPRING_EASING_FPS,
+        frame: t * SPRING_EASING_FPS,
+        config: springConfig,
+        durationInFrames: SPRING_EASING_FPS,
+        durationRestThreshold,
+      });
+    };
+  },
   /** Runs the easing forwards (returns it as is). */
-  in: (easing: EasingFunction): EasingFunction => pinned(checkEasing('in', easing)),
+  in: (easing: EasingFunction): EasingFunction => {
+    const fn = checkEasing('in', easing);
+    // A spring with a tail keeps it (Remotion returns the easing itself).
+    return extendsRight.has(fn) ? fn : pinned(fn);
+  },
   /** Runs the easing backwards: out(f)(t) = 1 - f(1 - t). */
   out: (easing: EasingFunction): EasingFunction => {
     const fn = checkEasing('out', easing);
@@ -386,57 +458,121 @@ export const spring = ({
 // Index of the segment [inputRange[i], inputRange[i + 1]] that `input` falls in;
 // inputs past either end belong to the first or last segment (so extrapolation
 // continues the outermost segment).
-const findSegment = (input: number, inputRange: number[]): number => {
+const findSegment = (input: number, inputRange: readonly number[]): number => {
   for (let i = 1; i < inputRange.length - 1; i++) {
     if (input <= inputRange[i]) return i - 1;
   }
   return inputRange.length - 2;
 };
 
-// Shared argument checks of interpolate() and interpolateColors().
-const checkRanges = (fn: string, input: number, inputRange: number[], outputLength: number) => {
+// Shared argument checks of interpolate(), interpolateColors() and interpolateStyles().
+export const checkInterpolateArgs = (
+  fn: string,
+  input: number,
+  inputRange: readonly number[],
+  outputLength: number,
+  options: { easing?: unknown; posterize?: unknown },
+) => {
   if (typeof input !== 'number' || Number.isNaN(input)) {
     throw new Error(`${fn}: input must be a number, got ${input}`);
   }
-  if (inputRange.length !== outputLength) {
-    throw new Error(`${fn}: inputRange and outputRange must have the same length`);
+  if (!Array.isArray(inputRange)) {
+    throw new Error(`${fn}: inputRange must be an array of numbers, got ${JSON.stringify(inputRange)}`);
   }
-  if (inputRange.length < 2) {
-    throw new Error(`${fn}: inputRange must have at least 2 elements`);
+  if (inputRange.length !== outputLength) {
+    throw new Error(
+      `${fn}: inputRange (${inputRange.length}) and outputRange (${outputLength}) must have the same length`,
+    );
+  }
+  if (inputRange.length < 1) {
+    throw new Error(`${fn}: inputRange must have at least 1 element`);
   }
   for (let i = 0; i < inputRange.length; i++) {
-    if (typeof inputRange[i] !== 'number' || Number.isNaN(inputRange[i])) {
-      throw new Error(`${fn}: inputRange must contain numbers, got [${inputRange.join(', ')}]`);
+    if (typeof inputRange[i] !== 'number' || !Number.isFinite(inputRange[i])) {
+      throw new Error(`${fn}: inputRange must contain finite numbers, got [${inputRange.join(', ')}]`);
     }
     if (i > 0 && inputRange[i] < inputRange[i - 1]) {
       throw new Error(`${fn}: inputRange must be ascending, got [${inputRange.join(', ')}]`);
     }
   }
+  const { easing, posterize } = options;
+  const segments = inputRange.length - 1;
+  if (Array.isArray(easing)) {
+    if (easing.length !== segments) {
+      throw new Error(
+        `${fn}: an easing array needs one easing per segment (inputRange.length - 1 = ${segments}), got ${easing.length}`,
+      );
+    }
+    easing.forEach((f, i) => {
+      if (typeof f !== 'function') throw new Error(`${fn}: easing[${i}] must be a function, got ${f}`);
+    });
+  } else if (easing !== undefined && typeof easing !== 'function') {
+    throw new Error(`${fn}: easing must be a function or an array of functions, got ${easing}`);
+  }
+  if (posterize !== undefined && (typeof posterize !== 'number' || !Number.isFinite(posterize) || posterize <= 0)) {
+    throw new Error(`${fn}: posterize must be a positive finite number, got ${posterize}`);
+  }
 };
-
-// Progress through [start, end]; a zero-length segment is a step at `end`.
-const segmentProgress = (input: number, start: number, end: number): number =>
-  end === start ? (input >= end ? 1 : 0) : (input - start) / (end - start);
 
 const EXTRAPOLATE = ['clamp', 'extend', 'identity', 'wrap'];
 
-// Interpolate function
+const identity: EasingFunction = (t) => t;
+
+const easingOfSegment = (easing: InterpolateOptions['easing'], segment: number): EasingFunction =>
+  easing === undefined ? identity : typeof easing === 'function' ? easing : easing[segment];
+
+// Value of segment `i` at `input`: inside the segment, or past its ends as
+// the extrapolation says ('wrap' is resolved before).
+const segmentValue = (
+  input: number,
+  i: number,
+  inputRange: readonly number[],
+  outputRange: readonly number[],
+  easing: EasingFunction,
+  left: ExtrapolateType,
+  right: ExtrapolateType,
+): number => {
+  const start = inputRange[i];
+  const end = inputRange[i + 1];
+  const from = outputRange[i];
+  const to = outputRange[i + 1];
+  let x = input;
+  if (x < start) {
+    if (left === 'identity') return x;
+    if (left === 'clamp') x = start;
+  }
+  if (x > end) {
+    if (right === 'identity') return x;
+    if (right === 'clamp' && !extendsRight.has(easing)) x = end;
+  }
+  // A zero-length segment is a step at its end.
+  if (end === start) return x >= end ? to : from;
+  return from + easing((x - start) / (end - start)) * (to - from);
+};
+
+/**
+ * Maps `input` from `inputRange` to `outputRange` (Remotion's interpolate()).
+ *
+ * - `inputRange` is ascending; a zero-length segment is a step at its end.
+ *   With one element the output is `outputRange[0]`.
+ * - `extrapolateLeft` / `extrapolateRight`: 'extend' (default) continues the
+ *   outermost segment, 'clamp' holds the end value, 'identity' returns the
+ *   input, 'wrap' repeats the whole range.
+ * - `easing`: one function, or one per segment.
+ * - `posterize`: the input is first rounded down to a multiple of it.
+ */
 export const interpolate = (
   input: number,
-  inputRange: number[],
-  outputRange: number[],
-  options: InterpolateOptions = {}
+  inputRange: readonly number[],
+  outputRange: readonly number[],
+  options: InterpolateOptions = {},
 ): number => {
-  const {
-    extrapolateLeft = 'clamp',
-    extrapolateRight = 'clamp',
-    easing,
-  } = options;
+  const { extrapolateLeft = 'extend', extrapolateRight = 'extend', easing, posterize } = options;
 
-  checkRanges('interpolate', input, inputRange, outputRange.length);
+  checkInterpolateArgs('interpolate', input, inputRange, outputRange.length, options);
   outputRange.forEach((value) => {
-    if (typeof value !== 'number' || Number.isNaN(value)) {
-      throw new Error(`interpolate: outputRange must contain numbers, got [${outputRange.join(', ')}]`);
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new Error(`interpolate: outputRange must contain finite numbers, got [${outputRange.join(', ')}]`);
     }
   });
   for (const [name, value] of [['extrapolateLeft', extrapolateLeft], ['extrapolateRight', extrapolateRight]]) {
@@ -444,148 +580,73 @@ export const interpolate = (
       throw new Error(`interpolate: ${name} must be one of ${EXTRAPOLATE.join(', ')}, got ${JSON.stringify(value)}`);
     }
   }
-  const segments = inputRange.length - 1;
-  if (Array.isArray(easing)) {
-    if (easing.length !== segments) {
-      throw new Error(
-        `interpolate: an easing array needs one easing per segment (inputRange.length - 1 = ${segments}), got ${easing.length}`
-      );
-    }
-    easing.forEach((fn, i) => {
-      if (typeof fn !== 'function') throw new Error(`interpolate: easing[${i}] must be a function, got ${fn}`);
-    });
-  } else if (easing !== undefined && typeof easing !== 'function') {
-    throw new Error(`interpolate: easing must be a function or an array of functions, got ${easing}`);
-  }
+
+  if (inputRange.length === 1) return outputRange[0];
+
+  let x = posterize === undefined ? input : Math.floor(input / posterize) * posterize;
 
   const first = inputRange[0];
   const last = inputRange[inputRange.length - 1];
 
   // 'wrap' repeats the whole input range (before a segment is chosen).
-  if ((input < first && extrapolateLeft === 'wrap') || (input > last && extrapolateRight === 'wrap')) {
+  if ((x < first && extrapolateLeft === 'wrap') || (x > last && extrapolateRight === 'wrap')) {
     const span = last - first;
     if (span === 0) {
       throw new Error(`interpolate: extrapolate 'wrap' needs an inputRange that spans more than one value, got [${inputRange.join(', ')}]`);
     }
-    input = ((((input - first) % span) + span) % span) + first;
+    x = ((((x - first) % span) + span) % span) + first;
   }
 
-  // Check if input is outside the range
-  if (input < first) {
-    if (extrapolateLeft === 'clamp') {
-      return outputRange[0];
-    } else if (extrapolateLeft === 'identity') {
-      return input;
-    }
-    // extend - continue the linear extrapolation
-  }
-
-  if (input > last) {
-    if (extrapolateRight === 'clamp') {
-      return outputRange[outputRange.length - 1];
-    } else if (extrapolateRight === 'identity') {
-      return input;
-    }
-    // extend - continue the linear extrapolation
-  }
-
-  const segmentIndex = findSegment(input, inputRange);
-
-  const inputStart = inputRange[segmentIndex];
-  const inputEnd = inputRange[segmentIndex + 1];
-  const outputStart = outputRange[segmentIndex];
-  const outputEnd = outputRange[segmentIndex + 1];
-
-  if (inputEnd === inputStart) {
-    return segmentProgress(input, inputStart, inputEnd) === 1 ? outputEnd : outputStart;
-  }
-
-  // Calculate progress
-  let progress = segmentProgress(input, inputStart, inputEnd);
-
-  // Apply easing: one for all segments, or one per segment.
-  const segmentEasing = Array.isArray(easing) ? easing[segmentIndex] : easing;
-  if (segmentEasing) {
-    progress = segmentEasing(progress);
-  }
-
-  return outputStart + progress * (outputEnd - outputStart);
-};
-
-// Interpolate colors
-// Parses #rgb, #rgba, #rrggbb, #rrggbbaa, and rgb()/rgba() in both the comma
-// syntax `rgb(255, 0, 0, 0.5)` and the space syntax `rgb(255 0 0 / 50%)`;
-// channels may be numbers (0–255) or percentages, alpha a number (0–1) or a
-// percentage. Anything else throws.
-const NUMBER = '[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:e[+-]?\\d+)?%?';
-const COMMA_RGB = new RegExp(
-  `^rgba?\\(\\s*(${NUMBER})\\s*,\\s*(${NUMBER})\\s*,\\s*(${NUMBER})\\s*(?:,\\s*(${NUMBER})\\s*)?\\)$`,
-  'i'
-);
-const SPACE_RGB = new RegExp(
-  `^rgba?\\(\\s*(${NUMBER})\\s+(${NUMBER})\\s+(${NUMBER})\\s*(?:\\/\\s*(${NUMBER})\\s*)?\\)$`,
-  'i'
-);
-const HEX = /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
-
-const parseColor = (color: string): [number, number, number, number] => {
-  const value = typeof color === 'string' ? color.trim() : '';
-
-  const hex = value.match(HEX)?.[1];
-  if (hex) {
-    const digits = hex.length <= 4 ? hex.split('').map((d) => d + d) : hex.match(/../g)!;
-    const [r, g, b] = digits.map((d) => parseInt(d, 16));
-    return [r, g, b, digits.length === 4 ? parseInt(digits[3], 16) / 255 : 1];
-  }
-
-  const rgb = value.match(COMMA_RGB) ?? value.match(SPACE_RGB);
-  if (rgb) {
-    const channel = (part: string) =>
-      part.endsWith('%') ? (parseFloat(part) / 100) * 255 : parseFloat(part);
-    const alpha = (part: string | undefined) =>
-      part === undefined ? 1 : part.endsWith('%') ? parseFloat(part) / 100 : parseFloat(part);
-    return [
-      channel(rgb[1]),
-      channel(rgb[2]),
-      channel(rgb[3]),
-      Math.max(0, Math.min(1, alpha(rgb[4]))),
-    ];
-  }
-
-  throw new Error(
-    `interpolateColors: unsupported color "${color}" (use #rgb, #rgba, #rrggbb, #rrggbbaa, rgb() or rgba())`
+  const segment = findSegment(x, inputRange);
+  let result = segmentValue(
+    x, segment, inputRange, outputRange, easingOfSegment(easing, segment), extrapolateLeft, extrapolateRight,
   );
-};
 
-const formatColor = ([r, g, b, a]: [number, number, number, number]): string => {
-  const channel = (x: number) => Math.round(Math.max(0, Math.min(255, x)));
-  if (a >= 1) {
-    return '#' + [r, g, b].map((x) => channel(x).toString(16).padStart(2, '0')).join('');
+  // A spring easing with a tail in an earlier segment is still moving: its
+  // overshoot past the end of its segment is added on top.
+  for (let j = 0; j < segment; j++) {
+    const segmentEasing = easingOfSegment(easing, j);
+    if (!extendsRight.has(segmentEasing) || x <= inputRange[j + 1]) continue;
+    result +=
+      segmentValue(x, j, inputRange, outputRange, segmentEasing, extrapolateLeft, 'extend') - outputRange[j + 1];
   }
-  const alpha = Math.round(Math.max(0, a) * 1000) / 1000;
-  return `rgba(${channel(r)}, ${channel(g)}, ${channel(b)}, ${alpha})`;
+  return result;
 };
 
+/** Options of interpolateColors(), as in Remotion. */
+export interface InterpolateColorsOptions {
+  easing?: InterpolateOptions['easing'];
+  posterize?: number;
+}
+
+/**
+ * Maps `input` to a color between the colors of `outputRange` (Remotion's
+ * interpolateColors()). Outside the input range the end colors hold. The
+ * channels are mixed in sRGB; the result is `rgba(r, g, b, a)` with integer
+ * channels and alpha rounded to 3 decimals.
+ *
+ * Colors: #rgb, #rgba, #rrggbb, #rrggbbaa, CSS named colors (and
+ * `transparent`), rgb()/rgba(), hsl()/hsla(), hwb(), lab(), lch(), oklab(),
+ * oklch() in the comma or the space syntax (`rgb(255 0 0 / 50%)`).
+ */
 export const interpolateColors = (
   input: number,
-  inputRange: number[],
-  outputRange: string[]
+  inputRange: readonly number[],
+  outputRange: readonly string[],
+  options: InterpolateColorsOptions = {},
 ): string => {
-  checkRanges('interpolateColors', input, inputRange, outputRange.length);
-
-  // Colors do not extrapolate: outside the range the end color holds.
-  const clamped = Math.max(inputRange[0], Math.min(inputRange[inputRange.length - 1], input));
-  const segmentIndex = findSegment(clamped, inputRange);
-
-  const inputStart = inputRange[segmentIndex];
-  const inputEnd = inputRange[segmentIndex + 1];
-  const colorStart = parseColor(outputRange[segmentIndex]);
-  const colorEnd = parseColor(outputRange[segmentIndex + 1]);
-
-  const progress = segmentProgress(clamped, inputStart, inputEnd);
-  const mix = (i: number) => colorStart[i] + progress * (colorEnd[i] - colorStart[i]);
-
-  return formatColor([mix(0), mix(1), mix(2), mix(3)]);
+  checkInterpolateArgs('interpolateColors', input, inputRange, outputRange.length, options);
+  const colors = outputRange.map((color) => parseColor(color, 'interpolateColors'));
+  const channel = (index: number) =>
+    interpolate(
+      input,
+      inputRange,
+      colors.map((c) => c[index]),
+      { easing: options.easing, posterize: options.posterize, extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
+    );
+  const byte = (x: number) => Math.round(Math.max(0, Math.min(255, x)));
+  const alpha = Math.round(Math.max(0, Math.min(1, channel(3))) * 1000) / 1000;
+  return `rgba(${byte(channel(0))}, ${byte(channel(1))}, ${byte(channel(2))}, ${alpha})`;
 };
 
 // Keyframe animation
@@ -693,33 +754,6 @@ export const random = (seed: string | number, min: number = 0, max: number = 1):
   hash ^= hash >>> 16;
   const normalized = (hash >>> 0) / 4294967296;
   return min + normalized * (max - min);
-};
-
-/**
- * 2D value noise: smooth (continuous) in x and y, deterministic, in [0, 1).
- * Each integer lattice point gets a value from random(); between them the
- * values are mixed bilinearly with smoothstep weights.
- */
-export const noise2D = (x: number, y: number): number => {
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    throw new Error(`noise2D: x and y must be finite numbers, got ${x}, ${y}`);
-  }
-  const X = Math.floor(x);
-  const Y = Math.floor(y);
-  const fx = x - X;
-  const fy = y - Y;
-  const u = fx * fx * (3 - 2 * fx);
-  const v = fy * fy * (3 - 2 * fy);
-
-  const lattice = (i: number, j: number) => random(`noise2D:${i}:${j}`);
-  const a = lattice(X, Y);
-  const b = lattice(X + 1, Y);
-  const c = lattice(X, Y + 1);
-  const d = lattice(X + 1, Y + 1);
-
-  const top = a + (b - a) * u;
-  const bottom = c + (d - c) * u;
-  return top + (bottom - top) * v;
 };
 
 export { Easing as easing };

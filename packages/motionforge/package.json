@@ -86,7 +86,8 @@
     "three": ">=0.170.0"
   },
   "dependencies": {
-    "lottie-web": "^5.13.0"
+    "lottie-web": "^5.13.0",
+    "simplex-noise": "4.0.1"
   },
   "devDependencies": {
     "@react-three/drei": "^10.7.7",

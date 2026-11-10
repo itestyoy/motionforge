@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Easing, interpolate, interpolateColors, measureSpring, noise2D, random, spring } from '../src/utils/animation';
+import { Easing, interpolate, interpolateColors, measureSpring, random, spring } from '../src/utils/animation';
 
 // Reference: integrate x'' = (-k(x - 1) - c·x') / m from rest at 0 with a small step.
 const simulate = (seconds: number, { damping = 10, stiffness = 100, mass = 1 } = {}) => {
@@ -46,13 +46,13 @@ describe('interpolate', () => {
 
 describe('interpolateColors', () => {
   it('holds the end colors outside the range', () => {
-    expect(interpolateColors(-5, [0, 10], ['#000000', '#ffffff'])).toBe('#000000');
-    expect(interpolateColors(50, [0, 10], ['#000000', '#ffffff'])).toBe('#ffffff');
+    expect(interpolateColors(-5, [0, 10], ['#000000', '#ffffff'])).toBe('rgba(0, 0, 0, 1)');
+    expect(interpolateColors(50, [0, 10], ['#000000', '#ffffff'])).toBe('rgba(255, 255, 255, 1)');
   });
 
   it('mixes in the right segment', () => {
-    expect(interpolateColors(5, [0, 10], ['#000000', '#ffffff'])).toBe('#808080');
-    expect(interpolateColors(15, [0, 10, 20], ['#000000', '#ff0000', '#0000ff'])).toBe('#800080');
+    expect(interpolateColors(5, [0, 10], ['#000000', '#ffffff'])).toBe('rgba(128, 128, 128, 1)');
+    expect(interpolateColors(15, [0, 10, 20], ['#000000', '#ff0000', '#0000ff'])).toBe('rgba(128, 0, 128, 1)');
   });
 
   it('keeps alpha from rgba() and #rrggbbaa', () => {
@@ -61,7 +61,7 @@ describe('interpolateColors', () => {
   });
 
   it('rejects colors it cannot parse instead of returning black', () => {
-    expect(() => interpolateColors(5, [0, 10], ['red', '#fff'])).toThrow(/unsupported color/);
+    expect(() => interpolateColors(5, [0, 10], ['reddish', '#fff'])).toThrow(/unsupported color "reddish"/);
   });
 });
 
@@ -167,7 +167,7 @@ describe('interpolate input checks', () => {
     expect(interpolate(9, [10, 10], [0, 1])).toBe(0);
     expect(interpolate(10, [0, 10, 10, 20], [0, 1, 5, 6])).toBe(1);
     expect(interpolate(12, [0, 10, 10, 20], [0, 1, 5, 6])).toBe(5.2);
-    expect(interpolateColors(10, [10, 10], ['#000000', '#ffffff'])).toBe('#ffffff');
+    expect(interpolateColors(10, [10, 10], ['#000000', '#ffffff'])).toBe('rgba(255, 255, 255, 1)');
   });
 
   it('throws on a descending inputRange', () => {
@@ -177,8 +177,8 @@ describe('interpolate input checks', () => {
 
   it('throws on NaN', () => {
     expect(() => interpolate(Number.NaN, [0, 10], [0, 1])).toThrow(/input must be a number/);
-    expect(() => interpolate(5, [0, Number.NaN], [0, 1])).toThrow(/inputRange must contain numbers/);
-    expect(() => interpolate(5, [0, 10], [0, Number.NaN])).toThrow(/outputRange must contain numbers/);
+    expect(() => interpolate(5, [0, Number.NaN], [0, 1])).toThrow(/inputRange must contain finite numbers/);
+    expect(() => interpolate(5, [0, 10], [0, Number.NaN])).toThrow(/outputRange must contain finite numbers/);
   });
 });
 
@@ -197,35 +197,13 @@ describe('interpolateColors parsing', () => {
     expect(interpolateColors(0, [0, 1], ['rgb(255 0 0 / 50%)', '#000'])).toBe('rgba(255, 0, 0, 0.5)');
     expect(interpolateColors(0, [0, 1], ['rgb(255 0 0 / 0.25)', '#000'])).toBe('rgba(255, 0, 0, 0.25)');
     expect(interpolateColors(0, [0, 1], ['rgba(255, 0, 0, 50%)', '#000'])).toBe('rgba(255, 0, 0, 0.5)');
-    expect(interpolateColors(0, [0, 1], ['rgb(100% 0% 50%)', '#000'])).toBe('#ff0080');
+    expect(interpolateColors(0, [0, 1], ['rgb(100% 0% 50%)', '#000'])).toBe('rgba(255, 0, 128, 1)');
   });
 
   it('throws on other rgb() shapes', () => {
     for (const color of ['rgb(255 0)', 'rgb(1, 2, 3, 4, 5)', 'rgb(a, b, c)', 'rgb(255, 0, 0']) {
       expect(() => interpolateColors(0, [0, 1], [color, '#000'])).toThrow(/unsupported color/);
     }
-  });
-});
-
-describe('noise2D', () => {
-  it('depends on both coordinates', () => {
-    const same = [0.3, 1.7, 5.2, 10.9].every((x) => noise2D(x, 0) === noise2D(x, 7) && noise2D(x, 3) === noise2D(x, 200));
-    expect(same).toBe(false);
-  });
-
-  it('is continuous across lattice lines', () => {
-    expect(Math.abs(noise2D(0.5, 0.9999) - noise2D(0.5, 1))).toBeLessThan(0.01);
-    expect(Math.abs(noise2D(0.9999, 0.5) - noise2D(1, 0.5))).toBeLessThan(0.01);
-    expect(Math.abs(noise2D(-1.0001, 3.5) - noise2D(-1, 3.5))).toBeLessThan(0.01);
-  });
-
-  it('stays in [0, 1) and is deterministic', () => {
-    for (let i = 0; i < 2000; i++) {
-      const value = noise2D(i * 0.37 - 300, i * 0.11 - 100);
-      expect(value).toBeGreaterThanOrEqual(0);
-      expect(value).toBeLessThan(1);
-    }
-    expect(noise2D(3.3, 4.4)).toBe(noise2D(3.3, 4.4));
   });
 });
 
@@ -244,7 +222,7 @@ describe('Easing.bezier', () => {
   };
 
   it('matches the curve for steep and overshooting control points', () => {
-    const curves = [[0.9, 0, 0.1, 1], [0.95, 0.05, 0.05, 0.95], [0, 0, 0.58, 1], [0.42, 0, 1, 1], [0.68, -0.6, 0.32, 1.6]] as const;
+    const curves: Array<[number, number, number, number]> = [[0.9, 0, 0.1, 1], [0.95, 0.05, 0.05, 0.95], [0, 0, 0.58, 1], [0.42, 0, 1, 1], [0.68, -0.6, 0.32, 1.6]];
     let worst = 0;
     for (const c of curves) {
       const ease = Easing.bezier(...c);
@@ -400,8 +378,8 @@ describe('interpolate wrap and per-segment easing', () => {
     expect(interpolate(-5, [0, 10], [0, 100], { extrapolateLeft: 'wrap' })).toBe(50);
     expect(interpolate(25, [0, 10, 20], [0, 100, 0], { extrapolateRight: 'wrap' })).toBe(50);
     expect(interpolate(34, [10, 20], [0, 1], { extrapolateRight: 'wrap' })).toBe(0.4);
-    // Only the side that wraps.
-    expect(interpolate(-5, [0, 10], [0, 100], { extrapolateRight: 'wrap' })).toBe(0);
+    // Only the side that wraps; the left side extends (the default).
+    expect(interpolate(-5, [0, 10], [0, 100], { extrapolateRight: 'wrap' })).toBe(-50);
     expect(() => interpolate(15, [10, 10], [0, 1], { extrapolateRight: 'wrap' })).toThrow(/wrap' needs an inputRange/);
   });
 
@@ -426,5 +404,78 @@ describe('interpolate wrap and per-segment easing', () => {
     expect(() => interpolate(5, [0, 10], [0, 1], { extrapolateLeft: 'mirror' })).toThrow(
       /extrapolateLeft must be one of clamp, extend, identity, wrap/,
     );
+  });
+});
+
+describe('interpolate (Remotion defaults and options)', () => {
+  it("extends on both sides by default, as in Remotion", () => {
+    expect(interpolate(-5, [0, 10], [0, 100])).toBe(-50);
+    expect(interpolate(15, [0, 10], [0, 100])).toBe(150);
+    expect(interpolate(15, [0, 10], [0, 100], { extrapolateRight: 'clamp' })).toBe(100);
+    expect(interpolate(-5, [0, 10], [0, 100], { extrapolateLeft: 'identity' })).toBe(-5);
+  });
+
+  it('returns the only output for a one-element range', () => {
+    expect(interpolate(-100, [3], [7])).toBe(7);
+    expect(interpolate(100, [3], [7], { extrapolateRight: 'wrap' })).toBe(7);
+    expect(() => interpolate(1, [], [])).toThrow(/at least 1 element/);
+    expect(() => interpolate(1, [0, 1], [0])).toThrow(/inputRange \(2\) and outputRange \(1\) must have the same length/);
+  });
+
+  it('posterizes the input to multiples of `posterize`', () => {
+    expect(interpolate(7, [0, 10], [0, 100], { posterize: 5 })).toBe(50);
+    expect(interpolate(9.99, [0, 10], [0, 100], { posterize: 5 })).toBe(50);
+    expect(interpolate(10, [0, 10], [0, 100], { posterize: 5 })).toBe(100);
+    expect(interpolate(-1, [0, 10], [0, 100], { posterize: 5 })).toBe(-50);
+    for (const posterize of [0, -1, Number.NaN, Infinity]) {
+      expect(() => interpolate(1, [0, 10], [0, 1], { posterize })).toThrow(/posterize must be a positive finite number/);
+    }
+  });
+
+  it('rejects infinite ranges', () => {
+    expect(() => interpolate(1, [0, Infinity], [0, 1])).toThrow(/inputRange must contain finite numbers/);
+    expect(() => interpolate(1, [0, 1], [0, -Infinity])).toThrow(/outputRange must contain finite numbers/);
+  });
+});
+
+describe('Easing.step0 / step1 / spring', () => {
+  it('steps at 0 and at 1', () => {
+    expect([-1, 0, 0.001, 0.5, 1].map(Easing.step0)).toEqual([0, 0, 1, 1, 1]);
+    expect([0, 0.5, 0.999, 1, 2].map(Easing.step1)).toEqual([0, 0, 0, 1, 1]);
+    expect(interpolate(4, [0, 10], [0, 100], { easing: Easing.step1 })).toBe(0);
+    expect(interpolate(10, [0, 10], [0, 100], { easing: Easing.step1 })).toBe(100);
+  });
+
+  it('is the spring stretched over 30 frames at 30 fps, exactly 0 and 1 at the ends', () => {
+    const config = { damping: 12, stiffness: 120 };
+    const ease = Easing.spring(config);
+    expect(ease(0)).toBe(0);
+    expect(ease(1)).toBe(1);
+    expect(ease(2)).toBe(1);
+    expect(ease(-1)).toBe(0);
+    expect(ease(0.4)).toBe(spring({ fps: 30, frame: 0.4 * 30, config, durationInFrames: 30 }));
+    // Without a tail, a clamped interpolate stops at the end value.
+    expect(interpolate(15, [0, 10], [0, 100], { easing: ease, extrapolateRight: 'clamp' })).toBe(100);
+  });
+
+  it('with allowTail keeps moving past the segment, even when clamped', () => {
+    const config = { damping: 3 };
+    const ease = Easing.spring({ ...config, allowTail: true });
+    const settle = measureSpring({ fps: 30, config });
+    expect(ease(0.5)).toBe(spring({ fps: 30, frame: 0.5 * settle, config }));
+    expect(ease(1.5)).toBe(spring({ fps: 30, frame: 1.5 * settle, config }));
+    // Past the end of the first segment its tail goes on top of the second segment.
+    const options = { easing: [ease, Easing.linear], extrapolateRight: 'clamp' as const };
+    expect(interpolate(12, [0, 10, 20], [0, 100, 100], options)).toBeCloseTo(100 + (ease(1.2) - 1) * 100, 10);
+    expect(interpolate(25, [0, 10], [0, 100], { easing: ease, extrapolateRight: 'clamp' })).toBeCloseTo(ease(2.5) * 100, 10);
+    // Easing.in keeps the tail (it returns the easing itself).
+    expect(Easing.in(ease)).toBe(ease);
+  });
+
+  it('checks the config', () => {
+    expect(() => Easing.spring({ mass: 0 })).toThrow(/mass > 0/);
+    expect(() => Easing.spring({ damping: 0 })).toThrow(/never comes to rest/);
+    // @ts-expect-error not a boolean
+    expect(() => Easing.spring({ allowTail: 'yes' })).toThrow(/allowTail must be a boolean/);
   });
 });
