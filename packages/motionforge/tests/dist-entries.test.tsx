@@ -15,6 +15,14 @@ import * as main from '../dist/index.js';
 import * as three from '../dist/three/index.js';
 // @ts-expect-error — built output
 import * as lottie from '../dist/lottie/index.js';
+// @ts-expect-error — built output
+import * as motionBlur from '../dist/motion-blur/index.js';
+// @ts-expect-error — built output
+import * as layoutUtils from '../dist/layout-utils/index.js';
+// @ts-expect-error — built output
+import * as gif from '../dist/gif/index.js';
+// @ts-expect-error — built output
+import * as mediaUtils from '../dist/media-utils/index.js';
 
 const packageDir = fileURLToPath(new URL('..', import.meta.url));
 const distDir = join(packageDir, 'dist');
@@ -62,21 +70,51 @@ describe('built entries', () => {
     expect(render).not.toThrow();
   });
 
-  it('keeps three.js and lottie out of the main entry and the chunks it imports', () => {
+  it('lets motionforge/motion-blur render the children of a FrameProvider from motionforge at earlier frames', () => {
+    const Scene = () => <b>{main.useCurrentFrame()}</b>;
+    const html = renderToStaticMarkup(
+      <main.FrameProvider frame={10} durationInFrames={100} width={100} height={100}>
+        <motionBlur.Trail layers={1} lagInFrames={2} trailOpacity={1}>
+          <Scene />
+        </motionBlur.Trail>
+      </main.FrameProvider>,
+    );
+    expect(html.match(/<b>(\d+)<\/b>/g)).toEqual(['<b>8</b>', '<b>10</b>']);
+  });
+
+  it('keeps three.js, lottie and the GIF decoder out of the main entry and the chunks it imports', () => {
     expect(main).not.toHaveProperty('DepthGallery3D');
+    expect(main).not.toHaveProperty('ThreeCanvas');
     expect(main).not.toHaveProperty('Lottie');
+    expect(main).not.toHaveProperty('Gif');
+    expect(main).toHaveProperty('AnimatedImage');
     for (const entry of ['index.js', 'index.cjs']) {
       const files = relativeImportClosure(join(distDir, entry));
       expect(files.length).toBeGreaterThan(1); // it does import shared chunks
       for (const file of files) {
         const source = readFileSync(file, 'utf8');
         expect(source, relative(distDir, file)).not.toMatch(
-          /(?:from|import|require)\s*\(?\s*['"](three|@react-three\/fiber|@react-three\/drei|lottie-web)['"]/,
+          /(?:from|import|require)\s*\(?\s*['"](three|@react-three\/fiber|@react-three\/drei|lottie-web|omggif)['"]/,
         );
       }
     }
     expect(three).toHaveProperty('DepthGallery3D');
+    expect(three).toHaveProperty('ThreeCanvas');
     expect(lottie).toHaveProperty('Lottie');
+    expect(Object.keys(motionBlur).sort()).toEqual(['CameraMotionBlur', 'Trail']);
+    expect(Object.keys(layoutUtils).sort()).toEqual(['fillTextBox', 'fitText', 'fitTextOnNLines', 'measureText']);
+    expect(Object.keys(gif).sort()).toEqual(['Gif', 'getGifDurationInSeconds']);
+    expect(Object.keys(mediaUtils).sort()).toEqual([
+      'createSmoothSvgPath',
+      'getAudioData',
+      'getAudioDurationInSeconds',
+      'getImageDimensions',
+      'getVideoMetadata',
+      'useAudioData',
+      'useWindowedAudioData',
+      'visualizeAudio',
+      'visualizeAudioWaveform',
+    ]);
   });
 
   it("starts every built file with the 'use client' directive", () => {
@@ -89,7 +127,17 @@ describe('built entries', () => {
 
   it('points require to the CommonJS types and import to the ESM types', () => {
     const pkg = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8'));
-    for (const [subpath, base] of [['.', 'index'], ['./three', 'three/index'], ['./lottie', 'lottie/index']]) {
+    const entries = [
+      ['.', 'index'],
+      ['./three', 'three/index'],
+      ['./lottie', 'lottie/index'],
+      ['./motion-blur', 'motion-blur/index'],
+      ['./layout-utils', 'layout-utils/index'],
+      ['./gif', 'gif/index'],
+      ['./media-utils', 'media-utils/index'],
+    ];
+    expect(Object.keys(pkg.exports)).toEqual(entries.map(([subpath]) => subpath));
+    for (const [subpath, base] of entries) {
       expect(pkg.exports[subpath]).toEqual({
         import: { types: `./dist/${base}.d.ts`, default: `./dist/${base}.js` },
         require: { types: `./dist/${base}.d.cts`, default: `./dist/${base}.cjs` },

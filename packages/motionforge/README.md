@@ -144,7 +144,7 @@ const Chart = () => {
 - Call `delayRender(label?)` from an effect or a callback, never during render (it throws there: React may render twice and that handle would never be continued). Handles are numbers counted per gate.
 - Continue a handle once React has rendered what it waited for (in an effect), not in the callback that sets the state: the state update renders after the callback, and the host would capture the frame from before.
 - Handles still pending when the component unmounts are continued automatically, so StrictMode's double effects and unmounting do not leak them. Continuing a handle twice is allowed.
-- Built in: `Img` holds the frame until the image is loaded and decoded (`decode()`), `Video` until it has data and has seeked to the frame (`seeked`), `Lottie` (from `motionforge/lottie`) until its data is ready and the frame is set. Their load errors go to `cancelRender()`.
+- Built in: `Img` holds the frame until the image is loaded and decoded (`decode()`), `Video` until it has data and has seeked to the frame (`seeked`), `Lottie` (from `motionforge/lottie`) until its data is ready and the frame is set, `AnimatedImage` and `Gif` until the image is decoded and the frame drawn, `ThreeCanvas` until the renderer exists, suspended content has loaded and the frame is drawn, `useAudioData()` / `useWindowedAudioData()` until the audio is decoded. Their load errors go to `cancelRender()`.
 
 **Preloading:** `preloadImage(src)`, `preloadVideo(src)`, `preloadAudio(src)` and `preloadFont(family, { weight?, style?, source? })` (CSS Font Loading API; without `source` the family must be declared with `@font-face`) return promises that reject with an error naming the asset. `usePreloadAssets(assets)` holds the frame until all assets are loaded, returns whether they are, and reports a failure through `cancelRender()`:
 
@@ -161,10 +161,15 @@ const ready = usePreloadAssets([
 
 | Import | What it contains | Extra dependencies |
 |--------|------------------|--------------------|
-| `motionforge` | Core: `FrameProvider`, frame hooks, sequences, effects, utilities | — |
-| `motionforge/three` | `DepthGallery3D`, `ShaderImageReveal`, `DitheringEffect` | `three`, `@react-three/fiber`, `@react-three/drei` |
+| `motionforge` | Core: `FrameProvider`, frame hooks, sequences, effects, `AnimatedImage`, utilities | — |
+| `motionforge/three` | `ThreeCanvas`, `DepthGallery3D`, `ShaderImageReveal`, `DitheringEffect` | `three`, `@react-three/fiber` (and `@react-three/drei` for the ready-made scenes) |
 | `motionforge/lottie` | `Lottie` | `lottie-web` (installed with the package) |
-All entries share one frame context, so components from `motionforge/three` and `motionforge/lottie` read the frame of the `FrameProvider` from `motionforge`.
+| `motionforge/motion-blur` | `Trail`, `CameraMotionBlur` | — |
+| `motionforge/layout-utils` | `measureText`, `fitText`, `fitTextOnNLines`, `fillTextBox` | — |
+| `motionforge/gif` | `Gif`, `getGifDurationInSeconds` | `omggif` (installed with the package) |
+| `motionforge/media-utils` | `getVideoMetadata`, `getImageDimensions`, `getAudioDurationInSeconds`, `getAudioData`, `useAudioData`, `useWindowedAudioData`, `visualizeAudio`, `visualizeAudioWaveform`, `createSmoothSvgPath` | — |
+
+They follow Remotion's packages: `@remotion/three`, `@remotion/motion-blur`, `@remotion/layout-utils`, `@remotion/gif`, `@remotion/media-utils`. All entries share one frame context and render gate, so their components read the frame of the `FrameProvider` from `motionforge`.
 
 ## 🎨 Available Components
 
@@ -370,6 +375,153 @@ const { x, y } = getTangentAtLength(d, progress * length);
 ```
 
 Wrong input throws: a `d` that does not parse (the error names the position), a non-finite length or progress, fewer than two points.
+
+## 🧊 3D: `ThreeCanvas`
+
+`<ThreeCanvas>` from `motionforge/three` is Remotion's `@remotion/three` canvas: a React Three Fiber `<Canvas>` driven by the frame.
+
+```tsx
+import { ThreeCanvas } from 'motionforge/three';
+import { interpolate, useCurrentFrame, useVideoConfig } from 'motionforge';
+
+const Cube = () => {
+  const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  return (
+    <ThreeCanvas width={width} height={height} camera={{ fov: 75, position: [0, 0, 470] }}>
+      <ambientLight intensity={0.15} />
+      <pointLight args={[undefined, 0.4]} position={[200, 200, 0]} />
+      <mesh rotation={[frame * 0.03, frame * 0.035, 0]} scale={interpolate(frame, [0, 30], [0.5, 1])}>
+        <boxGeometry args={[100, 100, 100]} />
+        <meshStandardMaterial color="#10b981" />
+      </mesh>
+    </ThreeCanvas>
+  );
+};
+```
+
+- `width` and `height` (positive integers, px) are required: the scene renders at that size whatever CSS scaling the page applies. All other `<Canvas>` props pass through.
+- R3F renders in a separate React root; `ThreeCanvas` provides the frame context, the render gate and the sequence context again inside, so `useCurrentFrame()`, `useVideoConfig()` and `useDelayRender()` work in the scene.
+- Deterministic: `frameloop` is always `'never'` (other values throw). The scene is drawn once per frame with `advance(frame / fps)`, so `state.clock.elapsedTime` is the frame's time in seconds. Animate with `useCurrentFrame()`, not `useFrame()`.
+- It holds the render gate until the renderer is created (the canvas needs a non-zero size), suspended content (`useLoader`, drei's `useTexture` / `useGLTF`) has loaded, and the frame is drawn. An error in the canvas (no WebGL, a throwing scene component) goes to `cancelRender()`.
+- Remotion's `<Sequence>` props on the canvas (`from`, `durationInFrames`, `premountFor`, …) throw: put the canvas inside `<Sequence layout="none">` instead. Inside the canvas, `<Sequence>` needs `layout="none"` too (a `<div>` is not allowed in a three.js scene).
+
+## 📏 Text measurement
+
+`motionforge/layout-utils` has Remotion's `@remotion/layout-utils` functions. They measure with the browser's layout (an off-screen `<span>`), so they run in the browser only.
+
+| Function | Returns |
+|----------|---------|
+| `measureText({ text, fontFamily, fontSize, fontWeight?, letterSpacing?, fontVariantNumeric?, textTransform?, additionalStyles?, validateFontIsLoaded? })` | `{ width, height }` of the text on one line |
+| `fitText({ text, withinWidth, fontFamily, … })` | `{ fontSize }` at which the text is `withinWidth` px wide (throws for a text of width 0) |
+| `fitTextOnNLines({ text, maxLines, maxBoxWidth, fontFamily, …, maxFontSize? })` | `{ fontSize, lines }`: the largest size (0.01 px steps, up to `maxFontSize`, default 2000) at which the words fit on `maxLines` lines |
+| `fillTextBox({ maxBoxWidth, maxLines })` | `{ add(word) }`; `add` returns `{ exceedsBox, newLine }` |
+
+**Load the fonts first.** A measurement taken while the font is loading uses the fallback font, and the layout changes once the font arrives. Measure only after the font is loaded, and hold the frame until then: `usePreloadAssets()` does both.
+
+```tsx
+import { usePreloadAssets } from 'motionforge';
+import { fitText } from 'motionforge/layout-utils';
+
+const Title = ({ text }: { text: string }) => {
+  // holds the render gate until Inter 800 is loaded
+  const ready = usePreloadAssets([{ type: 'font', family: 'Inter', weight: 800 }]);
+  if (!ready) return null;
+  const { fontSize } = fitText({ text, withinWidth: 900, fontFamily: 'Inter', fontWeight: 800 });
+  return <h1 style={{ fontFamily: 'Inter', fontWeight: 800, fontSize }}>{text}</h1>;
+};
+```
+
+Results are cached only when `document.fonts.check()` says every face the text needs is loaded, so a measurement with a fallback font is never reused later. `validateFontIsLoaded: true` also takes a measurement with the fallback font and throws when both match. Wrong input throws.
+
+## 💨 Motion blur
+
+`motionforge/motion-blur` has Remotion's `@remotion/motion-blur` components. Both render their children several times at other frames through `<Freeze>`, so the children must be absolutely positioned (e.g. an `AbsoluteFill`).
+
+```tsx
+import { CameraMotionBlur, Trail } from 'motionforge/motion-blur';
+
+// film-camera blur: 10 sub-frame samples over half a frame
+<CameraMotionBlur shutterAngle={180} samples={10}>
+  <AbsoluteFill><Ball /></AbsoluteFill>
+</CameraMotionBlur>
+
+// a trail of 6 copies, each 2 frames further back and fainter
+<Trail layers={6} lagInFrames={2} trailOpacity={0.6}>
+  <AbsoluteFill><Ball /></AbsoluteFill>
+</Trail>
+```
+
+- `Trail { layers, lagInFrames, trailOpacity }`: `layers` copies below the content, layer `i` (0 = oldest) at frame `frame - lagInFrames × (layers - i)` with opacity `trailOpacity - (layers - i) / layers × trailOpacity`. `lagInFrames` may be a fraction.
+- `CameraMotionBlur { shutterAngle = 180, samples = 10 }`: `samples` copies at sub-frames `frame + 1 - shutterAngle / 360 × k / samples`, each at `1 / samples` opacity, added with `mix-blend-mode: plus-lighter`. Near frame 0 it uses fewer samples so none falls before 0. The blend changes colours slightly: keep `samples` low (5–10).
+- Inside them `useCurrentFrame()` returns fractional frames. Wrong values throw (`layers`, `samples` non-negative integers, `shutterAngle` 0–360).
+
+## 🎞 Animated images
+
+`AnimatedImage` (from `motionforge`, as in Remotion core) and `Gif` (from `motionforge/gif`, as `@remotion/gif`) draw an animated image on a `<canvas>` at the frame's time, `frame / fps × playbackRate`.
+
+```tsx
+import { AnimatedImage } from 'motionforge';
+import { Gif, getGifDurationInSeconds } from 'motionforge/gif';
+
+<AnimatedImage src="/sticker.webp" width={300} height={300} fit="contain" />
+<Gif src="/reaction.gif" width={480} height={270} fit="cover" loopBehavior="pause-after-finish" />
+
+const seconds = await getGifDurationInSeconds('/reaction.gif'); // e.g. to size a Sequence
+```
+
+| Prop | Default | Meaning |
+|------|---------|---------|
+| `src` | — | URL; a remote one must allow CORS |
+| `width`, `height` | the image's size | Canvas size in px |
+| `fit` | `'fill'` | `'fill'` (stretched), `'contain'` or `'cover'` |
+| `playbackRate` | `1` | Speed (a positive number) |
+| `loopBehavior` | `'loop'` | `'loop'`, `'pause-after-finish'` (last frame), and `'clear-after-finish'` (`AnimatedImage`: empty canvas) or `'unmount-after-finish'` (`Gif`: renders nothing) |
+| `onError` | — | Called with a load or decode error instead of `cancelRender()` |
+| `requestInit` | — | Passed to `fetch()` (credentials, headers) |
+| `style`, `id` | — | On the canvas (`AnimatedImage` takes the other canvas attributes too) |
+| `onLoad` | — | `Gif` only: `{ width, height, delays, frames }` once decoded |
+| `ref` | — | The `<canvas>` element |
+
+- Frame-exact: a frame is shown for its whole interval in the file (from its start time up to the next frame's).
+- Both hold the render gate while the image loads and until the frame is drawn.
+- `AnimatedImage` decodes GIF, APNG, AVIF and WebP with the WebCodecs `ImageDecoder` (Chromium-based browsers and Firefox; not Safari): without it the render fails with an error that says so. It decodes every frame once on load to learn the frame times.
+- `Gif` decodes in JavaScript with [omggif](https://github.com/deanm/omggif) (MIT), so it works in every browser and gives the same pixels everywhere. Frames are composed with their disposal method; a delay of 0 is shown for 100 ms (as FFmpeg and Remotion do). `getGifDurationInSeconds(src, { requestInit? })` sums the delays; it parses only the frame headers (no pixels) and shares the download with `<Gif>`.
+- Remotion's `<Sequence>` props (`from`, `durationInFrames`, `premountFor`, `loop`, …), crop props and `effects` throw: wrap the component in a `<Sequence>` instead. `Gif`'s `delayRenderTimeoutInMilliseconds` throws too: the host sets the timeout with `gate.waitUntilReady({ timeoutMs })`.
+
+## 🔊 Media utilities
+
+`motionforge/media-utils` has Remotion's `@remotion/media-utils` functions.
+
+| Function | Returns |
+|----------|---------|
+| `getVideoMetadata(src)` | `Promise<{ durationInSeconds, width, height, aspectRatio, isRemote }>` (an invisible `<video>`) |
+| `getImageDimensions(src)` | `Promise<{ width, height }>` (natural size) |
+| `getAudioDurationInSeconds(src)` | `Promise<number>` (an invisible `<audio>`) |
+| `getAudioData(src, { sampleRate?, requestInit? })` | `Promise<MediaUtilsAudioData>`: `{ channelWaveforms, sampleRate, durationInSeconds, numberOfChannels, resultId, isRemote }`, decoded with the Web Audio API at `sampleRate` (default 48000) |
+| `useAudioData(src, { sampleRate?, requestInit? })` | The audio data, or `null` while loading; holds the render gate until the data has rendered |
+| `useWindowedAudioData({ src, frame, fps, windowInSeconds, channelIndex?, requestInit? })` | `{ audioData, dataOffsetInSeconds }`: one channel, the window the frame is in and its neighbours; holds the render gate while loading |
+| `visualizeAudio({ audioData, frame, fps, numberOfSamples, optimizeFor?, dataOffsetInSeconds?, smoothing? })` | `numberOfSamples` (a power of two) frequency bars of the first channel at the frame, about 0–1, low frequencies first |
+| `visualizeAudioWaveform({ audioData, frame, fps, windowInSeconds, numberOfSamples, channel?, dataOffsetInSeconds?, normalize? })` | `numberOfSamples` amplitudes of the window centred on the frame, alternately negative and positive |
+| `createSmoothSvgPath({ points })` | An SVG path `d` through the points, joined by cubic curves |
+
+```tsx
+import { useCurrentFrame, useVideoConfig } from 'motionforge';
+import { useAudioData, visualizeAudio } from 'motionforge/media-utils';
+
+const Spectrum = () => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const audioData = useAudioData('/music.mp3');
+  if (!audioData) return null;
+  const bars = visualizeAudio({ audioData, frame, fps, numberOfSamples: 32 });
+  return <>{bars.map((v, i) => <div key={i} style={{ height: 300 * v }} />)}</>;
+};
+```
+
+- The getters are browser only and cache their result per source (a failure is not cached). Their errors name the source.
+- `visualizeAudio`, `visualizeAudioWaveform` and `createSmoothSvgPath` are pure functions with Remotion's arithmetic (same FFT, smoothing and windows), so the same input gives the same output everywhere. `resultId` depends only on the source and options.
+- `useWindowedAudioData` decodes the whole file once (48 kHz) and cuts the windows from it; pass its `dataOffsetInSeconds` to the visualize functions.
 
 ## 🎭 Using Lottie in MotionForge
 
