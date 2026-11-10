@@ -6,7 +6,10 @@ import { FrameProvider } from '../src/core/context';
 import { createRenderGate, RenderGate } from '../src/core/render-gate';
 import { AudioCollector, createAudioCollector } from '../src/core/audio-collector';
 import { Sequence } from '../src/components/Sequence';
-import { ToneAudio, Sfx, renderZzfx } from '../src/audio';
+import { ToneAudio, Sfx, renderZzfx, usePrepareAudio } from '../src/audio';
+import { useInputEvents } from '../src/core/input';
+import { InputEvent } from '../src/core/input-log';
+import { collectAudioTracks } from '../src/core/collect-audio-tracks';
 import { seededRandom } from '../src/components/audio/seeded-random';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -116,10 +119,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const renderAt = (frame: number, node: React.ReactNode, audio?: AudioCollector, gate?: RenderGate) =>
+const renderAt = (frame: number, node: React.ReactNode, audio?: AudioCollector, gate?: RenderGate, input?: readonly InputEvent[]) =>
   act(() =>
     root.render(
-      <FrameProvider frame={frame} fps={30} durationInFrames={300} width={100} height={100} audio={audio} gate={gate}>
+      <FrameProvider frame={frame} fps={30} durationInFrames={300} width={100} height={100} audio={audio} gate={gate} input={input}>
         {node}
       </FrameProvider>,
     ),
@@ -127,10 +130,10 @@ const renderAt = (frame: number, node: React.ReactNode, audio?: AudioCollector, 
 
 // Waits for the gate in short act() scopes: one act() around the whole wait
 // would hold back the update that ends the render until the wait is over.
-const waitReady = async (gate: RenderGate, frame: number) => {
+const waitReady = async (gate: RenderGate, frame: number, input?: readonly InputEvent[]) => {
   let settled = false;
   let failure: unknown = null;
-  gate.waitUntilReady({ frame, timeoutMs: 5000 }).then(
+  gate.waitUntilReady({ frame, input, timeoutMs: 5000 }).then(
     () => (settled = true),
     (error) => {
       failure = error;
@@ -309,3 +312,97 @@ describe('renderZzfx / <Sfx>', () => {
     expect(() => renderAt(0, <Sfx at={-1} zzfx={coin} />)).toThrow(/at must be an integer >= 0/);
   });
 });
+
+describe('usePrepareAudio()', () => {
+  const pop = [1, 0, 600, 0.01, 0.04, 0.08] as const;
+
+  // The "sound on tap" recipe: the sounds are rendered before the first tap,
+  // and each tap mounts a sound at its frame.
+  const TapGame = () => {
+    const ready = usePrepareAudio([
+      { type: 'sfx', zzfx: pop },
+      { type: 'tone', durationInFrames: 20, render: noisyRender, deps: ['win'] },
+    ]);
+    const taps = useInputEvents();
+    return (
+      <>
+        <i data-ready="">{String(ready)}</i>
+        {taps.map((tap, index) =>
+          tap.type === 'tap' ? (
+            <Sfx key={index} at={tap.frame} zzfx={pop} volume={0.7} name="pop" />
+          ) : (
+            <Sequence key={index} from={tap.frame} layout="none">
+              <ToneAudio durationInFrames={20} render={noisyRender} deps={['win']} muted name="win" />
+            </Sequence>
+          ),
+        )}
+      </>
+    );
+  };
+
+  it('renders the sounds ahead, holding the gate, so a sound started by a tap plays at once', async () => {
+    const audio = createAudioCollector();
+    const gate = createRenderGate();
+    const renders = fake.state.renders;
+    renderAt(0, <TapGame />, audio, gate, []);
+    expect(gate.getPending().map((p) => p.label)).toEqual(['usePrepareAudio rendering 2 sounds']);
+    expect(container.querySelector('[data-ready]')!.textContent).toBe('false');
+    await waitReady(gate, 0, []);
+    expect(container.querySelector('[data-ready]')!.textContent).toBe('true');
+    expect(fake.state.renders - renders).toBe(1);
+
+    // A tap at frame 40 and a win at 41, appended live: the sounds mount with
+    // their samples ready and the frame is ready at once.
+    const log: InputEvent[] = [{ frame: 40, type: 'tap' }];
+    renderAt(40, <TapGame />, audio, gate, log);
+    expect(gate.getPending()).toEqual([]);
+    const tapTrack = audio.getTracks().find((t) => t.name === 'pop')!;
+    expect(tapTrack).toMatchObject({ startFrame: 40, volume: 0.7 });
+    expect(tapTrack.generated!.buffer).not.toBeNull();
+    const withWin: InputEvent[] = [...log, { frame: 41, type: 'win' }];
+    renderAt(41, <TapGame />, audio, gate, withWin);
+    // muted, volume and name are not in the cache key: the prepared samples are used.
+    expect(gate.getPending()).toEqual([]);
+    expect(audio.getTracks().find((t) => t.name === 'win')).toMatchObject({ startFrame: 41, muted: true });
+    expect(audio.getTracks().find((t) => t.name === 'win')!.generated!.buffer).not.toBeNull();
+    expect(fake.state.renders - renders).toBe(1);
+    await waitReady(gate, 41, withWin);
+  });
+
+  it('uses the keys of the components: what is in them and what is not', async () => {
+    const audio = createAudioCollector();
+    const gate = createRenderGate();
+    renderAt(0, <><Sfx zzfx={[, , 300]} seed={2} /><ToneAudio durationInFrames={5} render={noisyRender} deps={['k']} seed={1} channels={1} /></>, audio, gate);
+    await waitReady(gate, 0);
+    const [sfx, tone] = ['zzfx', 'tone'].map((kind) => audio.getTracks().find((t) => t.generated!.kind === kind)!.generated!);
+    // Holes are null; sample rate and seed are in it.
+    expect(JSON.parse(sfx.key)).toEqual(['zzfx', [null, null, 300], 44100, 2]);
+    // The source of render, deps, length, the composition's fps, sample rate, channels, seed.
+    expect(JSON.parse(tone.key)).toEqual(['tone', String(noisyRender), ['k'], 5, 30, 48000, 1, 1]);
+  });
+
+  it('renders nothing without a collector or in collectAudioTracks(), and checks the sounds', async () => {
+    const contexts = fake.state.contexts;
+    const Prepare = () => <i data-ready="">{String(usePrepareAudio([{ type: 'tone', durationInFrames: 9, render: noisyRender, deps: ['none'] }]))}</i>;
+    renderAt(0, <Prepare />);
+    expect(container.querySelector('[data-ready]')!.textContent).toBe('true');
+    await collectAudioTracks(<Prepare />, { durationInFrames: 3, width: 10, height: 10 });
+    expect(fake.state.contexts).toBe(contexts);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const audio = createAudioCollector();
+    // @ts-expect-error not a sound
+    expect(() => renderAt(0, <PrepareWith sounds={[{ type: 'beep' }]} />, audio)).toThrow(/sounds\[0\] must be \{ type: 'sfx', zzfx, \.\.\. \}/);
+    // @ts-expect-error where it plays is the component's
+    expect(() => renderAt(0, <PrepareWith sounds={[{ type: 'sfx', zzfx: pop, volume: 0.5 }]} />, audio)).toThrow(
+      /sounds\[0\]: a sfx sound takes type, zzfx, seed, sampleRate, not "volume"/,
+    );
+    expect(() => renderAt(0, <PrepareWith sounds={[{ type: 'tone', durationInFrames: 0, render: noisyRender }]} />, audio)).toThrow(
+      /usePrepareAudio: sounds\[0\]: durationInFrames must be a positive integer/,
+    );
+  });
+});
+
+const PrepareWith = ({ sounds }: { sounds: Parameters<typeof usePrepareAudio>[0] }) => {
+  usePrepareAudio(sounds);
+  return null;
+};

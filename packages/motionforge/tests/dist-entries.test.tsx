@@ -165,7 +165,7 @@ describe('built entries', () => {
     expect(Object.keys(motionBlur).sort()).toEqual(['CameraMotionBlur', 'Trail']);
     expect(Object.keys(layoutUtils).sort()).toEqual(['fillTextBox', 'fitText', 'fitTextOnNLines', 'measureText']);
     expect(Object.keys(gif).sort()).toEqual(['Gif', 'getGifDurationInSeconds']);
-    expect(Object.keys(audioModule).sort()).toEqual(['Sfx', 'ToneAudio', 'renderZzfx']);
+    expect(Object.keys(audioModule).sort()).toEqual(['Sfx', 'ToneAudio', 'renderZzfx', 'usePrepareAudio']);
     expect(main).toHaveProperty('createAudioCollector');
     expect(main).toHaveProperty('collectAudioTracks');
     expect(main).toHaveProperty('useIsCollectingAudio');

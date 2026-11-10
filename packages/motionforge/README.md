@@ -283,7 +283,43 @@ const showWhenReady = async (frame: number, input: readonly InputEvent[]) => {
 
 - **MRAID:** start the clock on `mraid.ready` and when `viewableChange` reports visible, pause it when hidden; a CTA in the scene emits `{ type: 'cta' }` and the host's `onInput` calls `mraid.open(storeUrl)`.
 - **Single HTML file:** bundle the scene, the SDK and the assets inline; give `staticFiles` a function that returns `data:` or `blob:` URLs of the embedded files.
-- **Audio only after the first tap:** browsers start an `AudioContext` only from a user gesture. Create or `resume()` it in the first `pointerdown`, then start the tracks of the audio collector that are playing at the current frame (offset into each) and the later ones on schedule. Render `ToneAudio` / `Sfx` buffers before (premount), so the tap starts sound at once.
+- **Audio only after the first tap:** browsers start an `AudioContext` only from a user gesture. Create or `resume()` it in the first `pointerdown`, then start the tracks of the audio collector that are playing at the current frame (offset into each) and the later ones on schedule. Generated sounds that start on input are rendered ahead with `usePrepareAudio()` (below), so the tap starts sound at once.
+
+**Sound on tap.** A tap's frame is not known in advance, so its sound cannot be premounted at the right frame. Prepare the sound instead: `usePrepareAudio()` renders it when the scene mounts (holding the gate until it is cached), and each tap mounts a `<Sfx>` / `<ToneAudio>` with the same sound at the tap's frame. Its track registers on the frame the host re-renders with the tap, with `track.generated.buffer` already set, and the host starts it at once.
+
+```tsx
+import { Sequence, useInputEvents } from 'motionforge';
+import { Sfx, ToneAudio, usePrepareAudio, type Tone, type ToneRenderContext } from 'motionforge/audio';
+
+const POP = [1.2, 0, 500, 0.01, 0.05, 0.1, 1];
+const win = (Tone: Tone, { framesToSeconds }: ToneRenderContext) => {
+  const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+  ['C5', 'E5', 'G5'].forEach((note, i) => synth.triggerAttackRelease(note, '8n', framesToSeconds(i * 6)));
+};
+
+const Sounds = () => {
+  // Rendered before the first tap; `muted`, `volume`, `name` and `at` are not part of the cache key.
+  usePrepareAudio([
+    { type: 'sfx', zzfx: POP },
+    { type: 'tone', durationInFrames: 30, render: win },
+  ]);
+  return (
+    <>
+      {useInputEvents().map((event, i) =>
+        event.type === 'tap' ? (
+          <Sfx key={i} at={event.frame} zzfx={POP} volume={0.8} />
+        ) : event.type === 'solved' ? (
+          <Sequence key={i} from={event.frame} layout="none">
+            <ToneAudio durationInFrames={30} render={win} />
+          </Sequence>
+        ) : null,
+      )}
+    </>
+  );
+};
+```
+
+The same scene with a scripted log (a video) renders the same sounds at the same frames, and `collectAudioTracks(scene, { ..., input: log })` lists them up front.
 
 ## 🗂️ Assets
 
@@ -336,7 +372,7 @@ const tile = { left: photo.x + 500 * photo.scaleX, top: photo.y + 300 * photo.sc
 | `motionforge/transitions` | `TransitionSeries`, `linearTiming`, `springTiming`, `useTransitionProgress`, `pushCut` | — |
 | `motionforge/transitions/fade`, `/slide`, `/wipe`, `/flip`, `/clock-wipe`, `/iris`, `/cube`, `/none`, `/push-cut` | One presentation each: `fade`, `slide`, `wipe`, `flip`, `clockWipe`, `iris`, `cube`, `none`, `pushCut` | — |
 | `motionforge/shapes` | `Rect`, `Circle`, `Ellipse`, `Triangle`, `Star`, `Polygon`, `Pie`, `Heart`, `Arrow`, `Spark`, `Callout` and their `make*()` functions | — |
-| `motionforge/audio` | `ToneAudio`, `Sfx`, `renderZzfx`: generated sounds as audio tracks | `tone` for `ToneAudio` (optional peer dependency, `>=15`); ZzFX is built in |
+| `motionforge/audio` | `ToneAudio`, `Sfx`, `renderZzfx`, `usePrepareAudio`: generated sounds as audio tracks | `tone` for `ToneAudio` (optional peer dependency, `>=15`); ZzFX is built in |
 
 They follow Remotion's packages: `@remotion/three`, `@remotion/motion-blur`, `@remotion/layout-utils`, `@remotion/gif`, `@remotion/media-utils`, `@remotion/transitions` (with the same per-presentation entries: `@remotion/transitions/fade` is `motionforge/transitions/fade`), `@remotion/shapes`. The functions of `@remotion/paths` are in the main entry. All entries share one frame context and render gate, so their components read the frame of the `FrameProvider` from `motionforge`.
 
@@ -822,6 +858,8 @@ import { ToneAudio, Sfx } from 'motionforge/audio';
 - The result is cached by its key, `generated.key` = `JSON.stringify(['tone', String(render), deps, durationInFrames, fps, sampleRate, channels, seed])`: the source text of `render`, `deps`, the length, the composition's `fps` and the options (one render per sound per page; the same sound in another sequence or `FrameProvider` reuses it). `volume`, `muted`, `name` and where it plays are not in it. A value `render` reads from outside that is not in `deps` is not part of the key: a changed value would play the cached sound.
 - Its track registers at once; while the samples render it holds the render gate (inside a premounted sequence it does not, so `premountFor` renders it ahead); a failure (`render` throws, is async, Tone is missing) cancels the render. Renders run one at a time (Tone has one global context). Without an audio collector on the `FrameProvider` nothing is described or rendered; in `collectAudioTracks()` it is described, not rendered (Tone is not loaded).
 - `tone` is an optional peer dependency (tested with 15.1.22): it is imported when the first `ToneAudio` renders, and a missing package fails the render with `<ToneAudio> needs Tone.js, an optional peer dependency of motionforge: install it (npm install tone@15)`.
+
+**`usePrepareAudio(sounds)`** renders generated sounds before they play, for sounds that start on input (see **Sound on tap** under Playable mode): each sound is `{ type: 'sfx', zzfx, seed?, sampleRate? }` or `{ type: 'tone', durationInFrames, render, deps?, seed?, sampleRate?, channels? }`, exactly the props that make up the component's cache key (other props throw: where and how a sound plays is the component's). It holds the render gate until every sound is rendered and cached (inside a premounted sequence it does not) and returns whether they are; a failed render cancels the render. A `<Sfx>` / `<ToneAudio>` mounted later with the same key uses the cached samples: it holds nothing and its track has `generated.buffer` set when it registers. Without an audio collector, and in `collectAudioTracks()`, it renders nothing and returns `true`. The cache keeps the 64 most recently used sounds of the page.
 
 **`<Sfx>`** plays a [ZzFX](https://github.com/KilledByAPixel/ZzFX) sound effect: paste the parameter array from the ZzFX designer.
 
