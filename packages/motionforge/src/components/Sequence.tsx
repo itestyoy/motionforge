@@ -1,7 +1,7 @@
 'use client';
 
-import React, { ReactNode, createContext, useContext, useState, useEffect } from 'react';
-import { useCurrentFrame } from '../core/context';
+import React, { ReactNode, createContext, useContext, useMemo } from 'react';
+import { FrameContext, useCurrentFrame } from '../core/context';
 
 // Sequence Context
 interface SequenceContextValue {
@@ -87,7 +87,8 @@ export const Sequence: React.FC<SequenceProps> = ({
   );
 };
 
-// Frame provider for sequences that shifts frame numbers
+// Frame provider for sequences: children read the shifted frame from
+// useCurrentFrame(), so nested sequences and time remapping compose.
 interface SequenceFrameProviderProps {
   relativeFrame: number;
   children: ReactNode;
@@ -97,12 +98,17 @@ const SequenceFrameProvider: React.FC<SequenceFrameProviderProps> = ({
   relativeFrame,
   children,
 }) => {
-  // This would need to integrate with the main frame context
-  // For now, we pass the relative frame through context
+  const parent = useContext(FrameContext);
+  const frameValue = useMemo(
+    () => (parent ? { ...parent, frame: relativeFrame } : null),
+    [parent, relativeFrame],
+  );
   return (
-    <RelativeFrameContext.Provider value={relativeFrame}>
-      {children}
-    </RelativeFrameContext.Provider>
+    <FrameContext.Provider value={frameValue}>
+      <RelativeFrameContext.Provider value={relativeFrame}>
+        {children}
+      </RelativeFrameContext.Provider>
+    </FrameContext.Provider>
   );
 };
 

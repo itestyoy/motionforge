@@ -3,7 +3,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import lottie, { AnimationItem } from 'lottie-web';
 import { useCurrentFrame } from '../core/context';
-import { useRelativeCurrentFrame } from './Sequence';
 
 export interface LottieProps {
   /**
@@ -70,11 +69,8 @@ export const Lottie: React.FC<LottieProps> = ({
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const absoluteFrame = useCurrentFrame();
-  const relativeFrame = useRelativeCurrentFrame();
-
-  // Use relative frame if inside a Sequence, otherwise use absolute frame
-  const currentFrame = relativeFrame !== null ? relativeFrame : absoluteFrame;
+  // Inside a Sequence this is already the frame relative to the sequence start.
+  const currentFrame = useCurrentFrame();
 
   // Handle initialization
   useEffect(() => {
