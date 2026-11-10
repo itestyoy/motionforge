@@ -146,8 +146,14 @@ describe('Freeze', () => {
     expect(valueOf(html, 'd')).toBe('300');
   });
 
-  it('throws on a frame that is not an integer or an active that is not a boolean', () => {
-    expect(() => renderAt(0, <Freeze frame={1.5}><ShowFrame id="a" /></Freeze>)).toThrow(/frame must be an integer/);
+  it('passes sub-frames through, as Remotion does for motion blur', () => {
+    expect(valueOf(renderAt(3, <Freeze frame={1.5}><ShowFrame id="a" /></Freeze>), 'a')).toBe('1.5');
+  });
+
+  it('throws on a frame that is not a finite number or an active that is not a boolean', () => {
+    for (const frame of [Number.NaN, Infinity]) {
+      expect(() => renderAt(0, <Freeze frame={frame}><ShowFrame id="a" /></Freeze>)).toThrow(/frame must be a finite number/);
+    }
     // @ts-expect-error not a boolean
     expect(() => renderAt(0, <Freeze frame={1} active="yes"><ShowFrame id="a" /></Freeze>)).toThrow(
       /active must be a boolean or a function/,
