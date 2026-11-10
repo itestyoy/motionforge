@@ -124,6 +124,16 @@ export {
   easing,
 } from './utils/animation';
 
+// SVG path geometry (no DOM needed)
+export {
+  getLength,
+  getPointAtLength,
+  getTangentAtLength,
+  evolvePath,
+  pathFromPoints,
+} from './utils/path';
+export type { Point, PathFromPointsOptions } from './utils/path';
+
 // Transitions
 export {
   fade,

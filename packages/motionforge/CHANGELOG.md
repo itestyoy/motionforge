@@ -13,6 +13,7 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - Render readiness: `createRenderGate()` and `FrameProvider gate`; `gate.waitUntilReady({ frame, timeoutMs })` resolves when the frame is committed and nothing holds it, and rejects on timeout (listing the pending labels) or with the `cancelRender()` error. Scenes use `useDelayRender()` → `{ delayRender, continueRender, cancelRender }`; handles are per gate, released on unmount, and `delayRender()` throws during render. Without a gate, `cancelRender()` errors are thrown to the nearest error boundary.
 - `Img`, `Video` and `Lottie` hold the frame until the image is decoded, the video has seeked to the frame, or the Lottie data is loaded and the frame set; their load errors go to `cancelRender()`.
 - `preloadImage`, `preloadVideo`, `preloadAudio`, `preloadFont` and `usePreloadAssets(assets)`.
+- SVG path helpers that need no DOM: `getLength`, `getPointAtLength`, `getTangentAtLength`, `evolvePath`, and `pathFromPoints(points, { cornerRadius, closed })` (corners rounded with circular arcs). They read `M L H V C S Q T A Z`, absolute and relative.
 - `Sequence premountFor`: children mount that many frames early, invisible and at their frame 0; their handles hold the frame only once the sequence has started. `useSequence().isPremounted` tells them.
 
 ### Removed (breaking)

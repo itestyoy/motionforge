@@ -275,6 +275,34 @@ const scale = useOptimizedSpring({ damping: 10 }, 0, 1);
 | `random(seed)` | Deterministic random number generator |
 | `noise2D(x, y)` | Smooth deterministic 2D value noise in [0, 1) |
 
+## ✏️ SVG paths
+
+Pure functions on a path's `d` string: no DOM, so they work during SSR and in Node, and give the same numbers everywhere. They read `M L H V C S Q T A Z`, absolute and relative.
+
+| Function | Returns |
+|----------|---------|
+| `getLength(d)` | Length of the path (moves do not count), like `getTotalLength()` |
+| `getPointAtLength(d, length)` | `{ x, y }` at `length` along the path; `length` is clamped to `[0, getLength(d)]` |
+| `getTangentAtLength(d, length)` | Unit vector `{ x, y }` of the direction of travel; throws for a path without length |
+| `evolvePath(progress, d)` | `{ strokeDasharray, strokeDashoffset }` that draw `progress` (0–1) of the path |
+| `pathFromPoints(points, { cornerRadius?, closed? })` | A polyline (or polygon) through the points, corners rounded with circular arcs; a radius that does not fit in half of each edge shrinks to fit |
+
+```tsx
+const d = pathFromPoints([{ x: 80, y: 400 }, { x: 300, y: 260 }, { x: 520, y: 400 }], { cornerRadius: 40 });
+const length = getLength(d);
+const progress = interpolate(frame, [0, 60], [0, 1]);
+const tip = getPointAtLength(d, progress * length);
+const { x, y } = getTangentAtLength(d, progress * length);
+
+<svg>
+  <path d={d} stroke="#fff" strokeWidth={8} fill="none" {...evolvePath(progress, d)} />
+</svg>
+// a finger tracing the stroke: positioned at the tip, turned along the path
+<img src="/finger.png" style={{ position: 'absolute', left: tip.x, top: tip.y, transform: `rotate(${Math.atan2(y, x)}rad)` }} />
+```
+
+Wrong input throws: a `d` that does not parse (the error names the position), a non-finite length or progress, fewer than two points.
+
 ## 🎭 Using Lottie in MotionForge
 
 MotionForge provides first-class, production-grade Lottie support. Animations are synchronized with the frame system for deterministic, frame-perfect rendering.
