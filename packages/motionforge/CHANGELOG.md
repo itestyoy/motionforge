@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Video`/`Audio`: `durationInFrames`, `loop`; `Video`: `objectFit`.
 - `Lottie`: `direction`, `renderer`, `preserveAspectRatio`, `assetsPath`, `onAnimationLoaded`; `getLottieMetadata()` in `motionforge/lottie`.
 - `delayRender(label, { timeoutInMilliseconds })`.
-- `prefetch(src, options) → { free, waitUntilDone }`; `Img`, `Video` and `Audio` use the prefetched copy.
+- `prefetch(src, options) → { free, waitUntilDone }`; `Img` and `Video` use the prefetched copy.
 - `loadFont({ family, url, ... })`: holds every gate until the font is loaded and fails them if it cannot load.
 - `ThreeCanvas` in `motionforge/three` (as `@remotion/three`): an R3F `<Canvas>` drawn once per frame (`frameloop: 'never'`, `advance(frame / fps)`); frame, config, gate and sequence contexts work inside; holds the render gate until the renderer exists, suspended content has loaded and the frame is drawn; canvas errors go to `cancelRender()`.
 - `motionforge/layout-utils` (as `@remotion/layout-utils`): `measureText`, `fitText`, `fitTextOnNLines`, `fillTextBox`.
@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `motionforge/transitions` (as `@remotion/transitions`): `TransitionSeries` with `.Sequence`, `.Transition` and `.Overlay`, `linearTiming()`, `springTiming()`, `useTransitionProgress()`, and the presentations `fade`, `slide`, `wipe`, `flip`, `clockWipe`, `iris`, `cube`, `none`, `pushCut`, each from its own entry (`motionforge/transitions/fade`, …); they render the same markup as Remotion's. Scenes keep their own frames and length while they overlap and work with `premountFor` and the render gate.
 - SVG path functions of `@remotion/paths` in the main entry: `parsePath`, `serializeInstructions`, `normalizePath`, `reduceInstructions`, `getInstructionIndexAtLength`, `getBoundingBox`, `translatePath`, `scalePath`, `resetPath`, `centerPath`, `reversePath`, `getSubpaths`, `cutPath`, `warpPath`, `interpolatePath`, `interpolatePaths`, `extendViewBox`, and the types `Instruction`, `AbsoluteInstruction`, `ReducedInstruction`, `BoundingBox`, `WarpPathFn`, `CenterPathTarget`, `InterpolatePathsOptions`.
 - `motionforge/shapes` (as `@remotion/shapes`): `makeRect`, `makeCircle`, `makeEllipse`, `makeTriangle`, `makeStar`, `makePolygon`, `makePie`, `makeHeart`, `makeArrow`, `makeSpark`, `makeCallout` and the components `Rect`, `Circle`, `Ellipse`, `Triangle`, `Star`, `Polygon`, `Pie`, `Heart`, `Arrow`, `Spark`, `Callout`, with the same paths as Remotion's.
+- Audio track manifest: `createAudioCollector()` → `{ getTracks(), subscribe(listener) }` and `FrameProvider audio` (also on `Composition`). `<Audio>`, the sound of `<Video>` and the generated sounds register `AudioTrack`s `{ id, name, src, buffer, from, startFrame, endFrame, trimBefore, trimAfter, playbackRate, loop, muted, volume }` at their absolute frames (all enclosing `Sequence`, `Series`, `Loop` and `TransitionSeries` offsets added up), with a volume function sampled per frame; ids are derived from the description, so the manifest does not depend on the order frames are rendered in. Tracks register on mount (`premountFor` registers them early) and stay listed. `Audio` / `Video` `name`.
 
 ### Changed (breaking)
 - `interpolate()` and `useInterpolate()`: `extrapolateLeft`/`extrapolateRight` default to `'extend'` (was `'clamp'`); ranges must contain finite numbers.
@@ -45,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `getPointAtLength()` and `getTangentAtLength()` return `null` past the end of the path (they clamped the length) and throw for a negative length, as Remotion's; `getTangentAtLength()` returns `{ x: 0, y: 0 }` for a path without length (it threw).
 - `evolvePath(0, d)` returns a dash of 1.5 times the length, as Remotion's, so no dot of the stroke shows.
 - Path parse errors start with `parsePath:` and say "the path" instead of "d".
+- `Audio` renders no element and no longer seeks an `<audio>` (which never sounded): it describes an audio track for the host to play. It takes no `<audio>` attributes (they throw) and does not use `prefetch()`ed copies.
+- `Video`'s `<video>` element is always muted; its sound is an audio track (`volume`, `muted`, `name` describe it).
+- `volume` is a gain: above 1 amplifies (it was capped at 1); a `volume` function must return a finite number ≥ 0 (it was clamped to 0..1). The frame it sees restarts per `loop` iteration only when `trimAfter` / `durationInFrames` gives the iteration length (the length of the media is not known any more).
+- `Audio` and `Video` inside `Freeze`, `Retiming` or `Reverse` (so also inside `Trail` and `CameraMotionBlur`) throw: a track plays in real time.
 
 ### Fixed
 - Fonts split by `unicode-range` (Google Fonts, @fontsource) load all their subsets in `usePreloadAssets()`, so Cyrillic is ready when the frame is captured.

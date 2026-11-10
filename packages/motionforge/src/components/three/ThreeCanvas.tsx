@@ -2,7 +2,7 @@
 
 import React, { Component, Suspense, useCallback, useContext, useLayoutEffect, useRef, useState } from 'react';
 import { Canvas, useThree, type CanvasProps, type RootState } from '@react-three/fiber';
-import { FrameContext, GateContext, useCurrentFrame, useVideoConfig } from '../../core/context';
+import { FrameContext, GateContext, HostContext, TimelineContext, useCurrentFrame, useVideoConfig } from '../../core/context';
 import { useDelayRender } from '../../core/delay-render';
 import { SequenceContext } from '../Sequence';
 
@@ -138,6 +138,8 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = (props) => {
   }
   const gateValue = useContext(GateContext);
   const sequenceValue = useContext(SequenceContext);
+  const hostValue = useContext(HostContext);
+  const timelineValue = useContext(TimelineContext);
   const { frame } = frameValue;
   const { delayRender, continueRender, cancelRender } = useDelayRender();
 
@@ -208,13 +210,17 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = (props) => {
       >
         <FrameContext.Provider value={frameValue}>
           <GateContext.Provider value={gateValue}>
-            <SequenceContext.Provider value={sequenceValue}>
-              <Scale width={width} height={height} />
-              <Suspense fallback={<SuspenseHold />}>
-                {children}
-                <FrameRenderer onRendered={onRendered} />
-              </Suspense>
-            </SequenceContext.Provider>
+            <HostContext.Provider value={hostValue}>
+              <TimelineContext.Provider value={timelineValue}>
+                <SequenceContext.Provider value={sequenceValue}>
+                  <Scale width={width} height={height} />
+                  <Suspense fallback={<SuspenseHold />}>
+                    {children}
+                    <FrameRenderer onRendered={onRendered} />
+                  </Suspense>
+                </SequenceContext.Provider>
+              </TimelineContext.Provider>
+            </HostContext.Provider>
           </GateContext.Provider>
         </FrameContext.Provider>
       </Canvas>

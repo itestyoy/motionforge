@@ -18,6 +18,12 @@ export {
   useVideoConfig,
   FrameProvider,
 } from './core/context';
+export type { FrameProviderProps } from './core/context';
+
+// Audio manifest: scenes describe the sound, the host plays it
+export { createAudioCollector } from './core/audio-collector';
+export type { AudioCollector, AudioTrack } from './core/audio-collector';
+export type { AudioVolume } from './core/audio-track';
 
 // Render readiness
 export { createRenderGate } from './core/render-gate';

@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { FrameContextValue } from './types';
 import { GateScope, RenderGate, createRenderGate, getGateInternals, isRenderGate } from './render-gate';
+import { AudioCollector, getAudioCollectorInternals, isAudioCollector } from './audio-collector';
 
 // Frame Context - provides the frame being rendered to all children
 const FrameContext = createContext<FrameContextValue | null>(null);
@@ -39,7 +40,33 @@ export interface GateContextValue {
 
 export const GateContext = createContext<GateContextValue | null>(null);
 
-interface FrameProviderProps {
+/**
+ * Where the content below sits on the composition's timeline: the enclosing
+ * Sequences shift the frame, and audio tracks and input events are mapped
+ * with it.
+ */
+export interface TimelineContextValue {
+  /** The composition frame at which local frame 0 (useCurrentFrame() === 0) is. */
+  offset: number;
+  /** The first composition frame the content is shown (the latest start of the enclosing sequences). */
+  start: number;
+  /** The composition frame (exclusive) at which it stops being shown. */
+  end: number;
+  /** A component between the FrameProvider and here that remaps time (Freeze, Retiming, Reverse), or null. */
+  remappedBy: string | null;
+}
+
+export const TimelineContext = createContext<TimelineContextValue | null>(null);
+
+/** What the host passed to the FrameProvider, for the components below. */
+export interface HostContextValue {
+  /** The collector audio tracks register with, or null (the host does not want audio). */
+  audio: AudioCollector | null;
+}
+
+export const HostContext = createContext<HostContextValue | null>(null);
+
+export interface FrameProviderProps {
   /** The frame to render. The host app owns time: it sets this for playback, seeking or export. */
   frame: number;
   /**
@@ -50,6 +77,13 @@ interface FrameProviderProps {
    * during render, to the nearest error boundary.
    */
   gate?: RenderGate;
+  /**
+   * Collector from createAudioCollector(): `<Audio>`, `<Video>` and the
+   * generated sounds of 'motionforge/audio' register their tracks with it
+   * (see AudioCollector). Without one nothing is collected. A FrameProvider
+   * inside another one does not use the outer collector: its frames are its own.
+   */
+  audio?: AudioCollector;
   fps?: number;
   durationInFrames: number;
   width: number;
@@ -67,7 +101,7 @@ const validateFrameProps = ({
   durationInFrames,
   width,
   height,
-}: Omit<FrameProviderProps, 'children' | 'gate'> & { fps: number }) => {
+}: Pick<FrameProviderProps, 'frame' | 'durationInFrames' | 'width' | 'height'> & { fps: number }) => {
   if (!isPositive(fps)) {
     throw new Error(`FrameProvider: fps must be a positive number, got ${fps}`);
   }
@@ -97,11 +131,15 @@ export const FrameProvider: React.FC<FrameProviderProps> = ({
   width,
   height,
   gate,
+  audio,
   children,
 }) => {
   validateFrameProps({ frame, fps, durationInFrames, width, height });
   if (gate !== undefined && !isRenderGate(gate)) {
     throw new Error('FrameProvider: gate must be created with createRenderGate()');
+  }
+  if (audio !== undefined && !isAudioCollector(audio)) {
+    throw new Error('FrameProvider: audio must be created with createAudioCollector()');
   }
   const value = useMemo<FrameContextValue>(
     () => ({ frame, fps, durationInFrames, width, height }),
@@ -117,7 +155,14 @@ export const FrameProvider: React.FC<FrameProviderProps> = ({
     [owned, outer],
   );
 
+  const timeline = useMemo<TimelineContextValue>(
+    () => ({ offset: 0, start: 0, end: durationInFrames, remappedBy: null }),
+    [durationInFrames],
+  );
+  const host = useMemo<HostContextValue>(() => ({ audio: audio ?? null }), [audio]);
+
   useEffect(() => (owned ? getGateInternals(owned).attach() : undefined), [owned]);
+  useEffect(() => (audio ? getAudioCollectorInternals(audio).attach() : undefined), [audio]);
   // Effects run children first, so when this one runs every component below
   // has registered its delayRender() handles for this frame.
   useEffect(() => {
@@ -134,7 +179,11 @@ export const FrameProvider: React.FC<FrameProviderProps> = ({
 
   return (
     <GateContext.Provider value={gateValue}>
-      <FrameContext.Provider value={value}>{children}</FrameContext.Provider>
+      <HostContext.Provider value={host}>
+        <TimelineContext.Provider value={timeline}>
+          <FrameContext.Provider value={value}>{children}</FrameContext.Provider>
+        </TimelineContext.Provider>
+      </HostContext.Provider>
     </GateContext.Provider>
   );
 };

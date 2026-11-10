@@ -1,7 +1,7 @@
 'use client';
 
 import React, { ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { FrameContext, GateContext, useCurrentFrame } from '../core/context';
+import { FrameContext, GateContext, TimelineContext, TimelineContextValue, useCurrentFrame } from '../core/context';
 import { GateScope, getGateInternals } from '../core/render-gate';
 
 // Sequence Context
@@ -98,6 +98,7 @@ export const Sequence: React.FC<SequenceProps> = (props) => {
   const currentFrame = useCurrentFrame();
   const parent = useContext(FrameContext);
   const parentGate = useContext(GateContext);
+  const parentTimeline = useContext(TimelineContext);
   if (layout !== 'absolute-fill' && layout !== 'none') {
     throw new Error(`Sequence: layout must be "absolute-fill" or "none", got ${JSON.stringify(layout)}`);
   }
@@ -131,6 +132,16 @@ export const Sequence: React.FC<SequenceProps> = (props) => {
   }
   const startFrame = from + offset;
   const endFrame = durationInFrames !== undefined ? startFrame + durationInFrames : Infinity;
+
+  // The same shift on the composition's timeline (for audio tracks and input events).
+  const timelineOffset = (parentTimeline?.offset ?? 0) + startFrame;
+  const timelineStart = Math.max(parentTimeline?.start ?? 0, timelineOffset);
+  const timelineEnd = Math.min(parentTimeline?.end ?? Infinity, timelineOffset + (durationInFrames ?? Infinity));
+  const remappedBy = parentTimeline?.remappedBy ?? null;
+  const timeline = useMemo<TimelineContextValue>(
+    () => ({ offset: timelineOffset, start: timelineStart, end: timelineEnd, remappedBy }),
+    [timelineOffset, timelineStart, timelineEnd, remappedBy],
+  );
 
   // Check if sequence is active
   const isActive = currentFrame >= startFrame && currentFrame < endFrame;
@@ -182,14 +193,16 @@ export const Sequence: React.FC<SequenceProps> = (props) => {
   // so the children stay mounted.
   const content = (
     <GateContext.Provider value={gateValue}>
-      <SequenceFrameProvider
-        relativeFrame={relativeFrame}
-        durationInFrames={localDuration}
-        width={width}
-        height={height}
-      >
-        {children}
-      </SequenceFrameProvider>
+      <TimelineContext.Provider value={timeline}>
+        <SequenceFrameProvider
+          relativeFrame={relativeFrame}
+          durationInFrames={localDuration}
+          width={width}
+          height={height}
+        >
+          {children}
+        </SequenceFrameProvider>
+      </TimelineContext.Provider>
     </GateContext.Provider>
   );
 
@@ -270,6 +283,19 @@ const SequenceFrameProvider: React.FC<SequenceFrameProviderProps> = ({
 
 // Relative Frame Context
 const RelativeFrameContext = createContext<number | null>(null);
+
+/**
+ * Marks the content as remapped in time (Freeze, Retiming, Reverse): its
+ * frames no longer run with the composition's, so it cannot hold audio tracks.
+ */
+const Remapped: React.FC<{ by: string; children: ReactNode }> = ({ by, children }) => {
+  const parent = useContext(TimelineContext);
+  const value = useMemo(
+    () => (parent ? { ...parent, remappedBy: parent.remappedBy ?? by } : null),
+    [parent, by],
+  );
+  return <TimelineContext.Provider value={value}>{children}</TimelineContext.Provider>;
+};
 
 export const useRelativeCurrentFrame = () => useContext(RelativeFrameContext);
 
@@ -379,9 +405,11 @@ export const Freeze: React.FC<FreezeProps> = ({
 
   // The same element either way, so the children stay mounted when it toggles.
   return (
-    <SequenceFrameProvider relativeFrame={isActive ? frozenFrame : currentFrame}>
-      {children}
-    </SequenceFrameProvider>
+    <Remapped by="Freeze">
+      <SequenceFrameProvider relativeFrame={isActive ? frozenFrame : currentFrame}>
+        {children}
+      </SequenceFrameProvider>
+    </Remapped>
   );
 };
 
@@ -439,9 +467,11 @@ export const Retiming: React.FC<RetimingProps> = ({
       : Math.floor(currentFrame * checkRate(playbackRate, currentFrame));
 
   return (
-    <SequenceFrameProvider relativeFrame={retimedFrame}>
-      {children}
-    </SequenceFrameProvider>
+    <Remapped by="Retiming">
+      <SequenceFrameProvider relativeFrame={retimedFrame}>
+        {children}
+      </SequenceFrameProvider>
+    </Remapped>
   );
 };
 
@@ -464,9 +494,11 @@ export const Reverse: React.FC<ReverseProps> = ({
   const reversedFrame = durationInFrames - 1 - (currentFrame % durationInFrames);
 
   return (
-    <SequenceFrameProvider relativeFrame={reversedFrame} durationInFrames={durationInFrames}>
-      {children}
-    </SequenceFrameProvider>
+    <Remapped by="Reverse">
+      <SequenceFrameProvider relativeFrame={reversedFrame} durationInFrames={durationInFrames}>
+        {children}
+      </SequenceFrameProvider>
+    </Remapped>
   );
 };
 

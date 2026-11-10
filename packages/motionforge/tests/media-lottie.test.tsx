@@ -84,17 +84,25 @@ describe('Video / Audio', () => {
   });
 
   it('seeks when the element is more than half a frame off', () => {
-    const node = <Audio src="a.mp3" />;
+    const node = <Video src="a.mp4" />;
     renderAt(45, node);
-    const audio = container.querySelector('audio')!;
+    const video = container.querySelector('video')!;
     act(() => {
-      audio.dispatchEvent(new Event('loadeddata'));
+      video.dispatchEvent(new Event('loadeddata'));
     });
-    expect(audio.currentTime).toBeCloseTo(1.5, 6);
-    // 0.03 s off (0.9 of a frame at 30 fps) at the next frame.
-    audio.currentTime = 46 / 30 + 0.03;
-    renderAt(46, node);
-    expect(audio.currentTime).toBeCloseTo(46 / 30, 6);
+    expect(video.currentTime).toBeCloseTo(1.5, 6);
+    const next = (frame: number, currentTime: number) => {
+      video.currentTime = currentTime;
+      renderAt(frame, node);
+      act(() => {
+        video.dispatchEvent(new Event('loadeddata'));
+      });
+      return video.currentTime;
+    };
+    // 0.01 s off (0.3 of a frame at 30 fps): no seek.
+    expect(next(46, 46 / 30 + 0.01)).toBeCloseTo(46 / 30 + 0.01, 6);
+    // 0.03 s off (0.9 of a frame): seeks.
+    expect(next(47, 47 / 30 + 0.03)).toBeCloseTo(47 / 30, 6);
   });
 });
 
@@ -186,10 +194,10 @@ describe('Video / Audio props (Remotion parity)', () => {
     renderAt(15, <Video src="a.mp4" trimBefore={30} trimAfter={60} playbackRate={2} />);
     expect(container.querySelector('video')).toBeNull();
     // The earlier of trimAfter and trimBefore + durationInFrames.
-    renderAt(9, <Audio src="a.mp3" trimBefore={30} trimAfter={60} durationInFrames={10} />);
-    expect(container.querySelector('audio')).not.toBeNull();
-    renderAt(10, <Audio src="a.mp3" trimBefore={30} trimAfter={60} durationInFrames={10} />);
-    expect(container.querySelector('audio')).toBeNull();
+    renderAt(9, <Video src="a.mp4" trimBefore={30} trimAfter={60} durationInFrames={10} />);
+    expect(container.querySelector('video')).not.toBeNull();
+    renderAt(10, <Video src="a.mp4" trimBefore={30} trimAfter={60} durationInFrames={10} />);
+    expect(container.querySelector('video')).toBeNull();
   });
 
   it('loops the range from trimBefore to the end of the media', () => {
@@ -199,10 +207,10 @@ describe('Video / Audio props (Remotion parity)', () => {
     loaded(video, 2);
     expect(video.currentTime).toBeCloseTo(45 / 30, 6);
     // With trimAfter the loop spans trimBefore..trimAfter (and it stays mounted).
-    renderAt(100, <Audio src="a.mp3" trimBefore={10} trimAfter={20} loop />);
-    const audio = container.querySelector('audio')!;
-    loaded(audio, 100);
-    expect(audio.currentTime).toBeCloseTo((10 + (100 % 10)) / 30, 6);
+    renderAt(100, <Video src="b.mp4" trimBefore={10} trimAfter={20} loop />);
+    const other = container.querySelector('video')!;
+    loaded(other, 100);
+    expect(other.currentTime).toBeCloseTo((10 + (100 % 10)) / 30, 6);
   });
 
   it('cancels the render when a loop has no finite length', async () => {
@@ -212,19 +220,10 @@ describe('Video / Audio props (Remotion parity)', () => {
     await expect(gate.waitUntilReady()).rejects.toThrow(/loop needs a media with a finite duration/);
   });
 
-  it('sets the volume per frame, counted per loop iteration', () => {
-    const volume = vi.fn((frame: number) => frame / 100);
-    renderAt(25, <Audio src="a.mp3" trimAfter={10} loop volume={volume} />);
-    expect(volume).toHaveBeenLastCalledWith(5);
-    expect(container.querySelector('audio')!.volume).toBeCloseTo(0.05, 6);
-    renderAt(25, <Audio src="a.mp3" volume={0.3} />);
-    expect(container.querySelector('audio')!.volume).toBeCloseTo(0.3, 6);
-  });
-
-  it('is not muted by default and fits the picture with objectFit (default contain)', () => {
+  it('mutes the element (its sound is an audio track) and fits the picture with objectFit (default contain)', () => {
     renderAt(0, <Video src="a.mp4" style={{ width: 100 }} />);
     const video = container.querySelector('video')!;
-    expect(video.muted).toBe(false);
+    expect(video.muted).toBe(true);
     expect(video.style.objectFit).toBe('contain');
     expect(video.style.width).toBe('100px');
     renderAt(0, <Video src="a.mp4" objectFit="cover" muted />);

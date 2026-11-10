@@ -4,6 +4,7 @@ import React, { createContext, useContext } from 'react';
 import { VideoConfig } from '../core/types';
 import { FrameProvider } from '../core/context';
 import { RenderGate } from '../core/render-gate';
+import { AudioCollector } from '../core/audio-collector';
 
 // Composition Context
 const CompositionContext = createContext<{
@@ -31,6 +32,8 @@ export interface CompositionProps {
   defaultProps?: Record<string, unknown>;
   /** Render gate for this composition's FrameProvider (see createRenderGate). */
   gate?: RenderGate;
+  /** Audio collector for this composition's FrameProvider (see createAudioCollector). */
+  audio?: AudioCollector;
 }
 
 // A composition rendered at `frame`, with its config available to useComposition().
@@ -44,6 +47,7 @@ export const Composition: React.FC<CompositionProps> = ({
   durationInFrames,
   defaultProps = {},
   gate,
+  audio,
 }) => {
   return (
     <CompositionContext.Provider
@@ -59,6 +63,7 @@ export const Composition: React.FC<CompositionProps> = ({
         width={width}
         height={height}
         gate={gate}
+        audio={audio}
       >
         <Component {...defaultProps} />
       </FrameProvider>

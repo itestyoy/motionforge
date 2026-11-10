@@ -46,7 +46,7 @@ const toDataUrl = (blob: Blob) =>
 
 /**
  * Downloads an asset into memory, like Remotion's prefetch(). Once it is
- * done, Img, Video and Audio with the same `src` show it from memory (a blob:
+ * done, Img and Video with the same `src` show it from memory (a blob:
  * or data: URL), so seeking never waits for the network. It does not hold the
  * render gate: await waitUntilDone() where you need it.
  *

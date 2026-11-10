@@ -163,7 +163,7 @@ const ready = usePreloadAssets([
 ]);
 ```
 
-**Prefetching:** `prefetch(src, { method?: 'blob-url' | 'base64', contentType?, credentials?, onProgress? })` downloads an asset into memory, like Remotion's, and returns `{ free, waitUntilDone }`. Once it is done, `Img`, `Video` and `Audio` with the same `src` (a `#fragment` is kept) use the in-memory copy, so seeking never waits for the network. It does not hold the gate: await `waitUntilDone()` (it resolves with the `blob:` / `data:` URL and rejects on an HTTP error or after `free()`). `free()` aborts the download or releases the memory.
+**Prefetching:** `prefetch(src, { method?: 'blob-url' | 'base64', contentType?, credentials?, onProgress? })` downloads an asset into memory, like Remotion's, and returns `{ free, waitUntilDone }`. Once it is done, `Img` and `Video` with the same `src` (a `#fragment` is kept) use the in-memory copy, so seeking never waits for the network. It does not hold the gate: await `waitUntilDone()` (it resolves with the `blob:` / `data:` URL and rejects on an HTTP error or after `free()`). `free()` aborts the download or releases the memory.
 
 There are no `preloadImage` / `preloadVideo` / `preloadAudio` / `preloadFont`: `@remotion/preload`'s functions only add a browser hint (`<link rel="preload">`) and return a cleanup function, and MotionForge's old ones returned promises; under one name either meaning would mislead. Use `prefetch()`, `usePreloadAssets()` or `loadFont()`.
 
@@ -173,7 +173,7 @@ There are no `preloadImage` / `preloadVideo` / `preloadAudio` / `preloadFont`: `
 
 | Import | What it contains | Extra dependencies |
 |--------|------------------|--------------------|
-| `motionforge` | Core: `FrameProvider`, frame hooks, sequences, effects, `AnimatedImage`, utilities | — |
+| `motionforge` | Core: `FrameProvider`, frame hooks, sequences, effects, `AnimatedImage`, `createAudioCollector`, utilities | — |
 | `motionforge/three` | `ThreeCanvas`, `DepthGallery3D`, `ShaderImageReveal`, `DitheringEffect` | `three`, `@react-three/fiber` (and `@react-three/drei` for the ready-made scenes) |
 | `motionforge/lottie` | `Lottie`, `getLottieMetadata` | `lottie-web` (installed with the package) |
 | `motionforge/motion-blur` | `Trail`, `CameraMotionBlur` | — |
@@ -525,22 +525,91 @@ const { path, width, height } = makeHeart({ height: 200 });
 
 ## 🎞️ Video and Audio
 
-`Video` and `Audio` follow Remotion's `<Html5Video>` / `<Html5Audio>` props and seek the element to the frame's time on every frame (`Video` holds the render gate until it has seeked; a load error cancels the render).
+`Video` follows Remotion's `<Html5Video>` props and seeks the element to the frame's time on every frame (it holds the render gate until it has seeked; a load error cancels the render). `Audio` takes the same timing props but renders nothing: it describes an audio track (see [Audio tracks](#-audio-tracks)).
 
 | Prop | Default | Meaning |
 |------|---------|---------|
-| `src` | required | URL (a `prefetch()`ed one plays from memory) |
+| `src` | required | URL (for `Video`, a `prefetch()`ed one plays from memory) |
 | `trimBefore` | `0` | Media frames cut from the start: frame 0 shows media frame `trimBefore` |
-| `trimAfter` | - | Media frame to end at; the element unmounts once it is reached (unless `loop`) |
+| `trimAfter` | - | Media frame to end at; once it is reached the track stops and `Video` unmounts (unless `loop`) |
 | `durationInFrames` | - | Media frames to play from `trimBefore` (the earlier of this and `trimAfter` wins) |
 | `playbackRate` | `1` | Speed (> 0): frame `f` shows media frame `trimBefore + f × playbackRate` |
 | `loop` | `false` | Repeat the range from `trimBefore` to `trimAfter` (or to the end of the media) |
-| `volume` | `1` | `0..1`, or `(frame) => number` (frame from the start of the media, per iteration with `loop`); a media element plays at most at 1 |
-| `muted` | `false` | |
+| `volume` | `1` | Gain ≥ 0 (above 1 amplifies), or `(frame) => number` (frame from the start of the media, per iteration with `loop` and `trimAfter`) |
+| `muted` | `false` | The track is listed with `muted: true` and must not be heard |
+| `name` | - | Label of the track (`AudioTrack.name`) |
 | `objectFit` (`Video`) | `'contain'` | CSS `object-fit` of the picture (`'contain'`, `'cover'`, `'fill'`, `'none'`, `'scale-down'`); `style.objectFit` works too, both disagreeing throws |
-| `style`, `className`, other `<video>` / `<audio>` attributes | | Passed to the element. `Video` has no default size: give it one, e.g. `style={{ width: '100%', height: '100%' }}` |
+| `style`, `className`, other `<video>` attributes (`Video`) | | Passed to the element. `Video` has no default size: give it one, e.g. `style={{ width: '100%', height: '100%' }}` |
 
-Without `loop`, past the end of the media the last frame shows. Wrong values (negative `trimBefore`, `trimAfter` not after `trimBefore`, `playbackRate <= 0`, a negative `volume`) throw.
+Without `loop`, past the end of the media the last frame shows. Wrong values (negative `trimBefore`, `trimAfter` not after `trimBefore`, `playbackRate <= 0`, a negative `volume`, a `volume` function returning a negative or non-finite number, `<audio>` attributes on `Audio`) throw.
+
+## 🔊 Audio tracks
+
+The SDK describes the sound, the host plays and mixes it. Every `<Audio>`, the sound of every `<Video>` and the generated sounds of `motionforge/audio` register an **audio track** with the collector the host passes to `FrameProvider`:
+
+```tsx
+import { FrameProvider, createAudioCollector } from 'motionforge';
+
+const audio = createAudioCollector();
+<FrameProvider audio={audio} frame={n} gate={gate} fps={30} durationInFrames={900} width={1080} height={1920}>
+  <Scene />
+</FrameProvider>;
+
+audio.getTracks();                       // readonly AudioTrack[]
+const unsubscribe = audio.subscribe(() => schedule(audio.getTracks()));
+```
+
+An `AudioTrack` is plain data (frames are composition frames at the provider's `fps`, counted from the composition's start):
+
+| Field | Meaning |
+|-------|---------|
+| `id` | Derived from the description, not from the render: the same track has the same id whatever frames were rendered in what order, so manifests of several `FrameProvider`s (a parallel export) merge by id. Identical tracks playing at the same time are listed once per copy (`id`, `id#2`, ...) |
+| `name` | The `name` prop, or `null` |
+| `src` / `buffer` | The URL (`Audio`, `Video`), or the `AudioBuffer` of generated audio; the other is `null` |
+| `from` | The frame at which the track's own frame 0 (media frame `trimBefore`) plays: the start of the enclosing sequences, `Series`, `Loop` iterations and `TransitionSeries` scenes, all added up |
+| `startFrame` | The first frame it is heard (later than `from` when a sequence starts before frame 0 or before an enclosing one is shown: start the media `startFrame - from` frames in) |
+| `endFrame` | The frame (exclusive) it stops: the end of an enclosing sequence, of the composition, or of the trimmed media (without `loop`), whichever is first |
+| `trimBefore`, `trimAfter` | Media frames; `trimAfter` is the earlier of `trimAfter` and `trimBefore + durationInFrames`, `null` for the end of the media |
+| `playbackRate`, `loop`, `muted` | As the props |
+| `volume` | A number, or for a `volume` function one value per frame from `startFrame` (`volume[f - startFrame]`), sampled once when the track registers |
+
+At frame `f` the track plays media time `(trimBefore + (f - from) × playbackRate) / fps` seconds (with `loop`, `trimBefore`..`trimAfter` repeats).
+
+**Export.** The host steps through every frame (in any order, with the gate) and reads the whole manifest at the end, then mixes it, e.g. with an `OfflineAudioContext` or ffmpeg:
+
+```ts
+for (let f = 0; f < durationInFrames; f++) {
+  setFrame(f);                                   // re-renders <FrameProvider frame={f} gate={gate} audio={audio}>
+  await gate.waitUntilReady({ frame: f });
+  captureFrame(f);
+}
+const mix = new OfflineAudioContext(2, Math.ceil((durationInFrames / fps) * 48000), 48000);
+for (const track of audio.getTracks()) {
+  if (track.muted) continue;
+  const buffer = track.buffer ?? (await mix.decodeAudioData(await (await fetch(track.src!)).arrayBuffer()));
+  const source = new AudioBufferSourceNode(mix, { buffer, playbackRate: track.playbackRate, loop: track.loop });
+  if (track.loop) {
+    source.loopStart = track.trimBefore / fps;
+    if (track.trimAfter !== null) source.loopEnd = track.trimAfter / fps;
+  }
+  const gain = new GainNode(mix);
+  if (typeof track.volume === 'number') gain.gain.value = track.volume;
+  else track.volume.forEach((v, i) => gain.gain.setValueAtTime(v, (track.startFrame + i) / fps));
+  source.connect(gain).connect(mix.destination);
+  source.start(track.startFrame / fps, (track.trimBefore + (track.startFrame - track.from) * track.playbackRate) / fps);
+  source.stop(track.endFrame / fps);
+}
+const soundtrack = await mix.startRendering();
+```
+
+**Live playback.** A track registers when its component mounts: when its sequence starts, or `premountFor` frames earlier. `subscribe()` tells the host, which starts each new track at `startFrame` on its clock (or, if that is already past, at the current position). Give sequences with sound a `premountFor` of a few frames so their tracks (and generated audio, which renders first) are known before they start. Tracks stay listed after their component unmounts (`getTracks()` only grows); when the scene itself changes, give the `FrameProvider` a new collector.
+
+- **No dry pass.** The SDK does not offer the whole manifest before playback: a sequence mounts only around its frames, so knowing every track means rendering every frame (scenes may also choose what to render from the frame). That is the export pass above; a host that wants the manifest up front runs it on a hidden `FrameProvider` first.
+- **Video's sound** is a track too (as in Remotion, where a video's audio is in the render): `<Video volume muted name>` describe it, and the `<video>` element itself is always muted. A video whose sound is not wanted takes `muted`.
+- **Readiness.** Registering a URL track does not hold the gate (it registers in the same commit, before the gate can resolve); the host loads the files. Generated audio holds the gate until it is rendered and registered (see `motionforge/audio`).
+- Without `audio`, nothing is collected and `Audio` does nothing. A `FrameProvider` inside another one does not use the outer collector: its frames are its own. A collector serves one `FrameProvider` at a time.
+- `Audio` / `Video` inside `Freeze`, `Retiming` or `Reverse` (and so inside `Trail` and `CameraMotionBlur`, which render through `Freeze`) throw: their frames do not run with the composition's, and a track plays in real time. Put the sound outside.
+- **Differs from Remotion:** Remotion's player plays `<Audio>` through an `<audio>` element and its renderer collects per-frame assets; MotionForge has no player, so `Audio` is only a description and the host plays it. A `volume` above 1 amplifies (no media element caps it); the frame a `volume` function sees restarts per loop iteration only when `trimAfter` (or `durationInFrames`) gives the iteration length.
 
 ## 🧊 3D: `ThreeCanvas`
 
