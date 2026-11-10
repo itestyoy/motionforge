@@ -6,12 +6,12 @@ interface LottieProps {
      */
     src: string | object;
     /**
-     * The frame at which the Lottie animation should start playing.
+     * The Lottie frame (on the animation's own timeline) to start from.
      * Default is 0.
      */
     frameStart?: number;
     /**
-     * The frame at which the Lottie animation should end playing.
+     * The Lottie frame (on the animation's own timeline) to stop at.
      * Default is the last frame of the Lottie animation.
      */
     frameEnd?: number;
@@ -46,7 +46,10 @@ interface LottieProps {
  * Lottie Component for MotionForge.
  *
  * Provides production-grade Lottie support with deterministic frame synchronization.
- * Synchronizes with the MotionForge frame system instead of using time-based playback.
+ * Synchronizes with the MotionForge frame system instead of using time-based playback:
+ * composition frame `f` shows the Lottie at time f / fps (times `playbackRate`),
+ * whatever the Lottie's own frame rate. If the animation data cannot be loaded,
+ * the component shows the error instead of rendering nothing.
  */
 declare const Lottie: React.FC<LottieProps>;
 

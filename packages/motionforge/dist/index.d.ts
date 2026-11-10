@@ -159,6 +159,12 @@ interface LoopProps {
     name?: string;
 }
 declare const Loop: React$1.FC<LoopProps>;
+/** Inside a `Loop`: the frame within the current iteration, the iteration index and the loop length. */
+declare const useLoopInfo: () => {
+    loopedFrame: number;
+    currentLoop: number;
+    durationInFrames: number;
+};
 interface FreezeProps {
     frame: number;
     durationInFrames: number;
@@ -168,6 +174,11 @@ interface FreezeProps {
 declare const Freeze: React$1.FC<FreezeProps>;
 interface RetimingProps {
     children: ReactNode;
+    /**
+     * Speed: a number, or a pure function of the parent frame. With a function
+     * the content advances by `playbackRate(i)` on each frame `i`, so the
+     * content frame at `frame` is floor(sum of playbackRate(i) for i < frame).
+     */
     playbackRate: number | ((frame: number) => number);
     name?: string;
 }
@@ -336,6 +347,9 @@ interface CounterProps {
     startFrame?: number;
     easing?: (t: number) => number;
     style?: React$1.CSSProperties;
+    /** Locale for the default number format (rounded, with grouping). Default 'en-US', whatever the host's locale. */
+    locale?: string;
+    /** Custom formatter; replaces the default format and `locale`. */
     format?: (value: number) => string;
 }
 declare const Counter: React$1.FC<CounterProps>;
@@ -403,7 +417,6 @@ interface Rotate3DProps {
 }
 declare const Rotate3D: React$1.FC<Rotate3DProps>;
 interface Flip3DProps {
-    children: React$1.ReactNode;
     front: React$1.ReactNode;
     back: React$1.ReactNode;
     durationInFrames?: number;
@@ -462,6 +475,7 @@ interface LetterByLetterProps {
 declare const LetterByLetter: React$1.FC<LetterByLetterProps>;
 interface WordByWordProps {
     text: string;
+    /** Frames of the animation, shared by the words: each word animates for durationInFrames / words. */
     durationInFrames?: number;
     startFrame?: number;
     delayPerWord?: number;
@@ -607,6 +621,12 @@ interface FlipImageRevealProps {
         width: number;
         height: number;
     };
+    /** Alt text of the image. */
+    alt?: string;
+    /** Heading shown over the image at the end of the reveal; nothing is shown without it. */
+    title?: React$1.ReactNode;
+    /** Text under the title. */
+    description?: React$1.ReactNode;
     durationInFrames?: number;
     startFrame?: number;
     className?: string;
@@ -659,10 +679,23 @@ declare const Easing: {
     easeInOutBounce: (t: number) => number;
     bezier: (x1: number, y1: number, x2: number, y2: number) => EasingFunction;
 };
+/**
+ * Spring from `from` to `to`, released at rest at frame 0.
+ *
+ * Without `durationInFrames` it follows the physics of `config` and settles
+ * when it settles. With `durationInFrames` the motion is stretched in time so
+ * that it settles (to within `durationRestThreshold`) at `durationInFrames`,
+ * and from that frame on it is exactly `to`.
+ */
 declare const spring: ({ frame, fps, config, from, to, durationInFrames, durationRestThreshold, }: SpringConfig) => number;
 declare const interpolate: (input: number, inputRange: number[], outputRange: number[], options?: InterpolateOptions) => number;
 declare const interpolateColors: (input: number, inputRange: number[], outputRange: string[]) => string;
 declare const useKeyframes: (keyframes: Keyframe[], frame: number) => number | string;
+/**
+ * Number of frames until a spring released at frame 0 has settled: from the
+ * returned frame on, it stays within `threshold` (a fraction of the distance
+ * from `from` to `to`) of its target.
+ */
 declare const measureSpring: ({ fps, config, threshold, }: {
     fps: number;
     config?: SpringConfig["config"];
@@ -672,6 +705,11 @@ declare const getFramesFromSeconds: (seconds: number, fps: number) => number;
 declare const getSecondsFromFrames: (frames: number, fps: number) => number;
 declare const range: (start: number, end: number, step?: number) => number[];
 declare const random: (seed: string | number, min?: number, max?: number) => number;
+/**
+ * 2D value noise: smooth (continuous) in x and y, deterministic, in [0, 1).
+ * Each integer lattice point gets a value from random(); between them the
+ * values are mixed bilinearly with smoothstep weights.
+ */
 declare const noise2D: (x: number, y: number) => number;
 
 interface TransitionConfig {
@@ -880,8 +918,8 @@ declare const usePulse: (minScale: number, maxScale: number, frequency: number) 
 };
 
 /**
- * Memoized frame value hook
- * Caches computed values based on frame and dependencies
+ * Memoized frame value hook: `compute()` runs again when the frame or one of
+ * `deps` changes. The value belongs to the calling component.
  */
 declare function useMemoizedFrame<T>(compute: () => T, deps?: unknown[]): T;
 /**
@@ -893,15 +931,6 @@ declare function useAnimationValue<T>(compute: (frame: number) => T, _frameDeps?
  * Cached frame hook - simplified version
  */
 declare function useCachedFrame<T>(compositionId: string, renderer: (frame: number) => T): T;
-/**
- * Throttled frame update hook - returns frame directly
- * Throttling is handled by the player
- */
-declare function useThrottledFrame(_throttleMs?: number): number;
-/**
- * Batch frame processing hook - simplified
- */
-declare function useBatchFrameProcessor<T, R>(processor: (items: T[]) => R[], _batchSize?: number): (items: T[]) => R[];
 /**
  * Frame range hook for efficient range queries
  */
@@ -926,19 +955,5 @@ declare function useOptimizedInterpolate(inputRange: number[], outputRange: numb
     extrapolateLeft?: 'clamp' | 'extend' | 'identity';
     extrapolateRight?: 'clamp' | 'extend' | 'identity';
 }): (frame: number) => number;
-/**
- * Performance monitoring hook
- * Returns static metrics - actual monitoring should use external tools
- */
-declare function usePerformanceMonitor(): {
-    fps: number;
-    frameTime: number;
-    renderTime: number;
-};
-/**
- * Render priority hook
- * Returns render priority based on configuration
- */
-declare function useRenderPriority(): 'high' | 'medium' | 'low';
 
-export { AbsoluteFill, type AnimationTrack, Audio, type AudioProps$1 as AudioProps, Blur, Bounce, CardExpansionMask, Circle, Composition, type CompositionProps$1 as CompositionProps, Confetti, Counter, Cube3D, AbsoluteFill as Div, Easing, type EasingFunction, Fade, Flip3D, FlipImageReveal, type FrameContextValue, FrameProvider, Freeze, G, Glitch, GradientText, Highlight, HyperFrame, type ImageProps, Img, type InterpolateOptions, type Keyframe, KineticTypography, type LayerProps, LetterByLetter, LiquidText, Loop, MaskReveal, NeonGlow, ParticleSystem, Path, Perspective3D, ProgressBar, Pulse, RainbowText, Rect, Retiming, Reverse, Rotate, Rotate3D, SVG, Scale, Sequence, type SequenceProps$1 as SequenceProps, Series, ShakeEffect, Slide, type SpringConfig, StickyGridScroll, Swing, Text, type TextProps$1 as TextProps, TextStack3D, Trail, type TransitionConfig, type TransitionName, Typewriter, Video, type VideoConfig, type VideoProps$1 as VideoProps, WaveText, WordByWord, blur, bounce, combine, Easing as easing, fade, flash, flip, getFramesFromSeconds, getSecondsFromFrames, glitch, interpolate, interpolateColors, measureSpring, noise2D, pulse as pulseTransition, random, range, rotate as rotateTransition, scale as scaleTransition, shake as shakeTransition, slide, slideWithFade, spring, staticFile, transitions, useAnimation, useAnimationValue, useBatchFrameProcessor, useCachedFrame, useComposition, useVideoConfig as useConfig, useCurrentFrame, useCycle, useDelay, useDurationInFrames, useFade, useFrameRange, useInterpolate, useKeyframeState, useKeyframes, useLoop, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePerformanceMonitor, usePrecomputeFrames, useProgress, usePulse, useRelativeCurrentFrame, useRenderPriority, useSequence, useShake, useSlide, useSpring, useThrottledFrame, useTimeline, useTransform, useVideoConfig$1 as useVideoConfig, useWindowedFrame, wipe, zoom };
+export { AbsoluteFill, type AnimationTrack, Audio, type AudioProps$1 as AudioProps, Blur, Bounce, CardExpansionMask, Circle, Composition, type CompositionProps$1 as CompositionProps, Confetti, Counter, Cube3D, AbsoluteFill as Div, Easing, type EasingFunction, Fade, Flip3D, FlipImageReveal, type FrameContextValue, FrameProvider, Freeze, G, Glitch, GradientText, Highlight, HyperFrame, type ImageProps, Img, type InterpolateOptions, type Keyframe, KineticTypography, type LayerProps, LetterByLetter, LiquidText, Loop, MaskReveal, NeonGlow, ParticleSystem, Path, Perspective3D, ProgressBar, Pulse, RainbowText, Rect, Retiming, Reverse, Rotate, Rotate3D, SVG, Scale, Sequence, type SequenceProps$1 as SequenceProps, Series, ShakeEffect, Slide, type SpringConfig, StickyGridScroll, Swing, Text, type TextProps$1 as TextProps, TextStack3D, Trail, type TransitionConfig, type TransitionName, Typewriter, Video, type VideoConfig, type VideoProps$1 as VideoProps, WaveText, WordByWord, blur, bounce, combine, Easing as easing, fade, flash, flip, getFramesFromSeconds, getSecondsFromFrames, glitch, interpolate, interpolateColors, measureSpring, noise2D, pulse as pulseTransition, random, range, rotate as rotateTransition, scale as scaleTransition, shake as shakeTransition, slide, slideWithFade, spring, staticFile, transitions, useAnimation, useAnimationValue, useCachedFrame, useComposition, useVideoConfig as useConfig, useCurrentFrame, useCycle, useDelay, useDurationInFrames, useFade, useFrameRange, useInterpolate, useKeyframeState, useKeyframes, useLoop, useLoopInfo, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePrecomputeFrames, useProgress, usePulse, useRelativeCurrentFrame, useSequence, useShake, useSlide, useSpring, useTimeline, useTransform, useVideoConfig$1 as useVideoConfig, useWindowedFrame, wipe, zoom };

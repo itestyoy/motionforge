@@ -1,4 +1,4 @@
-'use strict';
+'use client';'use strict';
 
 var react = require('react');
 var jsxRuntime = require('react/jsx-runtime');
@@ -24,6 +24,31 @@ var useVideoConfig = () => {
     height: context.height
   };
 };
+var isPositive = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+var validateFrameProps = ({
+  frame,
+  fps,
+  durationInFrames,
+  width,
+  height
+}) => {
+  if (!isPositive(fps)) {
+    throw new Error(`FrameProvider: fps must be a positive number, got ${fps}`);
+  }
+  if (!isPositive(width) || !isPositive(height)) {
+    throw new Error(`FrameProvider: width and height must be positive numbers, got ${width}x${height}`);
+  }
+  if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
+    throw new Error(
+      `FrameProvider: durationInFrames must be a positive integer, got ${durationInFrames}`
+    );
+  }
+  if (!Number.isInteger(frame) || frame < 0 || frame > durationInFrames - 1) {
+    throw new Error(
+      `FrameProvider: frame must be an integer from 0 to ${durationInFrames - 1} (durationInFrames - 1), got ${frame}`
+    );
+  }
+};
 var FrameProvider = ({
   frame,
   fps = 30,
@@ -32,6 +57,7 @@ var FrameProvider = ({
   height,
   children
 }) => {
+  validateFrameProps({ frame, fps, durationInFrames, width, height });
   const value = react.useMemo(
     () => ({ frame, fps, durationInFrames, width, height }),
     [frame, fps, durationInFrames, width, height]
@@ -43,5 +69,5 @@ exports.FrameContext = FrameContext;
 exports.FrameProvider = FrameProvider;
 exports.useCurrentFrame = useCurrentFrame;
 exports.useVideoConfig = useVideoConfig;
-//# sourceMappingURL=chunk-A2EVFOWZ.cjs.map
-//# sourceMappingURL=chunk-A2EVFOWZ.cjs.map
+//# sourceMappingURL=chunk-QS27YGBM.cjs.map
+//# sourceMappingURL=chunk-QS27YGBM.cjs.map

@@ -1,10 +1,10 @@
-import { useCurrentFrame } from '../chunk-HRUP2L62.js';
+'use client';import { useCurrentFrame } from '../chunk-UU3G2NRN.js';
 import { Canvas } from '@react-three/fiber';
 import { Image, Text, useTexture } from '@react-three/drei';
 import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
 import { Suspense, useMemo } from 'react';
 
-var DeterministicScene = ({ images, progress }) => {
+var DeterministicScene = ({ images, captions, progress }) => {
   return /* @__PURE__ */ jsxs(Fragment, { children: [
     /* @__PURE__ */ jsx("ambientLight", { intensity: 0.5 }),
     /* @__PURE__ */ jsx("pointLight", { position: [10, 10, 10] }),
@@ -22,7 +22,7 @@ var DeterministicScene = ({ images, progress }) => {
             opacity
           }
         ),
-        /* @__PURE__ */ jsxs(
+        captions?.[i] && /* @__PURE__ */ jsx(
           Text,
           {
             position: [0, -2.5, 0.1],
@@ -30,10 +30,7 @@ var DeterministicScene = ({ images, progress }) => {
             color: "white",
             anchorX: "center",
             anchorY: "middle",
-            children: [
-              "Art Piece ",
-              i + 1
-            ]
+            children: captions[i]
           }
         )
       ] }, i);
@@ -43,6 +40,7 @@ var DeterministicScene = ({ images, progress }) => {
 };
 var DepthGallery3D = ({
   images,
+  captions,
   durationInFrames = 300,
   startFrame = 0,
   className = "",
@@ -50,7 +48,7 @@ var DepthGallery3D = ({
 }) => {
   const frame = useCurrentFrame();
   const progress = Math.max(0, (frame - startFrame) / durationInFrames);
-  return /* @__PURE__ */ jsx("div", { className, style: { width: "100%", height: "100%", backgroundColor: "#000", ...style }, children: /* @__PURE__ */ jsx(Canvas, { camera: { position: [0, 0, 5], fov: 75 }, children: /* @__PURE__ */ jsx(DeterministicScene, { images, progress }) }) });
+  return /* @__PURE__ */ jsx("div", { className, style: { width: "100%", height: "100%", backgroundColor: "#000", ...style }, children: /* @__PURE__ */ jsx(Canvas, { camera: { position: [0, 0, 5], fov: 75 }, children: /* @__PURE__ */ jsx(DeterministicScene, { images, captions, progress }) }) });
 };
 var vertexShader = `
   varying vec2 vUv;

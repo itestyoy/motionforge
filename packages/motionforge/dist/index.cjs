@@ -1,22 +1,22 @@
-'use strict';
+'use client';'use strict';
 
-var chunkA2EVFOWZ_cjs = require('./chunk-A2EVFOWZ.cjs');
-var React2 = require('react');
+var chunkQS27YGBM_cjs = require('./chunk-QS27YGBM.cjs');
+var React5 = require('react');
 var jsxRuntime = require('react/jsx-runtime');
 
 function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
 
-var React2__default = /*#__PURE__*/_interopDefault(React2);
+var React5__default = /*#__PURE__*/_interopDefault(React5);
 
-var CompositionContext = React2.createContext(null);
+var CompositionContext = React5.createContext(null);
 var useComposition = () => {
-  const context = React2.useContext(CompositionContext);
+  const context = React5.useContext(CompositionContext);
   if (!context) {
     throw new Error("useComposition must be used within a Composition");
   }
   return context;
 };
-var useVideoConfig2 = () => chunkA2EVFOWZ_cjs.useVideoConfig();
+var useVideoConfig2 = () => chunkQS27YGBM_cjs.useVideoConfig();
 var Composition = ({
   id,
   component: Component,
@@ -35,7 +35,7 @@ var Composition = ({
         config: { width, height, fps, durationInFrames }
       },
       children: /* @__PURE__ */ jsxRuntime.jsx(
-        chunkA2EVFOWZ_cjs.FrameProvider,
+        chunkQS27YGBM_cjs.FrameProvider,
         {
           frame,
           fps,
@@ -48,13 +48,13 @@ var Composition = ({
     }
   );
 };
-var SequenceContext = React2.createContext({
+var SequenceContext = React5.createContext({
   relativeFrom: 0,
   isActive: true,
   startFrame: 0,
   endFrame: Infinity
 });
-var useSequence = () => React2.useContext(SequenceContext);
+var useSequence = () => React5.useContext(SequenceContext);
 var Sequence = ({
   from,
   durationInFrames,
@@ -63,7 +63,8 @@ var Sequence = ({
   children,
   layout = "absolute-fill"
 }) => {
-  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const currentFrame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const parent = React5.useContext(chunkQS27YGBM_cjs.FrameContext);
   const startFrame = from + offset;
   const endFrame = durationInFrames !== void 0 ? startFrame + durationInFrames : Infinity;
   const relativeFrame = currentFrame - startFrame;
@@ -78,6 +79,11 @@ var Sequence = ({
   if (!isActive) {
     return null;
   }
+  const localDuration = durationInFrames ?? (parent ? parent.durationInFrames - startFrame : void 0);
+  const content = /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame, durationInFrames: localDuration, children });
+  if (layout === "none") {
+    return /* @__PURE__ */ jsxRuntime.jsx(SequenceContext.Provider, { value: contextValue, children: content });
+  }
   return /* @__PURE__ */ jsxRuntime.jsx(SequenceContext.Provider, { value: contextValue, children: /* @__PURE__ */ jsxRuntime.jsx(
     "div",
     {
@@ -85,7 +91,7 @@ var Sequence = ({
       "data-sequence-from": startFrame,
       "data-sequence-duration": durationInFrames,
       style: {
-        position: layout === "absolute-fill" ? "absolute" : "relative",
+        position: "absolute",
         top: 0,
         left: 0,
         right: 0,
@@ -93,82 +99,113 @@ var Sequence = ({
         display: "flex",
         flexDirection: "column"
       },
-      children: /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame, children })
+      children: content
     }
   ) });
 };
 var SequenceFrameProvider = ({
   relativeFrame,
+  durationInFrames,
   children
 }) => {
-  const parent = React2.useContext(chunkA2EVFOWZ_cjs.FrameContext);
-  const frameValue = React2.useMemo(
-    () => parent ? { ...parent, frame: relativeFrame } : null,
-    [parent, relativeFrame]
+  const parent = React5.useContext(chunkQS27YGBM_cjs.FrameContext);
+  const frameValue = React5.useMemo(
+    () => parent ? {
+      ...parent,
+      frame: relativeFrame,
+      durationInFrames: durationInFrames ?? parent.durationInFrames
+    } : null,
+    [parent, relativeFrame, durationInFrames]
   );
-  return /* @__PURE__ */ jsxRuntime.jsx(chunkA2EVFOWZ_cjs.FrameContext.Provider, { value: frameValue, children: /* @__PURE__ */ jsxRuntime.jsx(RelativeFrameContext.Provider, { value: relativeFrame, children }) });
+  return /* @__PURE__ */ jsxRuntime.jsx(chunkQS27YGBM_cjs.FrameContext.Provider, { value: frameValue, children: /* @__PURE__ */ jsxRuntime.jsx(RelativeFrameContext.Provider, { value: relativeFrame, children }) });
 };
-var RelativeFrameContext = React2.createContext(null);
-var useRelativeCurrentFrame = () => React2.useContext(RelativeFrameContext);
+var RelativeFrameContext = React5.createContext(null);
+var useRelativeCurrentFrame = () => React5.useContext(RelativeFrameContext);
 var Loop = ({
   durationInFrames,
   times = Infinity,
   children,
   name
 }) => {
-  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const currentFrame = chunkQS27YGBM_cjs.useCurrentFrame();
   const totalFrames = times === Infinity ? durationInFrames : durationInFrames * times;
   const loopedFrame = currentFrame % durationInFrames;
   const currentLoop = Math.floor(currentFrame / durationInFrames);
   if (times !== Infinity && currentFrame >= totalFrames) {
     return null;
   }
-  return /* @__PURE__ */ jsxRuntime.jsx(LoopContext.Provider, { value: { loopedFrame, currentLoop, durationInFrames }, children: /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame: loopedFrame, children }) });
+  return /* @__PURE__ */ jsxRuntime.jsx(LoopContext.Provider, { value: { loopedFrame, currentLoop, durationInFrames }, children: /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame: loopedFrame, durationInFrames, children }) });
 };
-var LoopContext = React2.createContext({
+var LoopContext = React5.createContext({
   loopedFrame: 0,
   currentLoop: 0,
   durationInFrames: 0
 });
+var useLoopInfo = () => React5.useContext(LoopContext);
 var Freeze = ({
   frame: freezeFrame,
   durationInFrames,
   children
 }) => {
-  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const displayFrame = currentFrame < durationInFrames ? freezeFrame : currentFrame - durationInFrames + freezeFrame;
+  const currentFrame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const displayFrame = currentFrame < durationInFrames ? freezeFrame : currentFrame - durationInFrames + freezeFrame + 1;
   return /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame: displayFrame, children });
+};
+var checkRate = (rate, frame) => {
+  if (typeof rate !== "number" || !Number.isFinite(rate)) {
+    throw new Error(`Retiming: playbackRate must be a finite number, got ${rate} at frame ${frame}`);
+  }
+  return rate;
+};
+var cumulativeTables = /* @__PURE__ */ new WeakMap();
+var cumulativeRate = (rate, frame) => {
+  const whole = Math.floor(frame);
+  const partial = frame - whole === 0 ? 0 : (frame - whole) * checkRate(rate(whole), whole);
+  if (whole < 0) {
+    let sum = 0;
+    for (let i = whole; i < 0; i++) sum -= checkRate(rate(i), i);
+    return sum + partial;
+  }
+  let table = cumulativeTables.get(rate);
+  if (!table) {
+    table = [0];
+    cumulativeTables.set(rate, table);
+  }
+  for (let n = table.length; n <= whole; n++) {
+    table.push(table[n - 1] + checkRate(rate(n - 1), n - 1));
+  }
+  return table[whole] + partial;
 };
 var Retiming = ({
   children,
-  playbackRate,
-  name
+  playbackRate
 }) => {
-  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const rate = typeof playbackRate === "function" ? playbackRate(currentFrame) : playbackRate;
-  const retimedFrame = Math.floor(currentFrame * rate);
+  const currentFrame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const retimedFrame = typeof playbackRate === "function" ? Math.floor(cumulativeRate(playbackRate, currentFrame)) : Math.floor(currentFrame * checkRate(playbackRate, currentFrame));
   return /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame: retimedFrame, children });
 };
 var Reverse = ({
   children,
   durationInFrames
 }) => {
-  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const currentFrame = chunkQS27YGBM_cjs.useCurrentFrame();
   const reversedFrame = durationInFrames - 1 - currentFrame % durationInFrames;
   return /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame: reversedFrame, children });
 };
 var Series = ({ children }) => {
-  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const currentFrame = chunkQS27YGBM_cjs.useCurrentFrame();
   let accumulatedFrames = 0;
   let activeChildIndex = -1;
+  let activeDuration = 0;
   let relativeFrame = currentFrame;
-  const childArray = React2__default.default.Children.toArray(children);
+  const childArray = React5__default.default.Children.toArray(children);
   for (let i = 0; i < childArray.length; i++) {
     const child = childArray[i];
-    if (React2__default.default.isValidElement(child) && child.props.durationInFrames) {
+    if (React5__default.default.isValidElement(child) && child.props.durationInFrames) {
       const childDuration = child.props.durationInFrames;
       if (currentFrame >= accumulatedFrames && currentFrame < accumulatedFrames + childDuration) {
         activeChildIndex = i;
+        activeDuration = childDuration;
         relativeFrame = currentFrame - accumulatedFrames;
         break;
       }
@@ -179,7 +216,7 @@ var Series = ({ children }) => {
     return null;
   }
   const activeChild = childArray[activeChildIndex];
-  return /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame, children: activeChild });
+  return /* @__PURE__ */ jsxRuntime.jsx(SequenceFrameProvider, { relativeFrame, durationInFrames: activeDuration, children: activeChild });
 };
 var AbsoluteFill = ({
   children,
@@ -206,6 +243,8 @@ var AbsoluteFill = ({
     }
   );
 };
+var getMediaTime = (frame, fps, startFrom, playbackRate) => (startFrom + frame * playbackRate) / fps;
+var needsSeek = (currentTime, targetTime, fps) => Math.abs(currentTime - targetTime) > 0.5 / fps;
 var Video = ({
   src,
   startFrom = 0,
@@ -215,36 +254,35 @@ var Video = ({
   muted = true,
   style,
   pauseOnFrame = true,
+  onLoadedData,
   ...props
 }) => {
-  const videoRef = React2.useRef(null);
-  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
-  const [loaded, setLoaded] = React2.useState(false);
-  React2.useEffect(() => {
+  const videoRef = React5.useRef(null);
+  const currentFrame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { fps } = chunkQS27YGBM_cjs.useVideoConfig();
+  const [loaded, setLoaded] = React5.useState(false);
+  React5.useEffect(() => {
     if (videoRef.current && loaded) {
-      const time = (startFrom + currentFrame) / fps;
-      if (Math.abs(videoRef.current.currentTime - time) > 0.05) {
+      const time = getMediaTime(currentFrame, fps, startFrom, playbackRate);
+      if (needsSeek(videoRef.current.currentTime, time, fps)) {
         videoRef.current.currentTime = time;
       }
     }
-  }, [currentFrame, fps, startFrom, loaded]);
-  React2.useEffect(() => {
+  }, [currentFrame, fps, startFrom, playbackRate, loaded]);
+  React5.useEffect(() => {
     if (videoRef.current) {
       const vol = typeof volume === "function" ? volume(currentFrame) : volume;
       videoRef.current.volume = Math.max(0, Math.min(1, vol));
     }
   }, [currentFrame, volume]);
-  React2.useEffect(() => {
+  React5.useEffect(() => {
     if (videoRef.current) {
       videoRef.current.playbackRate = playbackRate;
     }
   }, [playbackRate]);
-  const handleLoadedData = () => {
+  const handleLoadedData = (event) => {
     setLoaded(true);
-    if (props.onLoadedData) {
-      props.onLoadedData({});
-    }
+    onLoadedData?.(event);
   };
   return /* @__PURE__ */ jsxRuntime.jsx(
     "video",
@@ -259,8 +297,8 @@ var Video = ({
         objectFit: "cover",
         ...style
       },
-      onLoadedData: handleLoadedData,
-      ...props
+      ...props,
+      onLoadedData: handleLoadedData
     }
   );
 };
@@ -271,36 +309,35 @@ var Audio = ({
   volume = 1,
   playbackRate = 1,
   muted = false,
+  onLoadedData,
   ...props
 }) => {
-  const audioRef = React2.useRef(null);
-  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
-  const [loaded, setLoaded] = React2.useState(false);
-  React2.useEffect(() => {
+  const audioRef = React5.useRef(null);
+  const currentFrame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { fps } = chunkQS27YGBM_cjs.useVideoConfig();
+  const [loaded, setLoaded] = React5.useState(false);
+  React5.useEffect(() => {
     if (audioRef.current && loaded) {
-      const time = (startFrom + currentFrame) / fps;
-      if (Math.abs(audioRef.current.currentTime - time) > 0.05) {
+      const time = getMediaTime(currentFrame, fps, startFrom, playbackRate);
+      if (needsSeek(audioRef.current.currentTime, time, fps)) {
         audioRef.current.currentTime = time;
       }
     }
-  }, [currentFrame, fps, startFrom, loaded]);
-  React2.useEffect(() => {
+  }, [currentFrame, fps, startFrom, playbackRate, loaded]);
+  React5.useEffect(() => {
     if (audioRef.current) {
       const vol = typeof volume === "function" ? volume(currentFrame) : volume;
       audioRef.current.volume = Math.max(0, Math.min(1, vol));
     }
   }, [currentFrame, volume]);
-  React2.useEffect(() => {
+  React5.useEffect(() => {
     if (audioRef.current) {
       audioRef.current.playbackRate = playbackRate;
     }
   }, [playbackRate]);
-  const handleLoadedData = () => {
+  const handleLoadedData = (event) => {
     setLoaded(true);
-    if (props.onLoadedData) {
-      props.onLoadedData({});
-    }
+    onLoadedData?.(event);
   };
   return /* @__PURE__ */ jsxRuntime.jsx(
     "audio",
@@ -308,8 +345,8 @@ var Audio = ({
       ref: audioRef,
       src,
       muted,
-      onLoadedData: handleLoadedData,
-      ...props
+      ...props,
+      onLoadedData: handleLoadedData
     }
   );
 };
@@ -320,7 +357,7 @@ var Img = ({
   endAt,
   ...props
 }) => {
-  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const currentFrame = chunkQS27YGBM_cjs.useCurrentFrame();
   if (startFrom !== void 0 && currentFrame < startFrom) {
     return null;
   }
@@ -466,11 +503,11 @@ var HyperFrame = ({
   className,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { width, height, fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
-  const iframeRef = React2.useRef(null);
-  const isLoadedRef = React2.useRef(false);
-  React2.useEffect(() => {
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { width, height, fps } = chunkQS27YGBM_cjs.useVideoConfig();
+  const iframeRef = React5.useRef(null);
+  const isLoadedRef = React5.useRef(false);
+  React5.useEffect(() => {
     if (!iframeRef.current) return;
     const doc = `
       <!DOCTYPE html>
@@ -516,7 +553,7 @@ var HyperFrame = ({
     iframeRef.current.srcdoc = doc;
     isLoadedRef.current = false;
   }, [html, css, js, width, height, frameVariableName]);
-  React2.useEffect(() => {
+  React5.useEffect(() => {
     const handleMessage = (event) => {
       if (event.data === "hyperframe-ready") {
         isLoadedRef.current = true;
@@ -541,7 +578,7 @@ var HyperFrame = ({
       }
     }
   };
-  React2.useEffect(() => {
+  React5.useEffect(() => {
     updateIframeFrame(frame);
   }, [frame, fps, width, height]);
   return /* @__PURE__ */ jsxRuntime.jsx(
@@ -645,24 +682,104 @@ var Easing = {
     }
   },
   easeInOutBounce: (t) => t < 0.5 ? (1 - Easing.easeOutBounce(1 - 2 * t)) / 2 : (1 + Easing.easeOutBounce(2 * t - 1)) / 2,
-  // Bezier curve easing
+  // Cubic bezier easing, like CSS cubic-bezier(x1, y1, x2, y2). The curve's x
+  // is solved for t with Newton's method from a sampled guess, falling back to
+  // bisection where Newton does not converge (steep or flat parts).
   bezier: (x1, y1, x2, y2) => {
-    const epsilon = 1e-6;
-    const sampleCurveX = (t) => 3 * x1 * t * (1 - t) * (1 - t) + 3 * x2 * t * t * (1 - t) + t * t * t;
-    const sampleCurveY = (t) => 3 * y1 * t * (1 - t) * (1 - t) + 3 * y2 * t * t * (1 - t) + t * t * t;
-    const solveCurveX = (x) => {
-      let t = x;
-      for (let i = 0; i < 8; i++) {
-        const xEst = sampleCurveX(t) - x;
-        if (Math.abs(xEst) < epsilon) return t;
-        const d = 3 * x1 * (1 - t) * (1 - t) + 6 * x2 * t * (1 - t) + 3 * t * t;
-        if (Math.abs(d) < epsilon) break;
-        t -= xEst / d;
+    if (![x1, y1, x2, y2].every(Number.isFinite) || x1 < 0 || x1 > 1 || x2 < 0 || x2 > 1) {
+      throw new Error(
+        `Easing.bezier: control points must be finite and x1, x2 must be in [0, 1], got (${x1}, ${y1}, ${x2}, ${y2})`
+      );
+    }
+    if (x1 === y1 && x2 === y2) return (t) => t;
+    const coefficients = (p1, p2) => [1 - 3 * p2 + 3 * p1, 3 * p2 - 6 * p1, 3 * p1];
+    const [ax, bx, cx] = coefficients(x1, x2);
+    const [ay, by, cy] = coefficients(y1, y2);
+    const curveX = (t) => ((ax * t + bx) * t + cx) * t;
+    const curveY = (t) => ((ay * t + by) * t + cy) * t;
+    const slopeX = (t) => (3 * ax * t + 2 * bx) * t + cx;
+    const samples = 11;
+    const step = 1 / (samples - 1);
+    const table = Array.from({ length: samples }, (_, i) => curveX(i * step));
+    const solveT = (x) => {
+      let i = 0;
+      while (i < samples - 2 && table[i + 1] <= x) i++;
+      const lo = i * step;
+      const hi = lo + step;
+      const span = table[i + 1] - table[i];
+      let t = span > 0 ? lo + (x - table[i]) / span * step : lo;
+      for (let k = 0; k < 8; k++) {
+        const error = curveX(t) - x;
+        if (Math.abs(error) < 1e-12) return t;
+        const slope = slopeX(t);
+        if (Math.abs(slope) < 1e-9) break;
+        t -= error / slope;
       }
-      return t;
+      if (x < 0 || x > 1) return t;
+      if (t >= lo && t <= hi && Math.abs(curveX(t) - x) < 1e-12) return t;
+      let a = lo;
+      let b = hi;
+      for (let k = 0; k < 60; k++) {
+        t = (a + b) / 2;
+        if (curveX(t) < x) a = t;
+        else b = t;
+        if (b - a < 1e-12) break;
+      }
+      return (a + b) / 2;
     };
-    return (t) => sampleCurveY(solveCurveX(t));
+    return (x) => x === 0 ? 0 : x === 1 ? 1 : curveY(solveT(x));
   }
+};
+var isPositive = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+var resolveSpringConfig = (fn, config = {}) => {
+  const { damping = 10, mass = 1, stiffness = 100, overshootClamping = false } = config;
+  if (!isPositive(mass) || !isPositive(stiffness) || !Number.isFinite(damping) || damping < 0) {
+    throw new Error(
+      `${fn}: config needs mass > 0, stiffness > 0 and damping >= 0, got mass ${mass}, stiffness ${stiffness}, damping ${damping}`
+    );
+  }
+  return {
+    omega: Math.sqrt(stiffness / mass),
+    zeta: damping / (2 * Math.sqrt(stiffness * mass)),
+    overshootClamping
+  };
+};
+var springStep = (time, omega, zeta) => {
+  if (zeta < 1 - 1e-6) {
+    const omegaD = omega * Math.sqrt(1 - zeta * zeta);
+    return 1 - Math.exp(-zeta * omega * time) * (Math.cos(omegaD * time) + zeta * omega / omegaD * Math.sin(omegaD * time));
+  }
+  if (zeta <= 1 + 1e-6) {
+    return 1 - (1 + omega * time) * Math.exp(-omega * time);
+  }
+  const root = Math.sqrt(zeta * zeta - 1);
+  const r1 = -omega * (zeta - root);
+  const r2 = -omega * (zeta + root);
+  const c1 = r2 / (r2 - r1);
+  const c2 = -r1 / (r2 - r1);
+  return 1 - c1 * Math.exp(r1 * time) - c2 * Math.exp(r2 * time);
+};
+var settleFrame = (fps, omega, zeta, threshold) => {
+  const off = (n) => Math.abs(springStep(n / fps, omega, zeta) - 1);
+  if (zeta >= 1 - 1e-6) {
+    let hi = 1;
+    while (off(hi) >= threshold) hi *= 2;
+    let lo = 0;
+    while (hi - lo > 1) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (off(mid) >= threshold) lo = mid;
+      else hi = mid;
+    }
+    return hi;
+  }
+  if (zeta === 0) {
+    throw new Error("measureSpring: a spring with damping 0 oscillates forever and never comes to rest");
+  }
+  const envelopeTime = Math.log(1 / (threshold * Math.sqrt(1 - zeta * zeta))) / (zeta * omega);
+  for (let n = Math.ceil(envelopeTime * fps); n >= 0; n--) {
+    if (off(n) >= threshold) return n + 1;
+  }
+  return 0;
 };
 var spring = ({
   frame,
@@ -673,31 +790,27 @@ var spring = ({
   durationInFrames,
   durationRestThreshold = 5e-3
 }) => {
-  const {
-    damping = 10,
-    mass = 1,
-    stiffness = 100,
-    overshootClamping = false
-  } = config;
-  const omega = Math.sqrt(stiffness / mass);
-  const zeta = damping / (2 * Math.sqrt(stiffness * mass));
-  if (frame <= 0) return from;
-  const actualDuration = durationInFrames ?? Math.ceil(fps * 2);
-  const t = Math.min(frame / actualDuration, 1);
-  const time = t * actualDuration / fps;
-  let value;
-  if (zeta < 1) {
-    const omegaD = omega * Math.sqrt(1 - zeta * zeta);
-    value = 1 - Math.exp(-zeta * omega * time) * (Math.cos(omegaD * time) + zeta * omega / omegaD * Math.sin(omegaD * time));
-  } else if (zeta === 1) {
-    value = 1 - (1 + omega * time) * Math.exp(-omega * time);
-  } else {
-    const r1 = -omega * (zeta - Math.sqrt(zeta * zeta - 1));
-    const r2 = -omega * (zeta + Math.sqrt(zeta * zeta - 1));
-    const c2 = (1 - r1 / (r1 - r2)) / (r1 - r2);
-    const c1 = 1 / (r1 - r2) - c2;
-    value = 1 - c1 * Math.exp(r1 * time) - c2 * Math.exp(r2 * time);
+  if (!isPositive(fps)) {
+    throw new Error(`spring: fps must be a positive number (use useVideoConfig().fps), got ${fps}`);
   }
+  if (typeof frame !== "number" || Number.isNaN(frame)) {
+    throw new Error(`spring: frame must be a number, got ${frame}`);
+  }
+  if (!Number.isFinite(from) || !Number.isFinite(to)) {
+    throw new Error(`spring: from and to must be finite numbers, got ${from} and ${to}`);
+  }
+  if (durationInFrames !== void 0 && !isPositive(durationInFrames)) {
+    throw new Error(`spring: durationInFrames must be a positive number, got ${durationInFrames}`);
+  }
+  const { omega, zeta, overshootClamping } = resolveSpringConfig("spring", config);
+  if (frame <= 0) return from;
+  let time = frame / fps;
+  if (durationInFrames !== void 0) {
+    if (frame >= durationInFrames) return to;
+    const naturalDuration = measureSpring({ fps, config, threshold: durationRestThreshold });
+    time = frame * naturalDuration / durationInFrames / fps;
+  }
+  let value = springStep(time, omega, zeta);
   if (overshootClamping) {
     value = Math.max(0, Math.min(1, value));
   }
@@ -709,18 +822,38 @@ var findSegment = (input, inputRange) => {
   }
   return inputRange.length - 2;
 };
+var checkRanges = (fn, input, inputRange, outputLength) => {
+  if (typeof input !== "number" || Number.isNaN(input)) {
+    throw new Error(`${fn}: input must be a number, got ${input}`);
+  }
+  if (inputRange.length !== outputLength) {
+    throw new Error(`${fn}: inputRange and outputRange must have the same length`);
+  }
+  if (inputRange.length < 2) {
+    throw new Error(`${fn}: inputRange must have at least 2 elements`);
+  }
+  for (let i = 0; i < inputRange.length; i++) {
+    if (typeof inputRange[i] !== "number" || Number.isNaN(inputRange[i])) {
+      throw new Error(`${fn}: inputRange must contain numbers, got [${inputRange.join(", ")}]`);
+    }
+    if (i > 0 && inputRange[i] < inputRange[i - 1]) {
+      throw new Error(`${fn}: inputRange must be ascending, got [${inputRange.join(", ")}]`);
+    }
+  }
+};
+var segmentProgress = (input, start, end) => end === start ? input >= end ? 1 : 0 : (input - start) / (end - start);
 var interpolate = (input, inputRange, outputRange, options = {}) => {
   const {
     extrapolateLeft = "clamp",
     extrapolateRight = "clamp",
     easing
   } = options;
-  if (inputRange.length !== outputRange.length) {
-    throw new Error("inputRange and outputRange must have the same length");
-  }
-  if (inputRange.length < 2) {
-    throw new Error("inputRange must have at least 2 elements");
-  }
+  checkRanges("interpolate", input, inputRange, outputRange.length);
+  outputRange.forEach((value) => {
+    if (typeof value !== "number" || Number.isNaN(value)) {
+      throw new Error(`interpolate: outputRange must contain numbers, got [${outputRange.join(", ")}]`);
+    }
+  });
   if (input < inputRange[0]) {
     if (extrapolateLeft === "clamp") {
       return outputRange[0];
@@ -740,43 +873,47 @@ var interpolate = (input, inputRange, outputRange, options = {}) => {
   const inputEnd = inputRange[segmentIndex + 1];
   const outputStart = outputRange[segmentIndex];
   const outputEnd = outputRange[segmentIndex + 1];
-  let progress = (input - inputStart) / (inputEnd - inputStart);
+  if (inputEnd === inputStart) {
+    return segmentProgress(input, inputStart, inputEnd) === 1 ? outputEnd : outputStart;
+  }
+  let progress = segmentProgress(input, inputStart, inputEnd);
   if (easing) {
     progress = easing(progress);
   }
   return outputStart + progress * (outputEnd - outputStart);
 };
+var NUMBER = "[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:e[+-]?\\d+)?%?";
+var COMMA_RGB = new RegExp(
+  `^rgba?\\(\\s*(${NUMBER})\\s*,\\s*(${NUMBER})\\s*,\\s*(${NUMBER})\\s*(?:,\\s*(${NUMBER})\\s*)?\\)$`,
+  "i"
+);
+var SPACE_RGB = new RegExp(
+  `^rgba?\\(\\s*(${NUMBER})\\s+(${NUMBER})\\s+(${NUMBER})\\s*(?:\\/\\s*(${NUMBER})\\s*)?\\)$`,
+  "i"
+);
+var HEX = /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 var parseColor = (color) => {
-  const value = color.trim();
-  if (value.startsWith("#")) {
-    const hex = value.slice(1);
-    if (hex.length === 3) {
-      return [
-        parseInt(hex[0] + hex[0], 16),
-        parseInt(hex[1] + hex[1], 16),
-        parseInt(hex[2] + hex[2], 16),
-        1
-      ];
-    }
+  const value = typeof color === "string" ? color.trim() : "";
+  const hex = value.match(HEX)?.[1];
+  if (hex) {
+    const digits = hex.length <= 4 ? hex.split("").map((d) => d + d) : hex.match(/../g);
+    const [r, g, b] = digits.map((d) => parseInt(d, 16));
+    return [r, g, b, digits.length === 4 ? parseInt(digits[3], 16) / 255 : 1];
+  }
+  const rgb = value.match(COMMA_RGB) ?? value.match(SPACE_RGB);
+  if (rgb) {
+    const channel = (part) => part.endsWith("%") ? parseFloat(part) / 100 * 255 : parseFloat(part);
+    const alpha = (part) => part === void 0 ? 1 : part.endsWith("%") ? parseFloat(part) / 100 : parseFloat(part);
     return [
-      parseInt(hex.slice(0, 2), 16),
-      parseInt(hex.slice(2, 4), 16),
-      parseInt(hex.slice(4, 6), 16),
-      hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1
+      channel(rgb[1]),
+      channel(rgb[2]),
+      channel(rgb[3]),
+      Math.max(0, Math.min(1, alpha(rgb[4])))
     ];
   }
-  if (value.startsWith("rgb")) {
-    const match = value.match(/-?\d*\.?\d+/g);
-    if (match && match.length >= 3) {
-      return [
-        parseFloat(match[0]),
-        parseFloat(match[1]),
-        parseFloat(match[2]),
-        match[3] !== void 0 ? parseFloat(match[3]) : 1
-      ];
-    }
-  }
-  throw new Error(`interpolateColors: unsupported color "${color}"`);
+  throw new Error(
+    `interpolateColors: unsupported color "${color}" (use #rgb, #rgba, #rrggbb, #rrggbbaa, rgb() or rgba())`
+  );
 };
 var formatColor = ([r, g, b, a]) => {
   const channel = (x) => Math.round(Math.max(0, Math.min(255, x)));
@@ -787,19 +924,14 @@ var formatColor = ([r, g, b, a]) => {
   return `rgba(${channel(r)}, ${channel(g)}, ${channel(b)}, ${alpha})`;
 };
 var interpolateColors = (input, inputRange, outputRange) => {
-  if (inputRange.length !== outputRange.length) {
-    throw new Error("inputRange and outputRange must have the same length");
-  }
-  if (inputRange.length < 2) {
-    throw new Error("inputRange must have at least 2 elements");
-  }
+  checkRanges("interpolateColors", input, inputRange, outputRange.length);
   const clamped = Math.max(inputRange[0], Math.min(inputRange[inputRange.length - 1], input));
   const segmentIndex = findSegment(clamped, inputRange);
   const inputStart = inputRange[segmentIndex];
   const inputEnd = inputRange[segmentIndex + 1];
   const colorStart = parseColor(outputRange[segmentIndex]);
   const colorEnd = parseColor(outputRange[segmentIndex + 1]);
-  const progress = inputEnd === inputStart ? 1 : (clamped - inputStart) / (inputEnd - inputStart);
+  const progress = segmentProgress(clamped, inputStart, inputEnd);
   const mix = (i) => colorStart[i] + progress * (colorEnd[i] - colorStart[i]);
   return formatColor([mix(0), mix(1), mix(2), mix(3)]);
 };
@@ -834,32 +966,14 @@ var measureSpring = ({
   config = {},
   threshold = 5e-3
 }) => {
-  const { damping = 10, mass = 1, stiffness = 100 } = config;
-  const omega = Math.sqrt(stiffness / mass);
-  const zeta = damping / (2 * Math.sqrt(stiffness * mass));
-  let time = 0;
-  const dt = 1 / fps;
-  const maxTime = 10;
-  while (time < maxTime) {
-    let value;
-    if (zeta < 1) {
-      const omegaD = omega * Math.sqrt(1 - zeta * zeta);
-      value = 1 - Math.exp(-zeta * omega * time) * (Math.cos(omegaD * time) + zeta * omega / omegaD * Math.sin(omegaD * time));
-    } else if (zeta === 1) {
-      value = 1 - (1 + omega * time) * Math.exp(-omega * time);
-    } else {
-      const r1 = -omega * (zeta - Math.sqrt(zeta * zeta - 1));
-      const r2 = -omega * (zeta + Math.sqrt(zeta * zeta - 1));
-      const c2 = (1 - r1 / (r1 - r2)) / (r1 - r2);
-      const c1 = 1 / (r1 - r2) - c2;
-      value = 1 - c1 * Math.exp(r1 * time) - c2 * Math.exp(r2 * time);
-    }
-    if (Math.abs(value - 1) < threshold) {
-      return Math.ceil(time * fps);
-    }
-    time += dt;
+  if (!isPositive(fps)) {
+    throw new Error(`measureSpring: fps must be a positive number, got ${fps}`);
   }
-  return Math.ceil(maxTime * fps);
+  if (!isPositive(threshold) || threshold >= 1) {
+    throw new Error(`measureSpring: threshold must be between 0 and 1, got ${threshold}`);
+  }
+  const { omega, zeta } = resolveSpringConfig("measureSpring", config);
+  return settleFrame(fps, omega, zeta, threshold);
 };
 var getFramesFromSeconds = (seconds, fps) => {
   return Math.round(seconds * fps);
@@ -890,21 +1004,33 @@ var random = (seed, min = 0, max = 1) => {
   return min + normalized * (max - min);
 };
 var noise2D = (x, y) => {
-  const X = Math.floor(x) & 255;
-  const Y = Math.floor(y) & 255;
-  x -= Math.floor(x);
-  y -= Math.floor(y);
-  const u = x * x * (3 - 2 * x);
-  const v = y * y * (3 - 2 * y);
-  const A = (X + Y * 256) % 256;
-  const B = (X + 1 + Y * 256) % 256;
-  const C = (X + (Y + 1) * 256) % 256;
-  const D = (X + 1 + (Y + 1) * 256) % 256;
-  const a = Math.sin(A * 12.9898 + 78.233) * 43758.5453 % 1;
-  const b = Math.sin(B * 12.9898 + 78.233) * 43758.5453 % 1;
-  const c = Math.sin(C * 12.9898 + 78.233) * 43758.5453 % 1;
-  const d = Math.sin(D * 12.9898 + 78.233) * 43758.5453 % 1;
-  return a + u * (b - a + v * (d - b - (d - c))) + v * (c - a);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new Error(`noise2D: x and y must be finite numbers, got ${x}, ${y}`);
+  }
+  const X = Math.floor(x);
+  const Y = Math.floor(y);
+  const fx = x - X;
+  const fy = y - Y;
+  const u = fx * fx * (3 - 2 * fx);
+  const v = fy * fy * (3 - 2 * fy);
+  const lattice = (i, j) => random(`noise2D:${i}:${j}`);
+  const a = lattice(X, Y);
+  const b = lattice(X + 1, Y);
+  const c = lattice(X, Y + 1);
+  const d = lattice(X + 1, Y + 1);
+  const top = a + (b - a) * u;
+  const bottom = c + (d - c) * u;
+  return top + (bottom - top) * v;
+};
+
+// src/utils/text.ts
+var segmenter;
+var splitGraphemes = (text) => {
+  if (segmenter === void 0) {
+    const Segmenter = Intl.Segmenter;
+    segmenter = typeof Segmenter === "function" ? new Segmenter("en", { granularity: "grapheme" }) : null;
+  }
+  return segmenter ? Array.from(segmenter.segment(text), (part) => part.segment) : Array.from(text);
 };
 var Fade = ({
   children,
@@ -912,7 +1038,7 @@ var Fade = ({
   startFrame = 0,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const opacity = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -930,7 +1056,7 @@ var Scale = ({
   easing = Easing.easeOutCubic,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -949,7 +1075,7 @@ var Slide = ({
   easing = Easing.easeOutCubic,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -982,7 +1108,7 @@ var Rotate = ({
   easing = Easing.linear,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const rotation = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -999,14 +1125,15 @@ var Typewriter = ({
   cursor = true,
   cursorChar = "|"
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const characters = splitGraphemes(text);
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
-    [0, text.length],
+    [0, characters.length],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
-  const displayText = text.slice(0, Math.floor(progress));
+  const displayText = characters.slice(0, Math.floor(progress)).join("");
   const showCursor = cursor && frame % 30 < 15;
   return /* @__PURE__ */ jsxRuntime.jsxs("span", { style, children: [
     displayText,
@@ -1020,16 +1147,21 @@ var Counter = ({
   startFrame = 0,
   easing = Easing.easeOutCubic,
   style,
-  format = (v) => Math.round(v).toLocaleString()
+  locale = "en-US",
+  format
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const numberFormat = React5__default.default.useMemo(
+    () => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }),
+    [locale]
+  );
   const value = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
     [from, to],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing }
   );
-  return /* @__PURE__ */ jsxRuntime.jsx("span", { style, children: format(value) });
+  return /* @__PURE__ */ jsxRuntime.jsx("span", { style, children: format ? format(value) : numberFormat.format(Math.round(value) + 0) });
 };
 var ProgressBar = ({
   progress,
@@ -1057,8 +1189,7 @@ var ProgressBar = ({
           style: {
             width: `${progress * 100}%`,
             height: "100%",
-            backgroundColor: fillColor,
-            transition: "width 0.1s ease"
+            backgroundColor: fillColor
           }
         }
       )
@@ -1070,9 +1201,9 @@ var Glitch = ({
   intensity = 10,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const shouldGlitch = frame % 10 < 3;
-  const offset = shouldGlitch ? Math.random() * intensity : 0;
+  const offset = shouldGlitch ? random(`glitch-${frame}-offset`) * intensity : 0;
   return /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { position: "relative", ...style }, children: [
     /* @__PURE__ */ jsxRuntime.jsx(
       "div",
@@ -1111,7 +1242,7 @@ var Trail = ({
   opacityDecay = 0.2,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   return /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { position: "relative", ...style }, children: [
     Array.from({ length: trailLength }, (_, i) => {
       const trailFrame = frame - i * 2;
@@ -1140,7 +1271,7 @@ var ShakeEffect = ({
   active = true,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   if (!active) {
     return /* @__PURE__ */ jsxRuntime.jsx("div", { style, children });
   }
@@ -1194,7 +1325,7 @@ var NeonGlow = ({
   intensity = 1,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const pulseIntensity = 0.8 + Math.sin(frame * 0.1) * 0.2;
   return /* @__PURE__ */ jsxRuntime.jsx(
     "div",
@@ -1224,7 +1355,7 @@ var Rotate3D = ({
   easing = Easing.easeInOutCubic,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1246,7 +1377,6 @@ var Rotate3D = ({
   ) });
 };
 var Flip3D = ({
-  children,
   front,
   back,
   durationInFrames = 60,
@@ -1255,7 +1385,7 @@ var Flip3D = ({
   perspective = 1e3,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1312,7 +1442,7 @@ var Perspective3D = ({
   startFrame = 0,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1343,7 +1473,7 @@ var Cube3D = ({
   },
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const rotateY = interpolate(frame, [0, durationInFrames], [0, 360], {
     extrapolateRight: "extend"
   });
@@ -1396,9 +1526,9 @@ var ParticleSystem = ({
   particleShape = "circle",
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { width, height } = chunkA2EVFOWZ_cjs.useVideoConfig();
-  const particles = React2__default.default.useMemo(() => {
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { width, height } = chunkQS27YGBM_cjs.useVideoConfig();
+  const particles = React5__default.default.useMemo(() => {
     const seed = (n) => {
       const x = Math.sin(n * 9999) * 1e4;
       return x - Math.floor(x);
@@ -1490,12 +1620,13 @@ var LetterByLetter = ({
   style,
   letterStyle
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexWrap: "wrap", ...style }, children: text.split("").map((char, index) => {
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const letters = splitGraphemes(text);
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexWrap: "wrap", ...style }, children: letters.map((char, index) => {
     const letterStart = startFrame + index * delayPerLetter;
     const progress = interpolate(
       frame,
-      [letterStart, letterStart + durationInFrames / text.length],
+      [letterStart, letterStart + durationInFrames / letters.length],
       [0, 1],
       { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing }
     );
@@ -1540,13 +1671,13 @@ var WordByWord = ({
   style,
   wordStyle
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const words = text.split(" ");
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexWrap: "wrap", gap: "0.3em", ...style }, children: words.map((word, index) => {
     const wordStart = startFrame + index * delayPerWord;
     const progress = interpolate(
       frame,
-      [wordStart, wordStart + 15],
+      [wordStart, wordStart + durationInFrames / words.length],
       [0, 1],
       { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeOutBack }
     );
@@ -1586,8 +1717,8 @@ var WaveText = ({
   style,
   letterStyle
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", alignItems: "center", ...style }, children: text.split("").map((char, index) => {
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", alignItems: "center", ...style }, children: splitGraphemes(text).map((char, index) => {
     const offset = Math.sin(frame * speed + index * frequency) * amplitude;
     return /* @__PURE__ */ jsxRuntime.jsx(
       "span",
@@ -1611,8 +1742,8 @@ var RainbowText = ({
   style,
   letterStyle
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexWrap: "wrap", ...style }, children: text.split("").map((char, index) => {
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexWrap: "wrap", ...style }, children: splitGraphemes(text).map((char, index) => {
     const hue = (frame * speed + index * 20) % 360;
     const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
     return /* @__PURE__ */ jsxRuntime.jsx(
@@ -1636,18 +1767,20 @@ var GradientText = ({
   angle = 90,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const offset = frame * speed % 100;
-  const gradientStops = colors.map((color, i) => {
-    const position = (i * 100 / (colors.length - 1) + offset) % 100;
-    return `${color} ${position}%`;
-  }).join(", ");
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  if (colors.length === 0) {
+    throw new Error("GradientText: colors must contain at least one color");
+  }
+  const cycle = [...colors, ...colors, colors[0]];
+  const gradientStops = cycle.map((color, i) => `${color} ${i * 100 / (cycle.length - 1)}%`).join(", ");
+  const position = (frame * speed % 100 + 100) % 100;
   return /* @__PURE__ */ jsxRuntime.jsx(
     "span",
     {
       style: {
         background: `linear-gradient(${angle}deg, ${gradientStops})`,
-        backgroundSize: "200% 200%",
+        backgroundSize: "200% 100%",
+        backgroundPosition: `${position}% 50%`,
         WebkitBackgroundClip: "text",
         WebkitTextFillColor: "transparent",
         backgroundClip: "text",
@@ -1665,7 +1798,7 @@ var Blur = ({
   startFrame = 0,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const blur2 = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1683,8 +1816,8 @@ var Bounce = ({
   damping = 0.7,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { fps } = chunkQS27YGBM_cjs.useVideoConfig();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1704,7 +1837,7 @@ var Pulse = ({
   speed = 0.1,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const scale2 = minScale + (maxScale - minScale) * (0.5 + Math.sin(frame * speed) * 0.5);
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { transform: `scale(${scale2})`, ...style }, children });
 };
@@ -1716,7 +1849,7 @@ var Swing = ({
   durationInFrames = 120,
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const dampFactor = Math.pow(damping, frame);
   const rotation = Math.sin(frame * speed) * angle * dampFactor;
   return /* @__PURE__ */ jsxRuntime.jsx(
@@ -1736,9 +1869,9 @@ var Confetti = ({
   colors = ["#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#ec4899"],
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { width, height } = chunkA2EVFOWZ_cjs.useVideoConfig();
-  const confettiPieces = React2__default.default.useMemo(() => {
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { width, height } = chunkQS27YGBM_cjs.useVideoConfig();
+  const confettiPieces = React5__default.default.useMemo(() => {
     const seed = (n) => {
       const x = Math.sin(n * 9999) * 1e4;
       return x - Math.floor(x);
@@ -1791,9 +1924,9 @@ var KineticTypography = ({
   type = "velocity",
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
-  const characters = text.split("");
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { fps } = chunkQS27YGBM_cjs.useVideoConfig();
+  const characters = splitGraphemes(text);
   return /* @__PURE__ */ jsxRuntime.jsx(
     "div",
     {
@@ -1904,9 +2037,9 @@ var LiquidText = ({
   className = "",
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const id = React2__default.default.useId().replace(/:/g, "");
-  const wavePath = React2__default.default.useMemo(() => {
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const id = React5__default.default.useId().replace(/:/g, "");
+  const wavePath = React5__default.default.useMemo(() => {
     let path = `M 0 ${height}`;
     for (let x = 0; x <= width; x += 10) {
       const y = Math.sin(frame * speed + x * 0.02) * amplitude + amplitude;
@@ -1990,7 +2123,7 @@ var TextStack3D = ({
   className = "",
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const progress = interpolate(
     frame - startFrame,
     [0, durationInFrames],
@@ -2061,8 +2194,8 @@ var StickyGridScroll = ({
   className = "",
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { height } = chunkA2EVFOWZ_cjs.useVideoConfig();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { height } = chunkQS27YGBM_cjs.useVideoConfig();
   const progress = interpolate(
     frame - startFrame,
     [0, scrollDuration],
@@ -2099,7 +2232,7 @@ var StickyGridScroll = ({
             const relativeY = itemY - scrollY;
             const viewportProgress = interpolate(
               relativeY,
-              [height, height * 0.8, height * 0.2, 0],
+              [0, height * 0.2, height * 0.8, height],
               [0, 1, 1, 0],
               { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
             );
@@ -2109,8 +2242,7 @@ var StickyGridScroll = ({
                 style: {
                   height: height / 2.5,
                   opacity: viewportProgress,
-                  transform: `scale(${0.8 + 0.2 * viewportProgress}) translateY(${(1 - viewportProgress) * 50}px)`,
-                  transition: "transform 0.1s linear"
+                  transform: `scale(${0.8 + 0.2 * viewportProgress}) translateY(${(1 - viewportProgress) * 50}px)`
                 },
                 children: item
               },
@@ -2125,13 +2257,16 @@ var StickyGridScroll = ({
 var FlipImageReveal = ({
   src,
   thumbnailRect,
+  alt = "",
+  title,
+  description,
   durationInFrames = 60,
   startFrame = 0,
   className = "",
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { width: videoWidth, height: videoHeight } = chunkA2EVFOWZ_cjs.useVideoConfig();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { width: videoWidth, height: videoHeight } = chunkQS27YGBM_cjs.useVideoConfig();
   const progress = interpolate(
     frame - startFrame,
     [0, durationInFrames],
@@ -2165,7 +2300,7 @@ var FlipImageReveal = ({
           "img",
           {
             src,
-            alt: "Reveal",
+            alt,
             style: {
               width: "100%",
               height: "100%",
@@ -2173,7 +2308,7 @@ var FlipImageReveal = ({
             }
           }
         ),
-        /* @__PURE__ */ jsxRuntime.jsxs(
+        (title || description) && /* @__PURE__ */ jsxRuntime.jsxs(
           "div",
           {
             style: {
@@ -2187,8 +2322,8 @@ var FlipImageReveal = ({
               transform: `translateY(${interpolate(progress, [0.8, 1], [20, 0])}px)`
             },
             children: [
-              /* @__PURE__ */ jsxRuntime.jsx("h2", { style: { color: "white", fontSize: "48px", fontWeight: "bold" }, children: "Cinematic Reveal" }),
-              /* @__PURE__ */ jsxRuntime.jsx("p", { style: { color: "#ccc", fontSize: "18px" }, children: "Smooth FLIP transition between states." })
+              title && /* @__PURE__ */ jsxRuntime.jsx("h2", { style: { color: "white", fontSize: "48px", fontWeight: "bold" }, children: title }),
+              description && /* @__PURE__ */ jsxRuntime.jsx("p", { style: { color: "#ccc", fontSize: "18px" }, children: description })
             ]
           }
         )
@@ -2207,8 +2342,8 @@ var CardExpansionMask = ({
   className = "",
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  React2__default.default.useId().replace(/:/g, "");
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  React5__default.default.useId().replace(/:/g, "");
   const progress = interpolate(
     frame - startFrame,
     [0, durationInFrames],
@@ -2355,7 +2490,7 @@ var transitions = {
   },
   scale: {
     enter: (p) => ({ transform: `scale(${scale(p, 0, 1)})` }),
-    exit: (p) => ({ transform: `scale(${scale(1 - p, 1, 0)})` })
+    exit: (p) => ({ transform: `scale(${scale(p, 1, 0)})` })
   },
   zoom: {
     enter: (p) => {
@@ -2379,8 +2514,8 @@ var transitions = {
 
 // src/hooks/animation.ts
 var useSpring = (options = {}) => {
-  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { fps: videoFps } = chunkA2EVFOWZ_cjs.useVideoConfig();
+  const currentFrame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { fps: videoFps } = chunkQS27YGBM_cjs.useVideoConfig();
   const {
     fps = videoFps,
     frame = currentFrame,
@@ -2399,7 +2534,7 @@ var useSpring = (options = {}) => {
   });
 };
 var useInterpolate = (inputRange, outputRange, options) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   return interpolate(frame, inputRange, outputRange, options);
 };
 var useCycle = (items, frame, durationPerItem) => {
@@ -2407,30 +2542,31 @@ var useCycle = (items, frame, durationPerItem) => {
   return items[index];
 };
 var useDurationInFrames = (seconds) => {
-  const { fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
+  const { fps } = chunkQS27YGBM_cjs.useVideoConfig();
   return Math.round(seconds * fps);
 };
 var useDelay = (delayInFrames) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   return frame >= delayInFrames;
 };
+var progressOf = (frame, durationInFrames) => durationInFrames > 1 ? frame / (durationInFrames - 1) : frame >= 0 ? 1 : 0;
 var useProgress = () => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { durationInFrames } = chunkA2EVFOWZ_cjs.useVideoConfig();
-  return frame / (durationInFrames - 1);
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { durationInFrames } = chunkQS27YGBM_cjs.useVideoConfig();
+  return progressOf(frame, durationInFrames);
 };
 var useLoop = (loopDuration) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   return frame % loopDuration;
 };
 var useTimeline = () => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { durationInFrames, fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { durationInFrames, fps } = chunkQS27YGBM_cjs.useVideoConfig();
   return {
     frame,
     durationInFrames,
     fps,
-    progress: frame / (durationInFrames - 1),
+    progress: progressOf(frame, durationInFrames),
     timeInSeconds: frame / fps,
     durationInSeconds: durationInFrames / fps,
     remainingFrames: durationInFrames - frame - 1,
@@ -2438,13 +2574,13 @@ var useTimeline = () => {
   };
 };
 var useWindowedFrame = (startFrame, endFrame) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const isInWindow = frame >= startFrame && frame < endFrame;
   const relativeFrame = frame - startFrame;
   return { isInWindow, relativeFrame: isInWindow ? relativeFrame : 0 };
 };
 var useAnimation = (startFrame, endFrame) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const isAnimating = frame >= startFrame && frame < endFrame;
   const isComplete = frame >= endFrame;
   const progress = isAnimating ? (frame - startFrame) / (endFrame - startFrame) : isComplete ? 1 : 0;
@@ -2456,7 +2592,7 @@ var useAnimation = (startFrame, endFrame) => {
   };
 };
 var useKeyframeState = (keyframes) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const sorted = [...keyframes].sort((a, b) => a.frame - b.frame);
   let prev = sorted[0];
   let next = sorted[sorted.length - 1];
@@ -2476,7 +2612,7 @@ var useKeyframeState = (keyframes) => {
   };
 };
 var useTransform = (options) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const transforms = [];
   if (options.translateX) {
     transforms.push(`translateX(${options.translateX(frame)}px)`);
@@ -2500,10 +2636,10 @@ var useTransform = (options) => {
   return style;
 };
 var useFade = (fadeInDuration, fadeOutDuration, options) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { durationInFrames } = chunkA2EVFOWZ_cjs.useVideoConfig();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { durationInFrames } = chunkQS27YGBM_cjs.useVideoConfig();
   const startFrame = options?.startFrame ?? 0;
-  const endFrame = options?.endFrame ?? durationInFrames;
+  const endFrame = options?.endFrame ?? durationInFrames - 1;
   if (frame < startFrame + fadeInDuration) {
     return interpolate(
       frame,
@@ -2523,7 +2659,7 @@ var useFade = (fadeInDuration, fadeOutDuration, options) => {
   return 1;
 };
 var useSlide = (direction, distance, duration, startFrame = 0) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + duration],
@@ -2550,7 +2686,7 @@ var useSlide = (direction, distance, duration, startFrame = 0) => {
   return { transform };
 };
 var useShake = (intensity, duration, startFrame = 0) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const progress = interpolate(
     frame,
     [startFrame, startFrame + duration],
@@ -2563,81 +2699,29 @@ var useShake = (intensity, duration, startFrame = 0) => {
   return { transform: `translate(${shakeX}px, ${shakeY}px)` };
 };
 var usePulse = (minScale, maxScale, frequency) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { fps } = chunkQS27YGBM_cjs.useVideoConfig();
   const progress = (Math.sin(frame / fps * frequency * Math.PI * 2) + 1) / 2;
   const scale2 = interpolate(progress, [0, 1], [minScale, maxScale]);
   return { transform: `scale(${scale2})` };
 };
-
-// src/utils/memoCache.ts
-var MemoCache = class _MemoCache {
-  constructor() {
-    this.cache = /* @__PURE__ */ new Map();
-  }
-  static getInstance() {
-    if (!_MemoCache.instance) {
-      _MemoCache.instance = new _MemoCache();
-    }
-    return _MemoCache.instance;
-  }
-  /**
-   * Get or compute a memoized value
-   */
-  getOrCompute(key, compute, deps = []) {
-    const cached = this.cache.get(key);
-    if (cached && this.depsEqual(cached.deps, deps)) {
-      return cached.value;
-    }
-    const value = compute();
-    this.cache.set(key, { value, deps });
-    return value;
-  }
-  /**
-   * Check if dependencies are equal
-   */
-  depsEqual(a, b) {
-    if (a.length !== b.length) return false;
-    return a.every((val, i) => Object.is(val, b[i]));
-  }
-  /**
-   * Clear all memoized values
-   */
-  clear() {
-    this.cache.clear();
-  }
-};
-
-// src/hooks/performance.ts
 function useMemoizedFrame(compute, deps = []) {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const memoCache = React2.useMemo(() => MemoCache.getInstance(), []);
-  const key = React2.useMemo(() => `frame:${frame}:${JSON.stringify(deps)}`, [frame, deps]);
-  return React2.useMemo(() => {
-    return memoCache.getOrCompute(key, compute, [frame, ...deps]);
-  }, [key, compute, memoCache, frame, deps]);
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  return React5.useMemo(() => compute(), [frame, ...deps]);
 }
 function useAnimationValue(compute, _frameDeps) {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  return React2.useMemo(() => compute(frame), [frame, compute]);
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  return React5.useMemo(() => compute(frame), [frame, compute]);
 }
 function useCachedFrame(compositionId, renderer) {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { width, height } = chunkA2EVFOWZ_cjs.useVideoConfig();
-  return React2.useMemo(() => {
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { width, height } = chunkQS27YGBM_cjs.useVideoConfig();
+  return React5.useMemo(() => {
     return renderer(frame);
   }, [compositionId, frame, width, height, renderer]);
 }
-function useThrottledFrame(_throttleMs) {
-  return chunkA2EVFOWZ_cjs.useCurrentFrame();
-}
-function useBatchFrameProcessor(processor, _batchSize) {
-  return React2.useCallback((items) => {
-    return processor(items);
-  }, [processor]);
-}
 function useFrameRange(startFrame, endFrame) {
-  return React2.useMemo(() => {
+  return React5.useMemo(() => {
     const frames = [];
     for (let i = startFrame; i <= endFrame; i++) {
       frames.push(i);
@@ -2646,9 +2730,9 @@ function useFrameRange(startFrame, endFrame) {
   }, [startFrame, endFrame]);
 }
 function usePrecomputeFrames(compute, lookahead = 10) {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { durationInFrames } = chunkA2EVFOWZ_cjs.useVideoConfig();
-  return React2.useMemo(() => {
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { durationInFrames } = chunkQS27YGBM_cjs.useVideoConfig();
+  return React5.useMemo(() => {
     const cache = /* @__PURE__ */ new Map();
     for (let i = frame; i < Math.min(frame + lookahead, durationInFrames); i++) {
       cache.set(i, compute(i));
@@ -2657,26 +2741,16 @@ function usePrecomputeFrames(compute, lookahead = 10) {
   }, [frame, lookahead, durationInFrames, compute]);
 }
 function useOptimizedSpring(config, from = 0, to = 1) {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
-  const { fps } = chunkA2EVFOWZ_cjs.useVideoConfig();
-  return React2.useMemo(() => {
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { fps } = chunkQS27YGBM_cjs.useVideoConfig();
+  return React5.useMemo(() => {
     return spring({ frame, fps, config, from, to });
   }, [frame, fps, config, from, to]);
 }
 function useOptimizedInterpolate(inputRange, outputRange, options) {
-  return React2.useCallback((frame) => {
+  return React5.useCallback((frame) => {
     return interpolate(frame, inputRange, outputRange, options);
   }, [inputRange, outputRange, options]);
-}
-function usePerformanceMonitor() {
-  return React2.useMemo(() => ({
-    fps: 60,
-    frameTime: 16.67,
-    renderTime: 0
-  }), []);
-}
-function useRenderPriority() {
-  return React2.useMemo(() => "high", []);
 }
 /**
  * MotionForge - headless React SDK for frame-based motion: scenes are a pure
@@ -2693,15 +2767,15 @@ function useRenderPriority() {
 
 Object.defineProperty(exports, "FrameProvider", {
   enumerable: true,
-  get: function () { return chunkA2EVFOWZ_cjs.FrameProvider; }
+  get: function () { return chunkQS27YGBM_cjs.FrameProvider; }
 });
 Object.defineProperty(exports, "useCurrentFrame", {
   enumerable: true,
-  get: function () { return chunkA2EVFOWZ_cjs.useCurrentFrame; }
+  get: function () { return chunkQS27YGBM_cjs.useCurrentFrame; }
 });
 Object.defineProperty(exports, "useVideoConfig", {
   enumerable: true,
-  get: function () { return chunkA2EVFOWZ_cjs.useVideoConfig; }
+  get: function () { return chunkQS27YGBM_cjs.useVideoConfig; }
 });
 exports.AbsoluteFill = AbsoluteFill;
 exports.Audio = Audio;
@@ -2784,7 +2858,6 @@ exports.staticFile = staticFile;
 exports.transitions = transitions;
 exports.useAnimation = useAnimation;
 exports.useAnimationValue = useAnimationValue;
-exports.useBatchFrameProcessor = useBatchFrameProcessor;
 exports.useCachedFrame = useCachedFrame;
 exports.useComposition = useComposition;
 exports.useConfig = useVideoConfig2;
@@ -2797,20 +2870,18 @@ exports.useInterpolate = useInterpolate;
 exports.useKeyframeState = useKeyframeState;
 exports.useKeyframes = useKeyframes;
 exports.useLoop = useLoop;
+exports.useLoopInfo = useLoopInfo;
 exports.useMemoizedFrame = useMemoizedFrame;
 exports.useOptimizedInterpolate = useOptimizedInterpolate;
 exports.useOptimizedSpring = useOptimizedSpring;
-exports.usePerformanceMonitor = usePerformanceMonitor;
 exports.usePrecomputeFrames = usePrecomputeFrames;
 exports.useProgress = useProgress;
 exports.usePulse = usePulse;
 exports.useRelativeCurrentFrame = useRelativeCurrentFrame;
-exports.useRenderPriority = useRenderPriority;
 exports.useSequence = useSequence;
 exports.useShake = useShake;
 exports.useSlide = useSlide;
 exports.useSpring = useSpring;
-exports.useThrottledFrame = useThrottledFrame;
 exports.useTimeline = useTimeline;
 exports.useTransform = useTransform;
 exports.useWindowedFrame = useWindowedFrame;

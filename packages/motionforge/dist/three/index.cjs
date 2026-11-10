@@ -1,12 +1,12 @@
-'use strict';
+'use client';'use strict';
 
-var chunkA2EVFOWZ_cjs = require('../chunk-A2EVFOWZ.cjs');
+var chunkQS27YGBM_cjs = require('../chunk-QS27YGBM.cjs');
 var fiber = require('@react-three/fiber');
 var drei = require('@react-three/drei');
 var jsxRuntime = require('react/jsx-runtime');
 var react = require('react');
 
-var DeterministicScene = ({ images, progress }) => {
+var DeterministicScene = ({ images, captions, progress }) => {
   return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
     /* @__PURE__ */ jsxRuntime.jsx("ambientLight", { intensity: 0.5 }),
     /* @__PURE__ */ jsxRuntime.jsx("pointLight", { position: [10, 10, 10] }),
@@ -24,7 +24,7 @@ var DeterministicScene = ({ images, progress }) => {
             opacity
           }
         ),
-        /* @__PURE__ */ jsxRuntime.jsxs(
+        captions?.[i] && /* @__PURE__ */ jsxRuntime.jsx(
           drei.Text,
           {
             position: [0, -2.5, 0.1],
@@ -32,10 +32,7 @@ var DeterministicScene = ({ images, progress }) => {
             color: "white",
             anchorX: "center",
             anchorY: "middle",
-            children: [
-              "Art Piece ",
-              i + 1
-            ]
+            children: captions[i]
           }
         )
       ] }, i);
@@ -45,14 +42,15 @@ var DeterministicScene = ({ images, progress }) => {
 };
 var DepthGallery3D = ({
   images,
+  captions,
   durationInFrames = 300,
   startFrame = 0,
   className = "",
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const progress = Math.max(0, (frame - startFrame) / durationInFrames);
-  return /* @__PURE__ */ jsxRuntime.jsx("div", { className, style: { width: "100%", height: "100%", backgroundColor: "#000", ...style }, children: /* @__PURE__ */ jsxRuntime.jsx(fiber.Canvas, { camera: { position: [0, 0, 5], fov: 75 }, children: /* @__PURE__ */ jsxRuntime.jsx(DeterministicScene, { images, progress }) }) });
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { className, style: { width: "100%", height: "100%", backgroundColor: "#000", ...style }, children: /* @__PURE__ */ jsxRuntime.jsx(fiber.Canvas, { camera: { position: [0, 0, 5], fov: 75 }, children: /* @__PURE__ */ jsxRuntime.jsx(DeterministicScene, { images, captions, progress }) }) });
 };
 var vertexShader = `
   varying vec2 vUv;
@@ -117,7 +115,7 @@ var ShaderImageReveal = ({
   className = "",
   style
 }) => {
-  const frame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const frame = chunkQS27YGBM_cjs.useCurrentFrame();
   const progress = Math.max(0, Math.min(1, (frame - startFrame) / durationInFrames));
   return /* @__PURE__ */ jsxRuntime.jsx("div", { className, style: { width: "100%", height: "100%", ...style }, children: /* @__PURE__ */ jsxRuntime.jsx(fiber.Canvas, { orthographic: true, camera: { zoom: 100 }, children: /* @__PURE__ */ jsxRuntime.jsx(react.Suspense, { fallback: null, children: /* @__PURE__ */ jsxRuntime.jsx(RevealPlane, { src, progress }) }) }) });
 };

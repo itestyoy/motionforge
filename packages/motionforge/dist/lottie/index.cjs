@@ -1,6 +1,6 @@
-'use strict';
+'use client';'use strict';
 
-var chunkA2EVFOWZ_cjs = require('../chunk-A2EVFOWZ.cjs');
+var chunkQS27YGBM_cjs = require('../chunk-QS27YGBM.cjs');
 var react = require('react');
 var lottie = require('lottie-web');
 var jsxRuntime = require('react/jsx-runtime');
@@ -24,8 +24,11 @@ var Lottie = ({
   const animationRef = react.useRef(null);
   const [isLoaded, setIsLoaded] = react.useState(false);
   const [error, setError] = react.useState(null);
-  const currentFrame = chunkA2EVFOWZ_cjs.useCurrentFrame();
+  const currentFrame = chunkQS27YGBM_cjs.useCurrentFrame();
+  const { fps } = chunkQS27YGBM_cjs.useVideoConfig();
   react.useEffect(() => {
+    setIsLoaded(false);
+    setError(null);
     if (typeof window === "undefined" || !containerRef.current) return;
     let isCancelled = false;
     const params = {
@@ -53,6 +56,13 @@ var Lottie = ({
       };
       anim.addEventListener("DOMLoaded", onLoaded);
       anim.addEventListener("data_ready", onLoaded);
+      anim.addEventListener("data_failed", () => {
+        if (!isCancelled) {
+          setError(
+            typeof src === "string" ? `failed to load animation data from ${src}` : "failed to load animation data"
+          );
+        }
+      });
       return () => {
         isCancelled = true;
         anim.destroy();
@@ -72,36 +82,34 @@ var Lottie = ({
     const end = frameEnd ?? totalLottieFrames;
     const duration = end - start;
     if (duration <= 0) return;
-    let targetFrame = currentFrame * playbackRate;
+    let targetFrame = currentFrame / fps * anim.frameRate * playbackRate;
     if (loop) {
-      targetFrame = targetFrame % duration;
+      targetFrame = (targetFrame % duration + duration) % duration;
     } else {
-      targetFrame = Math.min(targetFrame, duration - 0.01);
+      targetFrame = Math.max(0, Math.min(targetFrame, duration - 0.01));
     }
     const finalFrame = start + targetFrame;
     anim.goToAndStop(finalFrame, true);
-  }, [currentFrame, isLoaded, frameStart, frameEnd, playbackRate, loop]);
+  }, [currentFrame, fps, isLoaded, frameStart, frameEnd, playbackRate, loop]);
   const containerStyle = react.useMemo(() => ({
     width: width ?? "100%",
     height: height ?? "100%",
     ...style
   }), [width, height, style]);
-  if (error) {
-    return /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { color: "red", border: "1px solid red", padding: "10px" }, children: [
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { style: containerStyle, className, "data-lottie-loaded": isLoaded, children: [
+    /* @__PURE__ */ jsxRuntime.jsx(
+      "div",
+      {
+        ref: containerRef,
+        style: { width: "100%", height: "100%", display: error ? "none" : void 0 }
+      }
+    ),
+    error && /* @__PURE__ */ jsxRuntime.jsxs("div", { role: "alert", style: { color: "red", border: "1px solid red", padding: "10px" }, children: [
       /* @__PURE__ */ jsxRuntime.jsx("strong", { children: "Lottie Error:" }),
       " ",
       error
-    ] });
-  }
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    "div",
-    {
-      ref: containerRef,
-      style: containerStyle,
-      className,
-      "data-lottie-loaded": isLoaded
-    }
-  );
+    ] })
+  ] });
 };
 
 exports.Lottie = Lottie;

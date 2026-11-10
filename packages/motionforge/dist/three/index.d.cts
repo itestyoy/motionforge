@@ -2,6 +2,8 @@ import React from 'react';
 
 interface DepthGallery3DProps {
     images: string[];
+    /** Caption under each image (by index); images without one have no caption. */
+    captions?: string[];
     durationInFrames?: number;
     startFrame?: number;
     className?: string;
