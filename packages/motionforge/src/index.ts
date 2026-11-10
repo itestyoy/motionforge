@@ -32,7 +32,8 @@ export { loadFont } from './core/fonts';
 export type { LoadFontOptions } from './core/fonts';
 
 // Components
-export { Composition, useVideoConfig as useConfig, useComposition } from './components/Composition';
+export { Composition, useComposition } from './components/Composition';
+export type { CompositionProps } from './components/Composition';
 export {
   Sequence,
   Loop,
@@ -234,12 +235,14 @@ export {
 // Types
 export type {
   VideoConfig,
-  CompositionProps,
-  TextProps,
   SpringConfig,
+  ExtrapolateType,
   InterpolateOptions,
   EasingFunction,
   Keyframe,
   AnimationTrack,
   FrameContextValue,
 } from './core/types';
+import type { ComponentProps } from 'react';
+import type { Text as TextComponent } from './components/Media';
+export type TextProps = ComponentProps<typeof TextComponent>;

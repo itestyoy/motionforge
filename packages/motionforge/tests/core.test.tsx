@@ -187,6 +187,12 @@ describe('public hooks', () => {
     expect(entry).not.toHaveProperty('useLoopInfo');
   });
 
+  it('exports useVideoConfig once, without the useConfig alias', () => {
+    expect(entry).not.toHaveProperty('useConfig');
+    const Size = () => <i data-id="s">{entry.useVideoConfig().width}</i>;
+    expect(valueOf(renderAt(0, <Size />), 's')).toBe('100');
+  });
+
   it('does not export hooks that ignore their arguments', () => {
     for (const name of ['usePerformanceMonitor', 'useThrottledFrame', 'useBatchFrameProcessor', 'useRenderPriority']) {
       expect(entry).not.toHaveProperty(name);

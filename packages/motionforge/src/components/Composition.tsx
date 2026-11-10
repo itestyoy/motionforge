@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext } from 'react';
 import { VideoConfig } from '../core/types';
-import { FrameProvider, useVideoConfig as useVideoConfigContext } from '../core/context';
+import { FrameProvider } from '../core/context';
 import { RenderGate } from '../core/render-gate';
 
 // Composition Context
@@ -19,10 +19,7 @@ export const useComposition = () => {
   return context;
 };
 
-// Re-export useVideoConfig for convenience
-export const useVideoConfig = () => useVideoConfigContext();
-
-interface CompositionProps {
+export interface CompositionProps {
   id: string;
   component: React.ComponentType<Record<string, unknown>>;
   /** The frame to render; the host app drives it. */
@@ -68,6 +65,3 @@ export const Composition: React.FC<CompositionProps> = ({
     </CompositionContext.Provider>
   );
 };
-
-// Export types
-export type { CompositionProps };
