@@ -1,7 +1,9 @@
-'use client';import { checkOptions, byDirection } from './chunk-WVKK7RVQ.js';
-import { interpolate, Easing } from './chunk-ZPHXLDRN.js';
-import { AbsoluteFill } from './chunk-6ZUQCR5A.js';
-import { jsxs, jsx } from 'react/jsx-runtime';
+'use client';'use strict';
+
+var chunk6BVXSAAW_cjs = require('./chunk-6BVXSAAW.cjs');
+var chunkWEQRPTIM_cjs = require('./chunk-WEQRPTIM.cjs');
+var chunkZDGERDNT_cjs = require('./chunk-ZDGERDNT.cjs');
+var jsxRuntime = require('react/jsx-runtime');
 
 var clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" };
 var finite = (name, value) => {
@@ -31,40 +33,40 @@ var PushCutPresentation = ({
     innerExitStyle
   } = passedProps;
   const isEntering = presentationDirection === "entering";
-  const outgoing = interpolate(presentationProgress, [0, cutProgress], [0, 1], { ...clamp, easing: Easing.in(Easing.quad) });
-  const incoming = interpolate(presentationProgress, [cutProgress, 1], [0, 1], { ...clamp, easing: Easing.out(Easing.quad) });
-  const scale = isEntering ? interpolate(incoming, [0, 1], [incomingStartScale, incomingEndScale]) : interpolate(outgoing, [0, 1], [1, outgoingScale]);
+  const outgoing = chunkWEQRPTIM_cjs.interpolate(presentationProgress, [0, cutProgress], [0, 1], { ...clamp, easing: chunkWEQRPTIM_cjs.Easing.in(chunkWEQRPTIM_cjs.Easing.quad) });
+  const incoming = chunkWEQRPTIM_cjs.interpolate(presentationProgress, [cutProgress, 1], [0, 1], { ...clamp, easing: chunkWEQRPTIM_cjs.Easing.out(chunkWEQRPTIM_cjs.Easing.quad) });
+  const scale = isEntering ? chunkWEQRPTIM_cjs.interpolate(incoming, [0, 1], [incomingStartScale, incomingEndScale]) : chunkWEQRPTIM_cjs.interpolate(outgoing, [0, 1], [1, outgoingScale]);
   const frames = Math.max(1, presentationDurationInFrames);
-  const flashOpacity = isEntering ? interpolate(presentationProgress, [cutProgress, cutProgress + flashFrames / frames], [peakFlashOpacity, 0], clamp) : interpolate(presentationProgress, [cutProgress - 1 / frames, cutProgress], [0, peakFlashOpacity], clamp);
-  return /* @__PURE__ */ jsxs(
-    AbsoluteFill,
+  const flashOpacity = isEntering ? chunkWEQRPTIM_cjs.interpolate(presentationProgress, [cutProgress, cutProgress + flashFrames / frames], [peakFlashOpacity, 0], clamp) : chunkWEQRPTIM_cjs.interpolate(presentationProgress, [cutProgress - 1 / frames, cutProgress], [0, peakFlashOpacity], clamp);
+  return /* @__PURE__ */ jsxRuntime.jsxs(
+    chunkZDGERDNT_cjs.AbsoluteFill,
     {
       style: {
         // The entering scene is hidden until the cut.
         opacity: isEntering && presentationProgress < cutProgress ? 0 : 1,
         overflow: "hidden",
-        ...byDirection(isEntering, outerEnterStyle, outerExitStyle)
+        ...chunk6BVXSAAW_cjs.byDirection(isEntering, outerEnterStyle, outerExitStyle)
       },
       children: [
-        /* @__PURE__ */ jsx(
-          AbsoluteFill,
+        /* @__PURE__ */ jsxRuntime.jsx(
+          chunkZDGERDNT_cjs.AbsoluteFill,
           {
             style: {
               transform: `scale(${scale})`,
               transformOrigin,
               willChange: "transform",
-              ...byDirection(isEntering, innerEnterStyle, innerExitStyle)
+              ...chunk6BVXSAAW_cjs.byDirection(isEntering, innerEnterStyle, innerExitStyle)
             },
             children
           }
         ),
-        flashOpacity > 0 ? /* @__PURE__ */ jsx(AbsoluteFill, { style: { backgroundColor: flashColor, opacity: flashOpacity, pointerEvents: "none" } }) : null
+        flashOpacity > 0 ? /* @__PURE__ */ jsxRuntime.jsx(chunkZDGERDNT_cjs.AbsoluteFill, { style: { backgroundColor: flashColor, opacity: flashOpacity, pointerEvents: "none" } }) : null
       ]
     }
   );
 };
 var pushCut = (props) => {
-  const options = checkOptions("pushCut", props);
+  const options = chunk6BVXSAAW_cjs.checkOptions("pushCut", props);
   const cutProgress = options.cutProgress ?? 5 / 11;
   finite("cutProgress", cutProgress);
   if (cutProgress <= 0 || cutProgress >= 1) {
@@ -86,6 +88,6 @@ var pushCut = (props) => {
   return { component: PushCutPresentation, props: options };
 };
 
-export { pushCut };
-//# sourceMappingURL=chunk-MM7QOY4V.js.map
-//# sourceMappingURL=chunk-MM7QOY4V.js.map
+exports.pushCut = pushCut;
+//# sourceMappingURL=chunk-CMRUM356.cjs.map
+//# sourceMappingURL=chunk-CMRUM356.cjs.map

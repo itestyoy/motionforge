@@ -3,16 +3,75 @@ export { centerPath, cutPath, evolvePath, extendViewBox, getBoundingBox, getInst
 import { checkImageProps, mediaTimeInSeconds, calculateImageFit } from './chunk-ZVSY5ZVR.js';
 import { random, interpolate, Easing, spring, checkInterpolateArgs, interpolateColors, COLOR_FUNCTIONS, parseColor, isNamedColor } from './chunk-ZPHXLDRN.js';
 export { Easing, Easing as easing, getFramesFromSeconds, getSecondsFromFrames, interpolate, interpolateColors, measureSpring, random, range, spring, useKeyframes } from './chunk-ZPHXLDRN.js';
-export { AbsoluteFill, Audio, AbsoluteFill as Div, G, Img, Path, SVG, Text, Video, prefetch } from './chunk-6ZUQCR5A.js';
-import './chunk-545UZ5CT.js';
-export { Freeze, Loop, Retiming, Reverse, Sequence, Series, useRelativeCurrentFrame, useSequence } from './chunk-POVQTMPB.js';
+export { AbsoluteFill, Audio, AbsoluteFill as Div, G, Img, Path, SVG, Text, Video, prefetch } from './chunk-26M65GZW.js';
+export { Freeze, Loop, Retiming, Reverse, Sequence, Series, useRelativeCurrentFrame, useSequence } from './chunk-SJDKZF4M.js';
+export { useIsCollectingAudio } from './chunk-ZIJRMQAM.js';
 import { rejectProps, CROP_AND_EFFECT_PROPS, SEQUENCE_PROPS, checkSrc, resolveSrc, serializeRequestInit, fetchAsset } from './chunk-WVAVUOFE.js';
-import { useCurrentFrame, useVideoConfig, useDelayRender, holdAllGates, HostContext, isAppendOf, noStaticFiles, FrameProvider, TimelineContext, FrameContext, firstAtOrAfter, firstAfter } from './chunk-L5HQH5HH.js';
-export { FrameProvider, createAudioCollector, createRenderGate, useCurrentFrame, useDelayRender, useVideoConfig } from './chunk-L5HQH5HH.js';
-import React5, { createContext, forwardRef, useRef, useImperativeHandle, useCallback, useState, useEffect, useMemo, useContext } from 'react';
+import { useCurrentFrame, useVideoConfig, useDelayRender, createCollectingCollector, FrameProvider, holdAllGates, HostContext, isAppendOf, noStaticFiles, TimelineContext, FrameContext, firstAtOrAfter, firstAfter } from './chunk-3P73E4TK.js';
+export { FrameProvider, createAudioCollector, createRenderGate, useCurrentFrame, useDelayRender, useVideoConfig } from './chunk-3P73E4TK.js';
 import { jsx, jsxs } from 'react/jsx-runtime';
+import React5, { createContext, forwardRef, useRef, useImperativeHandle, useCallback, useState, useEffect, useMemo, useContext } from 'react';
 import { createNoise2D, createNoise3D, createNoise4D } from 'simplex-noise';
 
+var OPTIONS = ["fps", "durationInFrames", "width", "height", "input", "staticFiles"];
+var isPositive = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+var now = () => typeof performance !== "undefined" ? performance.now() : Date.now();
+var collectAudioTracks = async (scene, options) => {
+  if (typeof options !== "object" || options === null) {
+    throw new TypeError(
+      `collectAudioTracks: expects the options { fps, durationInFrames, width, height, input?, staticFiles? }, got ${JSON.stringify(options)}`
+    );
+  }
+  for (const key of Object.keys(options)) {
+    if (!OPTIONS.includes(key)) {
+      throw new TypeError(`collectAudioTracks: unknown option ${JSON.stringify(key)} (it takes ${OPTIONS.join(", ")})`);
+    }
+  }
+  const { fps = 30, durationInFrames, width, height, input, staticFiles } = options;
+  if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
+    throw new TypeError(`collectAudioTracks: durationInFrames must be a positive integer, got ${JSON.stringify(durationInFrames)}`);
+  }
+  if (!isPositive(fps)) throw new TypeError(`collectAudioTracks: fps must be a positive number, got ${JSON.stringify(fps)}`);
+  if (!isPositive(width) || !isPositive(height)) {
+    throw new TypeError(`collectAudioTracks: width and height must be positive numbers, got ${JSON.stringify(width)}x${JSON.stringify(height)}`);
+  }
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { collector, beginFrame, endFrame } = createCollectingCollector();
+  let lastYield = now();
+  for (let frame = 0; frame < durationInFrames; frame++) {
+    beginFrame();
+    try {
+      renderToStaticMarkup(
+        /* @__PURE__ */ jsx(
+          FrameProvider,
+          {
+            frame,
+            fps,
+            durationInFrames,
+            width,
+            height,
+            audio: collector,
+            input,
+            staticFiles,
+            children: scene
+          }
+        )
+      );
+    } catch (cause) {
+      const error = new Error(
+        `collectAudioTracks: rendering frame ${frame} failed: ${cause instanceof Error ? cause.message : String(cause)}`
+      );
+      error.cause = cause;
+      throw error;
+    }
+    endFrame();
+    if (now() - lastYield > 50) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      lastYield = now();
+    }
+  }
+  return collector.getTracks();
+};
 var requireDom = () => {
   if (typeof document === "undefined") {
     throw new Error("usePreloadAssets needs a browser DOM (document is not defined)");
@@ -216,19 +275,25 @@ var loadFont = (options) => {
   }
   const source = `url(${JSON.stringify(url)})${format2 ? ` format(${JSON.stringify(format2)})` : ""}`;
   const hold = holdAllGates(`loadFont() ${family} from ${url}`);
-  const load = Promise.resolve().then(() => new FontFace(family, source, descriptors).load()).then(
-    (face) => {
-      document.fonts.add(face);
-      hold.release();
-    },
-    (cause) => {
-      const error = new Error(
-        `loadFont: could not load ${family} from ${url}${cause instanceof Error && cause.message ? `: ${cause.message}` : ""}`
-      );
-      hold.fail(error);
-      throw error;
-    }
-  );
+  const failure = (cause) => new Error(`loadFont: could not load ${family} from ${url}${cause instanceof Error && cause.message ? `: ${cause.message}` : ""}`);
+  let load;
+  try {
+    const face = new FontFace(family, source, descriptors);
+    document.fonts.add(face);
+    load = face.load().then(
+      () => hold.release(),
+      (cause) => {
+        document.fonts.delete(face);
+        const error = failure(cause);
+        hold.fail(error);
+        throw error;
+      }
+    );
+  } catch (cause) {
+    const error = failure(cause);
+    hold.fail(error);
+    load = Promise.reject(error);
+  }
   loads.set(key, load);
   return handled(load);
 };
@@ -779,12 +844,12 @@ var getParticles = (options) => {
     frame,
     fps
   } = options;
-  const now = (frame - startFrame) / fps;
+  const now2 = (frame - startFrame) / fps;
   const particles = [];
   for (let i = 0; i < count; i++) {
     const key = (name) => `${seed}:${i}:${name}`;
     const birth = emitDuration * i / count;
-    const age = now - birth;
+    const age = now2 - birth;
     if (age < 0) continue;
     const life = pick(lifetime, key("lifetime"));
     if (age >= life) continue;
@@ -3097,10 +3162,10 @@ function useOptimizedInterpolate(inputRange, outputRange, options) {
  * marketing videos, and automated video generation.
  *
  * @package MotionForge
- * @version 3.0.0
+ * @version 4.0.0
  * @license MIT
  */
 
-export { AnimatedImage, Blur, Bounce, CardExpansionMask, Composition, Confetti, Counter, Cube3D, Fade, Flip3D, FlipImageReveal, Glitch, GradientText, Highlight, HyperFrame, KineticTypography, LetterByLetter, LiquidText, MaskReveal, NeonGlow, ParticleSystem, Particles, Perspective3D, ProgressBar, Pulse, RainbowText, Rotate, Rotate3D, Scale, ShakeEffect, Slide, StickyGridScroll, Swing, TextStack3D, Typewriter, WaveText, WordByWord, fitRect, getParticles, interpolatePath, interpolatePaths, interpolateStyles, loadFont, makeTransform, matrix, matrix3d, noise2D, noise3D, noise4D, pathFromPoints, perspective, rotate, rotate3d, rotateX, rotateY, rotateZ, scale, scale3d, scaleX, scaleY, scaleZ, skew, skewX, skewY, translate, translate3d, translateX, translateY, translateZ, useAnimation, useAnimationValue, useCachedFrame, useComposition, useCycle, useDelay, useDurationInFrames, useEmitInput, useFade, useFrameRange, useInputEvents, useInterpolate, useKeyframeState, useLastEvent, useLoop, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePrecomputeFrames, usePreloadAssets, useProgress, usePulse, useReducedState, useShake, useSlide, useSpring, useStaticFile, useTimeline, useTransform, useWindowedFrame };
+export { AnimatedImage, Blur, Bounce, CardExpansionMask, Composition, Confetti, Counter, Cube3D, Fade, Flip3D, FlipImageReveal, Glitch, GradientText, Highlight, HyperFrame, KineticTypography, LetterByLetter, LiquidText, MaskReveal, NeonGlow, ParticleSystem, Particles, Perspective3D, ProgressBar, Pulse, RainbowText, Rotate, Rotate3D, Scale, ShakeEffect, Slide, StickyGridScroll, Swing, TextStack3D, Typewriter, WaveText, WordByWord, collectAudioTracks, fitRect, getParticles, interpolatePath, interpolatePaths, interpolateStyles, loadFont, makeTransform, matrix, matrix3d, noise2D, noise3D, noise4D, pathFromPoints, perspective, rotate, rotate3d, rotateX, rotateY, rotateZ, scale, scale3d, scaleX, scaleY, scaleZ, skew, skewX, skewY, translate, translate3d, translateX, translateY, translateZ, useAnimation, useAnimationValue, useCachedFrame, useComposition, useCycle, useDelay, useDurationInFrames, useEmitInput, useFade, useFrameRange, useInputEvents, useInterpolate, useKeyframeState, useLastEvent, useLoop, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePrecomputeFrames, usePreloadAssets, useProgress, usePulse, useReducedState, useShake, useSlide, useSpring, useStaticFile, useTimeline, useTransform, useWindowedFrame };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

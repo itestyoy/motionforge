@@ -2,7 +2,7 @@
 
 var chunkNJNXF7ZR_cjs = require('../chunk-NJNXF7ZR.cjs');
 var chunk5SQGQMYR_cjs = require('../chunk-5SQGQMYR.cjs');
-var chunkNS6WDBHG_cjs = require('../chunk-NS6WDBHG.cjs');
+var chunkVLRD4ANM_cjs = require('../chunk-VLRD4ANM.cjs');
 var react = require('react');
 var omggif = require('omggif');
 var jsxRuntime = require('react/jsx-runtime');
@@ -117,9 +117,9 @@ var Gif = react.forwardRef((props, ref) => {
       `<Gif>: loopBehavior must be 'loop', 'pause-after-finish' or 'unmount-after-finish', got ${JSON.stringify(loopBehavior)}`
     );
   }
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
-  const { delayRender, continueRender, cancelRender } = chunkNS6WDBHG_cjs.useDelayRender();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { fps } = chunkVLRD4ANM_cjs.useVideoConfig();
+  const { delayRender, continueRender, cancelRender } = chunkVLRD4ANM_cjs.useDelayRender();
   const canvasRef = react.useRef(null);
   react.useImperativeHandle(ref, () => canvasRef.current, []);
   const requestInitRef = react.useRef(requestInit);

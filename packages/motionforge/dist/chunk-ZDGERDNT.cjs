@@ -1,7 +1,9 @@
-'use client';import { useAudioTrack } from './chunk-545UZ5CT.js';
-import { useCurrentFrame, useVideoConfig, useDelayRender } from './chunk-L5HQH5HH.js';
-import { useEffect, useRef, useCallback, useSyncExternalStore } from 'react';
-import { jsx } from 'react/jsx-runtime';
+'use client';'use strict';
+
+var chunkM5DYJOS5_cjs = require('./chunk-M5DYJOS5.cjs');
+var chunkVLRD4ANM_cjs = require('./chunk-VLRD4ANM.cjs');
+var react = require('react');
+var jsxRuntime = require('react/jsx-runtime');
 
 var prefetched = /* @__PURE__ */ new Map();
 var snapshot = /* @__PURE__ */ new Map();
@@ -94,39 +96,32 @@ var getSnapshot = () => snapshot;
 var NOTHING = /* @__PURE__ */ new Map();
 var getServerSnapshot = () => NOTHING;
 var usePrefetchedSrc = (src) => {
-  const urls = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const urls = react.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const source = withoutHash(src);
   const url = urls.get(source);
   return url === void 0 ? src : url + src.slice(source.length);
 };
-var AbsoluteFill = ({
-  children,
-  style,
-  className
-}) => {
-  return /* @__PURE__ */ jsx(
-    "div",
-    {
-      className,
-      style: {
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        ...style
-      },
-      children
+var AbsoluteFill = ({ style, ...props }) => /* @__PURE__ */ jsxRuntime.jsx(
+  "div",
+  {
+    ...props,
+    style: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: "100%",
+      height: "100%",
+      display: "flex",
+      flexDirection: "column",
+      ...style
     }
-  );
-};
+  }
+);
 var useElementRef = (callerRef) => {
-  const ref = useRef(null);
-  const setRef = useCallback(
+  const ref = react.useRef(null);
+  const setRef = react.useCallback(
     (element) => {
       ref.current = element;
       if (typeof callerRef === "function") callerRef(element);
@@ -195,8 +190,7 @@ var mediaTrack = (component, src, timing, { volume, muted, name }) => {
   }
   return {
     src,
-    buffer: null,
-    bufferKey: null,
+    generated: null,
     name: name ?? null,
     trimBefore: timing.trimBefore,
     trimAfter: timing.end ?? null,
@@ -230,13 +224,13 @@ var Video = ({
   ...props
 }) => {
   const [videoRef, setVideoRef] = useElementRef(props.ref);
-  const currentFrame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const { delayRender, continueRender, cancelRender } = useDelayRender();
+  const currentFrame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { fps } = chunkVLRD4ANM_cjs.useVideoConfig();
+  const { delayRender, continueRender, cancelRender } = chunkVLRD4ANM_cjs.useDelayRender();
   checkMediaSrc("Video", src);
   const timing = resolveTiming("Video", { trimBefore, trimAfter, durationInFrames, playbackRate, loop, volume });
   const { trimBefore: start, end, rate, loop: looping } = timing;
-  useAudioTrack("Video", mediaTrack("Video", src, timing, { volume, muted, name }));
+  chunkM5DYJOS5_cjs.useAudioTrack("Video", mediaTrack("Video", src, timing, { volume, muted, name }));
   const resolvedSrc = usePrefetchedSrc(src);
   if (objectFit !== void 0 && !OBJECT_FITS.includes(objectFit)) {
     throw new Error(`<Video>: objectFit must be one of ${OBJECT_FITS.join(", ")}, got ${JSON.stringify(objectFit)}`);
@@ -245,7 +239,7 @@ var Video = ({
     throw new Error(`<Video>: objectFit="${objectFit}" and style.objectFit="${style.objectFit}" disagree; pass one`);
   }
   const shown = timing.shownFor === void 0 || currentFrame < timing.shownFor;
-  useEffect(() => {
+  react.useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     const handle = delayRender(`<Video> ${src} at frame ${currentFrame}`);
@@ -305,7 +299,7 @@ var Video = ({
     };
   }, [currentFrame, fps, start, end, rate, looping, resolvedSrc, shown, delayRender, continueRender, cancelRender]);
   if (!shown) return null;
-  return /* @__PURE__ */ jsx(
+  return /* @__PURE__ */ jsxRuntime.jsx(
     "video",
     {
       src: resolvedSrc,
@@ -337,7 +331,7 @@ var Audio = ({
   }
   checkMediaSrc("Audio", src);
   const timing = resolveTiming("Audio", { trimBefore, trimAfter, durationInFrames, playbackRate, loop, volume });
-  useAudioTrack("Audio", mediaTrack("Audio", src, timing, { volume, muted, name }));
+  chunkM5DYJOS5_cjs.useAudioTrack("Audio", mediaTrack("Audio", src, timing, { volume, muted, name }));
   return null;
 };
 var Img = ({
@@ -347,12 +341,12 @@ var Img = ({
   endAt,
   ...props
 }) => {
-  const currentFrame = useCurrentFrame();
+  const currentFrame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const [imageRef, setImageRef] = useElementRef(props.ref);
-  const { delayRender, continueRender, cancelRender } = useDelayRender();
+  const { delayRender, continueRender, cancelRender } = chunkVLRD4ANM_cjs.useDelayRender();
   const resolvedSrc = usePrefetchedSrc(src);
   const shown = !(startFrom !== void 0 && currentFrame < startFrom) && !(endAt !== void 0 && currentFrame > endAt);
-  useEffect(() => {
+  react.useEffect(() => {
     const image = imageRef.current;
     if (!shown || !image) return;
     const handle = delayRender(`<Img> ${src}`);
@@ -376,7 +370,7 @@ var Img = ({
   if (!shown) {
     return null;
   }
-  return /* @__PURE__ */ jsx(
+  return /* @__PURE__ */ jsxRuntime.jsx(
     "img",
     {
       src: resolvedSrc,
@@ -397,7 +391,7 @@ var Text = ({
   style,
   className
 }) => {
-  return /* @__PURE__ */ jsx(
+  return /* @__PURE__ */ jsxRuntime.jsx(
     "div",
     {
       className,
@@ -416,7 +410,7 @@ var SVG = ({
   children,
   style
 }) => {
-  return /* @__PURE__ */ jsx(
+  return /* @__PURE__ */ jsxRuntime.jsx(
     "svg",
     {
       width,
@@ -437,7 +431,7 @@ var Path = ({
   strokeWidth,
   style
 }) => {
-  return /* @__PURE__ */ jsx(
+  return /* @__PURE__ */ jsxRuntime.jsx(
     "path",
     {
       d,
@@ -453,9 +447,17 @@ var G = ({
   transform,
   style
 }) => {
-  return /* @__PURE__ */ jsx("g", { transform, style, children });
+  return /* @__PURE__ */ jsxRuntime.jsx("g", { transform, style, children });
 };
 
-export { AbsoluteFill, Audio, G, Img, Path, SVG, Text, Video, prefetch };
-//# sourceMappingURL=chunk-6ZUQCR5A.js.map
-//# sourceMappingURL=chunk-6ZUQCR5A.js.map
+exports.AbsoluteFill = AbsoluteFill;
+exports.Audio = Audio;
+exports.G = G;
+exports.Img = Img;
+exports.Path = Path;
+exports.SVG = SVG;
+exports.Text = Text;
+exports.Video = Video;
+exports.prefetch = prefetch;
+//# sourceMappingURL=chunk-ZDGERDNT.cjs.map
+//# sourceMappingURL=chunk-ZDGERDNT.cjs.map

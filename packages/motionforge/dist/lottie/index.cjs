@@ -1,6 +1,6 @@
 'use client';'use strict';
 
-var chunkNS6WDBHG_cjs = require('../chunk-NS6WDBHG.cjs');
+var chunkVLRD4ANM_cjs = require('../chunk-VLRD4ANM.cjs');
 var react = require('react');
 var lottie = require('lottie-web');
 var jsxRuntime = require('react/jsx-runtime');
@@ -67,13 +67,13 @@ var Lottie = ({
   const animationRef = react.useRef(null);
   const [isLoaded, setIsLoaded] = react.useState(false);
   const [error, setError] = react.useState(null);
-  const { delayRender, continueRender, cancelRender } = chunkNS6WDBHG_cjs.useDelayRender();
+  const { delayRender, continueRender, cancelRender } = chunkVLRD4ANM_cjs.useDelayRender();
   const dataKey = jsonOf(animationData);
   const onLoadedRef = react.useRef(onAnimationLoaded);
   onLoadedRef.current = onAnimationLoaded;
   const loadHandle = react.useRef(null);
-  const currentFrame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const currentFrame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { fps } = chunkVLRD4ANM_cjs.useVideoConfig();
   react.useEffect(() => {
     setIsLoaded(false);
     setError(null);

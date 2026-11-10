@@ -1,6 +1,6 @@
 'use client';import { checkImageProps, mediaTimeInSeconds, calculateImageFit } from '../chunk-ZVSY5ZVR.js';
 import { CROP_AND_EFFECT_PROPS, SEQUENCE_PROPS, rejectProps, checkSrc, resolveSrc, serializeRequestInit, fetchAsset } from '../chunk-WVAVUOFE.js';
-import { useCurrentFrame, useVideoConfig, useDelayRender } from '../chunk-L5HQH5HH.js';
+import { useCurrentFrame, useVideoConfig, useDelayRender } from '../chunk-3P73E4TK.js';
 import { forwardRef, useRef, useImperativeHandle, useCallback, useState, useEffect } from 'react';
 import { GifReader } from 'omggif';
 import { jsx } from 'react/jsx-runtime';

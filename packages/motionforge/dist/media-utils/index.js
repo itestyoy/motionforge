@@ -1,5 +1,5 @@
 'use client';import { checkSrc, serializeRequestInit, fetchAsset } from '../chunk-WVAVUOFE.js';
-import { useDelayRender } from '../chunk-L5HQH5HH.js';
+import { useDelayRender } from '../chunk-3P73E4TK.js';
 import { useState, useRef, useEffect, useMemo } from 'react';
 
 // src/media-utils/shared.ts

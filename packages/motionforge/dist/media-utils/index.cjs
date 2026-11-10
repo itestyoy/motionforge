@@ -1,7 +1,7 @@
 'use client';'use strict';
 
 var chunk5SQGQMYR_cjs = require('../chunk-5SQGQMYR.cjs');
-var chunkNS6WDBHG_cjs = require('../chunk-NS6WDBHG.cjs');
+var chunkVLRD4ANM_cjs = require('../chunk-VLRD4ANM.cjs');
 var react = require('react');
 
 // src/media-utils/shared.ts
@@ -171,7 +171,7 @@ var useAudioData = (src, options) => {
   const [requestInit] = react.useState(options?.requestInit);
   const key = JSON.stringify([src, sampleRate ?? null]);
   const [result, setResult] = react.useState(null);
-  const { delayRender, continueRender, cancelRender } = chunkNS6WDBHG_cjs.useDelayRender();
+  const { delayRender, continueRender, cancelRender } = chunkVLRD4ANM_cjs.useDelayRender();
   const handle = react.useRef(null);
   react.useEffect(() => {
     const current = delayRender(`useAudioData() loading ${src}`);
@@ -226,7 +226,7 @@ var useWindowedAudioData = ({
   const [initialRequestInit] = react.useState(requestInit);
   const [loaded, setLoaded] = react.useState(null);
   const full = loaded?.src === src ? loaded.data : null;
-  const { delayRender, continueRender, cancelRender } = chunkNS6WDBHG_cjs.useDelayRender();
+  const { delayRender, continueRender, cancelRender } = chunkVLRD4ANM_cjs.useDelayRender();
   const handle = react.useRef(null);
   react.useEffect(() => {
     const current = delayRender(`useWindowedAudioData() loading ${src}`);

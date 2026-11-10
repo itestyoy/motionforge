@@ -1,8 +1,6 @@
-'use client';'use strict';
-
-var chunk6BVXSAAW_cjs = require('./chunk-6BVXSAAW.cjs');
-var chunkWQ6AZCZD_cjs = require('./chunk-WQ6AZCZD.cjs');
-var jsxRuntime = require('react/jsx-runtime');
+'use client';import { checkOptions, checkDirection, byDirection } from './chunk-WVKK7RVQ.js';
+import { AbsoluteFill } from './chunk-26M65GZW.js';
+import { jsx } from 'react/jsx-runtime';
 
 var DIRECTIONS = ["from-left", "from-top", "from-right", "from-bottom"];
 var EPSILON = 0.01;
@@ -38,8 +36,8 @@ var SlidePresentation = ({
   passedProps: { direction = "from-left", enterStyle, exitStyle }
 }) => {
   const isEntering = presentationDirection === "entering";
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    chunkWQ6AZCZD_cjs.AbsoluteFill,
+  return /* @__PURE__ */ jsx(
+    AbsoluteFill,
     {
       style: {
         width: "100%",
@@ -47,18 +45,18 @@ var SlidePresentation = ({
         justifyContent: "center",
         alignItems: "center",
         transform: translate(direction, isEntering, presentationProgress),
-        ...chunk6BVXSAAW_cjs.byDirection(isEntering, enterStyle, exitStyle)
+        ...byDirection(isEntering, enterStyle, exitStyle)
       },
       children
     }
   );
 };
 var slide = (props) => {
-  const options = chunk6BVXSAAW_cjs.checkOptions("slide", props);
-  chunk6BVXSAAW_cjs.checkDirection("slide", options.direction, DIRECTIONS);
+  const options = checkOptions("slide", props);
+  checkDirection("slide", options.direction, DIRECTIONS);
   return { component: SlidePresentation, props: options };
 };
 
-exports.slide = slide;
-//# sourceMappingURL=chunk-BVY5FCUH.cjs.map
-//# sourceMappingURL=chunk-BVY5FCUH.cjs.map
+export { slide };
+//# sourceMappingURL=chunk-J7MM223S.js.map
+//# sourceMappingURL=chunk-J7MM223S.js.map

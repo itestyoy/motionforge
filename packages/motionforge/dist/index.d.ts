@@ -1,10 +1,34 @@
 import { V as VideoConfig, E as EasingFunction, I as InterpolateOptions, S as SpringConfig, K as Keyframe } from './Sequence-DLzWab-6.js';
 export { A as AnimationTrack, a as ExtrapolateType, F as FrameContextValue, b as Freeze, L as Loop, c as LoopContextValue, d as LoopProps, R as Retiming, e as Reverse, f as Sequence, g as SequenceLayoutProps, h as SequenceProps, i as Series, j as SeriesSequenceProps, u as useRelativeCurrentFrame, k as useSequence } from './Sequence-DLzWab-6.js';
 import React$1, { ImgHTMLAttributes, VideoHTMLAttributes, CSSProperties, ComponentProps } from 'react';
-import { A as AudioVolume } from './audio-track-2QqcG4WJ.js';
+import { A as AudioVolume } from './audio-track-BYBIAGke.js';
+export { u as useIsCollectingAudio } from './audio-track-BYBIAGke.js';
 import { I as ImageFit } from './image-fit-BNU-zyWh.js';
 import { P as Point } from './instructions-CHagViH-.js';
 export { A as AbsoluteInstruction, I as Instruction, R as ReducedInstruction, n as normalizePath, p as parsePath, r as reduceInstructions, s as serializeInstructions } from './instructions-CHagViH-.js';
+
+/**
+ * The input log of a playable scene: events the host records (live taps) or
+ * scripts (a video of the playable), each at the frame it happened.
+ */
+/**
+ * One input event. `frame` is the frame it happened at: in the log, a frame
+ * of the composition; inside a Sequence the hooks hand it out in the
+ * sequence's frames (as useCurrentFrame() counts them). Everything besides
+ * `frame` and `type` is the scene's own payload (keep it serializable, so a
+ * recorded log can be replayed).
+ */
+interface InputEvent {
+    frame: number;
+    type: string;
+    [key: string]: unknown;
+}
+/** What a scene emits with useEmitInput(): an event without `frame` (the SDK stamps it). */
+interface InputEventInit {
+    type: string;
+    frame?: never;
+    [key: string]: unknown;
+}
 
 /**
  * Render readiness: a scene holds the frame with delayRender() while it waits
@@ -17,6 +41,7 @@ export { A as AbsoluteInstruction, I as Instruction, R as ReducedInstruction, n 
  * (loadFont()): fonts belong to the document, so a font that is loading holds
  * every gate, and one that failed fails every gate.
  */
+
 interface PendingDelay {
     /** The number delayRender() returned; negative for a page-wide load (loadFont()). */
     handle: number;
@@ -31,15 +56,24 @@ interface WaitUntilReadyOptions {
      * for the frame FrameProvider has committed last.
      */
     frame?: number;
+    /**
+     * The input log the host passed to FrameProvider (playable mode). The wait
+     * also covers the time until React has committed a render with this log
+     * (or with more events appended to it): an input appended from an event
+     * handler, e.g. pointermove, which React renders with a lower priority,
+     * is on the frame the wait resolves for. Required when the FrameProvider
+     * renders an input log: a wait without it rejects.
+     */
+    input?: readonly InputEvent[];
     /** Rejects after this many milliseconds (default 30000; Infinity waits forever). */
     timeoutMs?: number;
 }
 interface RenderGate {
     /**
-     * Resolves when FrameProvider has committed the frame (see `frame`) and no
-     * delayRender() handle of a visible component is pending. Rejects with the
-     * cancelRender() error, or on timeout with an error listing the pending
-     * labels.
+     * Resolves when FrameProvider has committed the frame (see `frame`) with
+     * the input log (see `input`) and no delayRender() handle of a visible
+     * component is pending. Rejects with the cancelRender() error, or on
+     * timeout with an error listing the pending labels.
      */
     waitUntilReady(options?: WaitUntilReadyOptions): Promise<void>;
     /** Handles that hold the frame right now (premounted content is not counted), and page-wide loads. */
@@ -60,11 +94,38 @@ interface RenderGate {
 declare const createRenderGate: () => RenderGate;
 
 /**
+ * Generated audio (`motionforge/audio`): a track whose samples are made in
+ * code is described by what they are made from, so it can be listed (also by
+ * collectAudioTracks(), which renders no audio) before anything is rendered,
+ * and rendered once per page, when the scene or the host needs it.
+ */
+/** The samples of a generated track: what they are made from, and how to get them. */
+interface GeneratedAudio {
+    /** `'tone'` for `<ToneAudio>`, `'zzfx'` for `<Sfx>`. */
+    readonly kind: 'tone' | 'zzfx';
+    /**
+     * Everything the samples are made from, as JSON (see the README for each
+     * kind): the cache key. Two tracks with the same key play the same samples.
+     */
+    readonly key: string;
+    /** The samples once they are rendered on this page (by the scene, usePrepareAudio() or render()), else null. */
+    readonly buffer: AudioBuffer | null;
+    /**
+     * Renders the samples, once per page and key: later calls (and the scene's
+     * components) get the same buffer. Needs the Web Audio API, and Tone.js for
+     * `'tone'`; rejects with the error otherwise. A failed render is not kept,
+     * so a later call tries again.
+     */
+    render(): Promise<AudioBuffer>;
+}
+
+/**
  * The audio manifest: the SDK describes the sound of a scene as tracks, the
  * host plays and mixes them. `<Audio>`, `<Video>` and the generated sounds of
  * `motionforge/audio` register their track with the collector of the
  * FrameProvider they are in.
  */
+
 /**
  * One sound of the scene. All frames are frames of the composition (the fps
  * of the FrameProvider), counted from the start of the composition; media
@@ -87,8 +148,12 @@ interface AudioTrack {
     name: string | null;
     /** URL of the media (`<Audio>`, `<Video>`), or null for generated audio. */
     src: string | null;
-    /** The samples of generated audio (`motionforge/audio`), or null for a URL. */
-    buffer: AudioBuffer | null;
+    /**
+     * Generated audio (`motionforge/audio`): what the samples are made from
+     * (`kind`, `key`), the samples once rendered (`buffer`) and `render()` to
+     * get them; null for a URL.
+     */
+    generated: GeneratedAudio | null;
     /**
      * The frame at which the track's own frame 0 plays (media frame
      * `trimBefore`): the start of the enclosing sequences. It is below
@@ -150,29 +215,6 @@ declare const createAudioCollector: () => AudioCollector;
  */
 type StaticFiles = string | ((path: string) => string);
 
-/**
- * The input log of a playable scene: events the host records (live taps) or
- * scripts (a video of the playable), each at the frame it happened.
- */
-/**
- * One input event. `frame` is the frame it happened at: in the log, a frame
- * of the composition; inside a Sequence the hooks hand it out in the
- * sequence's frames (as useCurrentFrame() counts them). Everything besides
- * `frame` and `type` is the scene's own payload (keep it serializable, so a
- * recorded log can be replayed).
- */
-interface InputEvent {
-    frame: number;
-    type: string;
-    [key: string]: unknown;
-}
-/** What a scene emits with useEmitInput(): an event without `frame` (the SDK stamps it). */
-interface InputEventInit {
-    type: string;
-    frame?: never;
-    [key: string]: unknown;
-}
-
 declare const useCurrentFrame: () => number;
 declare const useVideoConfig: () => {
     fps: number;
@@ -231,6 +273,37 @@ interface FrameProviderProps {
  * same `frame` always renders the same picture, whatever frame came before.
  */
 declare const FrameProvider: React$1.FC<FrameProviderProps>;
+
+/** The FrameProvider props collectAudioTracks() renders the scene with. */
+interface CollectAudioTracksOptions {
+    /** Frames per second (default 30, as FrameProvider's). */
+    fps?: number;
+    durationInFrames: number;
+    width: number;
+    height: number;
+    /** The input log of a playable: the tracks of the scene with these events. */
+    input?: readonly InputEvent[];
+    /** FrameProvider's staticFiles, for scenes that build URLs with useStaticFile(). */
+    staticFiles?: StaticFiles;
+}
+/**
+ * The audio manifest of a scene without playing or capturing it: renders
+ * every frame from 0 to `durationInFrames - 1` to a string (react-dom/server,
+ * no DOM needed) inside a `FrameProvider` with these options, and returns
+ * the tracks, exactly as a collector of createAudioCollector() lists them
+ * after the host has rendered every frame (same tracks, same ids, same
+ * order).
+ *
+ *   const tracks = await collectAudioTracks(<Scene />, { fps: 30, durationInFrames: 300, width: 1080, height: 1920 });
+ *
+ * While it renders, no effect runs: nothing is loaded (images, video, fonts),
+ * no audio is rendered (generated tracks carry `generated`, whose `render()`
+ * the host calls when it needs the samples), and the render gate is not
+ * used. ThreeCanvas renders nothing; components that need the DOM while
+ * rendering can ask useIsCollectingAudio(). An error while rendering a frame
+ * rejects with the frame named.
+ */
+declare const collectAudioTracks: (scene: React$1.ReactNode, options: CollectAudioTracksOptions) => Promise<readonly AudioTrack[]>;
 
 /** Options of delayRender(), as in Remotion. */
 interface DelayRenderOptions {
@@ -355,10 +428,12 @@ interface LoadFontOptions {
 }
 /**
  * Loads a font file and adds it to `document.fonts` under `family`, like
- * @remotion/fonts' loadFont(). Until the font is loaded every render gate on
- * the page waits for it (fonts belong to the document, not to one
- * FrameProvider); if it fails, every gate fails with the error. Call it
- * anywhere, e.g. at the top of a module:
+ * @remotion/fonts' loadFont(). The face is added at once, while it loads, so
+ * `usePreloadAssets([{ type: 'font', family }])` in the same commit (or any
+ * later one) finds it and waits for the load. Until the font is loaded every
+ * render gate on the page waits for it (fonts belong to the document, not to
+ * one FrameProvider); if it fails, the face is removed again and every gate
+ * fails with the error. Call it anywhere, e.g. at the top of a module:
  *
  *   loadFont({ family: 'Bangers', url: '/fonts/bangers.woff2' });
  *
@@ -499,11 +574,18 @@ interface CompositionProps {
 }
 declare const Composition: React$1.FC<CompositionProps>;
 
-interface AbsoluteFillProps {
-    children?: React$1.ReactNode;
-    style?: React$1.CSSProperties;
-    className?: string;
-}
+/**
+ * Props of AbsoluteFill: every attribute of a `<div>` (`id`, `className`,
+ * `data-*`, `aria-*`, event handlers, ...) and `ref` (a prop in React 19).
+ */
+type AbsoluteFillProps = React$1.HTMLAttributes<HTMLDivElement> & {
+    ref?: React$1.Ref<HTMLDivElement>;
+};
+/**
+ * A `<div>` filling its parent (absolute, inset 0, flex column), as
+ * Remotion's AbsoluteFill: `style` is merged over these defaults, and every
+ * other attribute and `ref` go to the element.
+ */
 declare const AbsoluteFill: React$1.FC<AbsoluteFillProps>;
 /**
  * Timing props of Video and Audio, as in Remotion. All in frames of the
@@ -1639,10 +1721,10 @@ declare function useOptimizedInterpolate(inputRange: number[], outputRange: numb
  * marketing videos, and automated video generation.
  *
  * @package MotionForge
- * @version 3.0.0
+ * @version 4.0.0
  * @license MIT
  */
 
 type TextProps = ComponentProps<typeof Text>;
 
-export { AbsoluteFill, type AngleUnit, type AngleUnitString, AnimatedImage, type AnimatedImageFillMode, type AnimatedImageLoopBehavior, type AnimatedImageProps, Audio, type AudioCollector, type AudioProps, type AudioTrack, AudioVolume, Blur, Bounce, type BoundingBox, CardExpansionMask, type CenterPathTarget, Composition, type CompositionProps, Confetti, Counter, Cube3D, type DelayRenderApi, type DelayRenderOptions, AbsoluteFill as Div, Easing, EasingFunction, type EasingSpringConfig, Fade, type FitRectAnchor, type FitRectContainer, type FitRectSize, type FittedRect, Flip3D, FlipImageReveal, FrameProvider, type FrameProviderProps, G, Glitch, GradientText, Highlight, HyperFrame, Img, type ImgProps, type InputEvent, type InputEventInit, type InterpolateColorsOptions, InterpolateOptions, type InterpolatePathsOptions, Keyframe, KineticTypography, type LastInputEvent, type LengthPercentageUnit, type LengthPercentageUnitString, type LengthUnit, type LengthUnitString, LetterByLetter, LiquidText, type LoadFontOptions, MaskReveal, NeonGlow, type ObjectFit, type Particle, type ParticleEmitterOptions, type ParticlePoint, type ParticleRange, ParticleSystem, Particles, type ParticlesProps, Path, type PathFromPointsOptions, type PendingDelay, Perspective3D, Point, type Prefetch, type PrefetchOnProgress, type PrefetchOptions, type PreloadAsset, ProgressBar, Pulse, RainbowText, type RenderGate, Rotate, Rotate3D, SVG, Scale, ShakeEffect, Slide, SpringConfig, type StaticFiles, StickyGridScroll, Swing, Text, type TextProps, TextStack3D, Typewriter, Video, VideoConfig, type VideoProps, type WaitUntilReadyOptions, type WarpPathFn, WaveText, WordByWord, centerPath, createAudioCollector, createRenderGate, cutPath, Easing as easing, evolvePath, extendViewBox, fitRect, getBoundingBox, getFramesFromSeconds, getInstructionIndexAtLength, getLength, getParticles, getPointAtLength, getSecondsFromFrames, getSubpaths, getTangentAtLength, interpolate, interpolateColors, interpolatePath, interpolatePaths, interpolateStyles, loadFont, makeTransform, matrix, matrix3d, measureSpring, noise2D, noise3D, noise4D, pathFromPoints, perspective, prefetch, random, range, resetPath, reversePath, rotate, rotate3d, rotateX, rotateY, rotateZ, scale, scale3d, scalePath, scaleX, scaleY, scaleZ, skew, skewX, skewY, spring, translate, translate3d, translatePath, translateX, translateY, translateZ, useAnimation, useAnimationValue, useCachedFrame, useComposition, useCurrentFrame, useCycle, useDelay, useDelayRender, useDurationInFrames, useEmitInput, useFade, useFrameRange, useInputEvents, useInterpolate, useKeyframeState, useKeyframes, useLastEvent, useLoop, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePrecomputeFrames, usePreloadAssets, useProgress, usePulse, useReducedState, useShake, useSlide, useSpring, useStaticFile, useTimeline, useTransform, useVideoConfig, useWindowedFrame, warpPath };
+export { AbsoluteFill, type AbsoluteFillProps, type AngleUnit, type AngleUnitString, AnimatedImage, type AnimatedImageFillMode, type AnimatedImageLoopBehavior, type AnimatedImageProps, Audio, type AudioCollector, type AudioProps, type AudioTrack, AudioVolume, Blur, Bounce, type BoundingBox, CardExpansionMask, type CenterPathTarget, type CollectAudioTracksOptions, Composition, type CompositionProps, Confetti, Counter, Cube3D, type DelayRenderApi, type DelayRenderOptions, AbsoluteFill as Div, Easing, EasingFunction, type EasingSpringConfig, Fade, type FitRectAnchor, type FitRectContainer, type FitRectSize, type FittedRect, Flip3D, FlipImageReveal, FrameProvider, type FrameProviderProps, G, type GeneratedAudio, Glitch, GradientText, Highlight, HyperFrame, Img, type ImgProps, type InputEvent, type InputEventInit, type InterpolateColorsOptions, InterpolateOptions, type InterpolatePathsOptions, Keyframe, KineticTypography, type LastInputEvent, type LengthPercentageUnit, type LengthPercentageUnitString, type LengthUnit, type LengthUnitString, LetterByLetter, LiquidText, type LoadFontOptions, MaskReveal, NeonGlow, type ObjectFit, type Particle, type ParticleEmitterOptions, type ParticlePoint, type ParticleRange, ParticleSystem, Particles, type ParticlesProps, Path, type PathFromPointsOptions, type PendingDelay, Perspective3D, Point, type Prefetch, type PrefetchOnProgress, type PrefetchOptions, type PreloadAsset, ProgressBar, Pulse, RainbowText, type RenderGate, Rotate, Rotate3D, SVG, Scale, ShakeEffect, Slide, SpringConfig, type StaticFiles, StickyGridScroll, Swing, Text, type TextProps, TextStack3D, Typewriter, Video, VideoConfig, type VideoProps, type WaitUntilReadyOptions, type WarpPathFn, WaveText, WordByWord, centerPath, collectAudioTracks, createAudioCollector, createRenderGate, cutPath, Easing as easing, evolvePath, extendViewBox, fitRect, getBoundingBox, getFramesFromSeconds, getInstructionIndexAtLength, getLength, getParticles, getPointAtLength, getSecondsFromFrames, getSubpaths, getTangentAtLength, interpolate, interpolateColors, interpolatePath, interpolatePaths, interpolateStyles, loadFont, makeTransform, matrix, matrix3d, measureSpring, noise2D, noise3D, noise4D, pathFromPoints, perspective, prefetch, random, range, resetPath, reversePath, rotate, rotate3d, rotateX, rotateY, rotateZ, scale, scale3d, scalePath, scaleX, scaleY, scaleZ, skew, skewX, skewY, spring, translate, translate3d, translatePath, translateX, translateY, translateZ, useAnimation, useAnimationValue, useCachedFrame, useComposition, useCurrentFrame, useCycle, useDelay, useDelayRender, useDurationInFrames, useEmitInput, useFade, useFrameRange, useInputEvents, useInterpolate, useKeyframeState, useKeyframes, useLastEvent, useLoop, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePrecomputeFrames, usePreloadAssets, useProgress, usePulse, useReducedState, useShake, useSlide, useSpring, useStaticFile, useTimeline, useTransform, useVideoConfig, useWindowedFrame, warpPath };

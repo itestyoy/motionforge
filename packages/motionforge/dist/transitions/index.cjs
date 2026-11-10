@@ -1,14 +1,14 @@
 'use client';'use strict';
 
-var chunkJI6EV2SO_cjs = require('../chunk-JI6EV2SO.cjs');
-var chunkBVY5FCUH_cjs = require('../chunk-BVY5FCUH.cjs');
+var chunkCMRUM356_cjs = require('../chunk-CMRUM356.cjs');
+var chunkUFEB72QK_cjs = require('../chunk-UFEB72QK.cjs');
 require('../chunk-6BVXSAAW.cjs');
 var chunkWEQRPTIM_cjs = require('../chunk-WEQRPTIM.cjs');
-require('../chunk-WQ6AZCZD.cjs');
-require('../chunk-SW2AKXWG.cjs');
-var chunkJRWGLEMD_cjs = require('../chunk-JRWGLEMD.cjs');
+require('../chunk-ZDGERDNT.cjs');
+var chunkQIA2L6IO_cjs = require('../chunk-QIA2L6IO.cjs');
+require('../chunk-M5DYJOS5.cjs');
 var chunk5SQGQMYR_cjs = require('../chunk-5SQGQMYR.cjs');
-var chunkNS6WDBHG_cjs = require('../chunk-NS6WDBHG.cjs');
+var chunkVLRD4ANM_cjs = require('../chunk-VLRD4ANM.cjs');
 var React2 = require('react');
 var jsxRuntime = require('react/jsx-runtime');
 
@@ -74,7 +74,7 @@ var kindOf = (child, index) => {
     if (child.type === SeriesOverlay) return "overlay";
   }
   throw new Error(
-    `TransitionSeries: children must be <TransitionSeries.Sequence>, <TransitionSeries.Transition> or <TransitionSeries.Overlay> elements, got ${chunkJRWGLEMD_cjs.describeChild(child)} at index ${index}`
+    `TransitionSeries: children must be <TransitionSeries.Sequence>, <TransitionSeries.Transition> or <TransitionSeries.Overlay> elements, got ${chunkQIA2L6IO_cjs.describeChild(child)} at index ${index}`
   );
 };
 var checkInteger = (component, name, value, index, positive) => {
@@ -92,7 +92,7 @@ var resolveTransition = (props, fps, index) => {
       `${component}: timing must be a timing such as linearTiming({ durationInFrames }) or springTiming(), got ${JSON.stringify(timing)} at index ${index}`
     );
   }
-  const presentation = props.presentation ?? chunkBVY5FCUH_cjs.slide();
+  const presentation = props.presentation ?? chunkUFEB72QK_cjs.slide();
   if (typeof presentation !== "object" || presentation === null || typeof presentation.component !== "function") {
     throw new Error(
       `${component}: presentation must be a presentation such as fade() or slide(), got ${JSON.stringify(presentation)} at index ${index}`
@@ -116,10 +116,10 @@ var progressOf = (transition, frame, fps, index) => {
   return progress;
 };
 var TransitionSeriesChildren = ({ children }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { fps } = chunkVLRD4ANM_cjs.useVideoConfig();
   const items = [];
-  chunkJRWGLEMD_cjs.flattenChildren(children).forEach(({ key, child }, index) => {
+  chunkQIA2L6IO_cjs.flattenChildren(children).forEach(({ key, child }, index) => {
     if (child === null || child === void 0 || typeof child === "boolean") return;
     if (typeof child === "string" && child.trim() === "") return;
     const kind = kindOf(child, index);
@@ -174,7 +174,7 @@ var TransitionSeriesChildren = ({ children }) => {
       pendingOverlay = { framesAfterCut: halfDuration + offset2 };
       overlays.push(
         /* @__PURE__ */ jsxRuntime.jsx(
-          chunkJRWGLEMD_cjs.Sequence,
+          chunkQIA2L6IO_cjs.Sequence,
           {
             from: Math.round(overlayFrom),
             durationInFrames: props.durationInFrames,
@@ -257,7 +257,7 @@ var TransitionSeriesChildren = ({ children }) => {
     }
     sequences.push(
       /* @__PURE__ */ jsxRuntime.jsx(
-        chunkJRWGLEMD_cjs.Sequence,
+        chunkQIA2L6IO_cjs.Sequence,
         {
           ...layoutProps,
           name: name ?? "<TS.Sequence>",
@@ -277,7 +277,7 @@ var TransitionSeriesChildren = ({ children }) => {
 var TransitionSeriesRoot = (props) => {
   if (props.layout === "none") throw new Error(layoutNoneError("<TransitionSeries>"));
   const { children, name, ...sequenceProps } = props;
-  return /* @__PURE__ */ jsxRuntime.jsx(chunkJRWGLEMD_cjs.Sequence, { ...sequenceProps, name: name ?? "<TransitionSeries>", children: /* @__PURE__ */ jsxRuntime.jsx(TransitionSeriesChildren, { children }) });
+  return /* @__PURE__ */ jsxRuntime.jsx(chunkQIA2L6IO_cjs.Sequence, { ...sequenceProps, name: name ?? "<TransitionSeries>", children: /* @__PURE__ */ jsxRuntime.jsx(TransitionSeriesChildren, { children }) });
 };
 var TransitionSeries = Object.assign(TransitionSeriesRoot, {
   Sequence: SeriesSequence,
@@ -334,7 +334,7 @@ var springTiming = (options = {}) => {
 
 Object.defineProperty(exports, "pushCut", {
   enumerable: true,
-  get: function () { return chunkJI6EV2SO_cjs.pushCut; }
+  get: function () { return chunkCMRUM356_cjs.pushCut; }
 });
 exports.TransitionSeries = TransitionSeries;
 exports.linearTiming = linearTiming;

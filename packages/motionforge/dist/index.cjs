@@ -3,19 +3,78 @@
 var chunk37ZW67WK_cjs = require('./chunk-37ZW67WK.cjs');
 var chunkNJNXF7ZR_cjs = require('./chunk-NJNXF7ZR.cjs');
 var chunkWEQRPTIM_cjs = require('./chunk-WEQRPTIM.cjs');
-var chunkWQ6AZCZD_cjs = require('./chunk-WQ6AZCZD.cjs');
-require('./chunk-SW2AKXWG.cjs');
-var chunkJRWGLEMD_cjs = require('./chunk-JRWGLEMD.cjs');
+var chunkZDGERDNT_cjs = require('./chunk-ZDGERDNT.cjs');
+var chunkQIA2L6IO_cjs = require('./chunk-QIA2L6IO.cjs');
+var chunkM5DYJOS5_cjs = require('./chunk-M5DYJOS5.cjs');
 var chunk5SQGQMYR_cjs = require('./chunk-5SQGQMYR.cjs');
-var chunkNS6WDBHG_cjs = require('./chunk-NS6WDBHG.cjs');
-var React5 = require('react');
+var chunkVLRD4ANM_cjs = require('./chunk-VLRD4ANM.cjs');
 var jsxRuntime = require('react/jsx-runtime');
+var React5 = require('react');
 var simplexNoise = require('simplex-noise');
 
 function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
 
 var React5__default = /*#__PURE__*/_interopDefault(React5);
 
+var OPTIONS = ["fps", "durationInFrames", "width", "height", "input", "staticFiles"];
+var isPositive = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+var now = () => typeof performance !== "undefined" ? performance.now() : Date.now();
+var collectAudioTracks = async (scene, options) => {
+  if (typeof options !== "object" || options === null) {
+    throw new TypeError(
+      `collectAudioTracks: expects the options { fps, durationInFrames, width, height, input?, staticFiles? }, got ${JSON.stringify(options)}`
+    );
+  }
+  for (const key of Object.keys(options)) {
+    if (!OPTIONS.includes(key)) {
+      throw new TypeError(`collectAudioTracks: unknown option ${JSON.stringify(key)} (it takes ${OPTIONS.join(", ")})`);
+    }
+  }
+  const { fps = 30, durationInFrames, width, height, input, staticFiles } = options;
+  if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
+    throw new TypeError(`collectAudioTracks: durationInFrames must be a positive integer, got ${JSON.stringify(durationInFrames)}`);
+  }
+  if (!isPositive(fps)) throw new TypeError(`collectAudioTracks: fps must be a positive number, got ${JSON.stringify(fps)}`);
+  if (!isPositive(width) || !isPositive(height)) {
+    throw new TypeError(`collectAudioTracks: width and height must be positive numbers, got ${JSON.stringify(width)}x${JSON.stringify(height)}`);
+  }
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { collector, beginFrame, endFrame } = chunkVLRD4ANM_cjs.createCollectingCollector();
+  let lastYield = now();
+  for (let frame = 0; frame < durationInFrames; frame++) {
+    beginFrame();
+    try {
+      renderToStaticMarkup(
+        /* @__PURE__ */ jsxRuntime.jsx(
+          chunkVLRD4ANM_cjs.FrameProvider,
+          {
+            frame,
+            fps,
+            durationInFrames,
+            width,
+            height,
+            audio: collector,
+            input,
+            staticFiles,
+            children: scene
+          }
+        )
+      );
+    } catch (cause) {
+      const error = new Error(
+        `collectAudioTracks: rendering frame ${frame} failed: ${cause instanceof Error ? cause.message : String(cause)}`
+      );
+      error.cause = cause;
+      throw error;
+    }
+    endFrame();
+    if (now() - lastYield > 50) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      lastYield = now();
+    }
+  }
+  return collector.getTracks();
+};
 var requireDom = () => {
   if (typeof document === "undefined") {
     throw new Error("usePreloadAssets needs a browser DOM (document is not defined)");
@@ -136,7 +195,7 @@ var checkAssets = (assets) => {
 var usePreloadAssets = (assets) => {
   checkAssets(assets);
   const key = JSON.stringify(assets);
-  const { delayRender, continueRender, cancelRender } = chunkNS6WDBHG_cjs.useDelayRender();
+  const { delayRender, continueRender, cancelRender } = chunkVLRD4ANM_cjs.useDelayRender();
   const [loadedKey, setLoadedKey] = React5.useState(null);
   const handle = React5.useRef(null);
   React5.useEffect(() => {
@@ -218,35 +277,41 @@ var loadFont = (options) => {
     if (options[name] !== void 0) descriptors[name] = options[name];
   }
   const source = `url(${JSON.stringify(url)})${format2 ? ` format(${JSON.stringify(format2)})` : ""}`;
-  const hold = chunkNS6WDBHG_cjs.holdAllGates(`loadFont() ${family} from ${url}`);
-  const load = Promise.resolve().then(() => new FontFace(family, source, descriptors).load()).then(
-    (face) => {
-      document.fonts.add(face);
-      hold.release();
-    },
-    (cause) => {
-      const error = new Error(
-        `loadFont: could not load ${family} from ${url}${cause instanceof Error && cause.message ? `: ${cause.message}` : ""}`
-      );
-      hold.fail(error);
-      throw error;
-    }
-  );
+  const hold = chunkVLRD4ANM_cjs.holdAllGates(`loadFont() ${family} from ${url}`);
+  const failure = (cause) => new Error(`loadFont: could not load ${family} from ${url}${cause instanceof Error && cause.message ? `: ${cause.message}` : ""}`);
+  let load;
+  try {
+    const face = new FontFace(family, source, descriptors);
+    document.fonts.add(face);
+    load = face.load().then(
+      () => hold.release(),
+      (cause) => {
+        document.fonts.delete(face);
+        const error = failure(cause);
+        hold.fail(error);
+        throw error;
+      }
+    );
+  } catch (cause) {
+    const error = failure(cause);
+    hold.fail(error);
+    load = Promise.reject(error);
+  }
   loads.set(key, load);
   return handled(load);
 };
 var useInputWindow = (hook) => {
-  const host = React5.useContext(chunkNS6WDBHG_cjs.HostContext);
-  const timeline = React5.useContext(chunkNS6WDBHG_cjs.TimelineContext);
-  const frameContext = React5.useContext(chunkNS6WDBHG_cjs.FrameContext);
+  const host = React5.useContext(chunkVLRD4ANM_cjs.HostContext);
+  const timeline = React5.useContext(chunkVLRD4ANM_cjs.TimelineContext);
+  const frameContext = React5.useContext(chunkVLRD4ANM_cjs.FrameContext);
   if (!host || !timeline || !frameContext) {
     throw new Error(`${hook} must be used within a FrameProvider`);
   }
   const log = host.input;
   const { offset } = timeline;
   const { frame } = frameContext;
-  const first = chunkNS6WDBHG_cjs.firstAtOrAfter(log, offset);
-  const end = Math.max(first, chunkNS6WDBHG_cjs.firstAfter(log, offset + frame));
+  const first = chunkVLRD4ANM_cjs.firstAtOrAfter(log, offset);
+  const end = Math.max(first, chunkVLRD4ANM_cjs.firstAfter(log, offset + frame));
   return { log, offset, first, end, frame };
 };
 var toLocal = (event, offset) => offset === 0 ? event : { ...event, frame: event.frame - offset };
@@ -258,7 +323,7 @@ var useInputEvents = () => {
   );
 };
 var useEmitInput = () => {
-  const host = React5.useContext(chunkNS6WDBHG_cjs.HostContext);
+  const host = React5.useContext(chunkVLRD4ANM_cjs.HostContext);
   if (!host) {
     throw new Error("useEmitInput must be used within a FrameProvider");
   }
@@ -272,7 +337,7 @@ var useReducedState = (reducer, initialState) => {
   const cache = React5.useRef(null);
   let current = cache.current;
   const folded = current ? current.states.length - 1 : 0;
-  const valid = current !== null && current.offset === offset && current.first === first && (current.log === log || chunkNS6WDBHG_cjs.isAppendOf(current.log, log) && (folded === 0 || log[first + folded - 1] === current.log[first + folded - 1]));
+  const valid = current !== null && current.offset === offset && current.first === first && (current.log === log || chunkVLRD4ANM_cjs.isAppendOf(current.log, log) && (folded === 0 || log[first + folded - 1] === current.log[first + folded - 1]));
   if (!valid || current === null) {
     current = { log, offset, first, states: [initialState] };
     cache.current = current;
@@ -297,11 +362,11 @@ var useLastEvent = (predicate) => {
   return null;
 };
 var useStaticFile = () => {
-  const host = React5.useContext(chunkNS6WDBHG_cjs.HostContext);
+  const host = React5.useContext(chunkVLRD4ANM_cjs.HostContext);
   if (!host) {
     throw new Error("useStaticFile must be used within a FrameProvider");
   }
-  return host.staticFiles ?? chunkNS6WDBHG_cjs.noStaticFiles;
+  return host.staticFiles ?? chunkVLRD4ANM_cjs.noStaticFiles;
 };
 
 // src/utils/fit-rect.ts
@@ -393,7 +458,7 @@ var Composition = ({
         config: { width, height, fps, durationInFrames }
       },
       children: /* @__PURE__ */ jsxRuntime.jsx(
-        chunkNS6WDBHG_cjs.FrameProvider,
+        chunkVLRD4ANM_cjs.FrameProvider,
         {
           frame,
           fps,
@@ -494,10 +559,10 @@ var AnimatedImage = React5.forwardRef((props, ref) => {
       `<AnimatedImage>: loopBehavior must be 'loop', 'pause-after-finish' or 'clear-after-finish', got ${JSON.stringify(loopBehavior)}`
     );
   }
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { fps } = chunkVLRD4ANM_cjs.useVideoConfig();
   const time = chunkNJNXF7ZR_cjs.mediaTimeInSeconds(frame, fps, playbackRate);
-  const { delayRender, continueRender, cancelRender } = chunkNS6WDBHG_cjs.useDelayRender();
+  const { delayRender, continueRender, cancelRender } = chunkVLRD4ANM_cjs.useDelayRender();
   const canvasRef = React5.useRef(null);
   React5.useImperativeHandle(ref, () => canvasRef.current, []);
   const requestInitRef = React5.useRef(requestInit);
@@ -604,8 +669,8 @@ var HyperFrame = ({
   className,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { width, height, fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { width, height, fps } = chunkVLRD4ANM_cjs.useVideoConfig();
   const iframeRef = React5.useRef(null);
   const isLoadedRef = React5.useRef(false);
   React5.useEffect(() => {
@@ -782,12 +847,12 @@ var getParticles = (options) => {
     frame,
     fps
   } = options;
-  const now = (frame - startFrame) / fps;
+  const now2 = (frame - startFrame) / fps;
   const particles = [];
   for (let i = 0; i < count; i++) {
     const key = (name) => `${seed}:${i}:${name}`;
     const birth = emitDuration * i / count;
-    const age = now - birth;
+    const age = now2 - birth;
     if (age < 0) continue;
     const life = pick(lifetime, key("lifetime"));
     if (age >= life) continue;
@@ -843,8 +908,8 @@ var SHAPES = {
   star: "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)"
 };
 var Particles = ({ shape = "circle", render, style, className, ...options }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { fps } = chunkVLRD4ANM_cjs.useVideoConfig();
   if (!(shape in SHAPES)) {
     throw new Error(`Particles: shape must be one of ${Object.keys(SHAPES).join(", ")}, got ${JSON.stringify(shape)}`);
   }
@@ -889,7 +954,7 @@ var Fade = ({
   startFrame = 0,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const opacity = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -907,7 +972,7 @@ var Scale = ({
   easing = chunkWEQRPTIM_cjs.Easing.easeOutCubic,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -926,7 +991,7 @@ var Slide = ({
   easing = chunkWEQRPTIM_cjs.Easing.easeOutCubic,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -959,7 +1024,7 @@ var Rotate = ({
   easing = chunkWEQRPTIM_cjs.Easing.linear,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const rotation = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -976,7 +1041,7 @@ var Typewriter = ({
   cursor = true,
   cursorChar = "|"
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const characters = splitGraphemes(text);
   const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
@@ -1001,7 +1066,7 @@ var Counter = ({
   locale = "en-US",
   format: format2
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const numberFormat = React5__default.default.useMemo(
     () => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }),
     [locale]
@@ -1052,7 +1117,7 @@ var Glitch = ({
   intensity = 10,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const shouldGlitch = frame % 10 < 3;
   const offset = shouldGlitch ? chunkWEQRPTIM_cjs.random(`glitch-${frame}-offset`) * intensity : 0;
   return /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { position: "relative", ...style }, children: [
@@ -1093,7 +1158,7 @@ var ShakeEffect = ({
   active = true,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   if (!active) {
     return /* @__PURE__ */ jsxRuntime.jsx("div", { style, children });
   }
@@ -1147,7 +1212,7 @@ var NeonGlow = ({
   intensity = 1,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const pulseIntensity = 0.8 + Math.sin(frame * 0.1) * 0.2;
   return /* @__PURE__ */ jsxRuntime.jsx(
     "div",
@@ -1177,7 +1242,7 @@ var Rotate3D = ({
   easing = chunkWEQRPTIM_cjs.Easing.easeInOutCubic,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1207,7 +1272,7 @@ var Flip3D = ({
   perspective: perspective2 = 1e3,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1264,7 +1329,7 @@ var Perspective3D = ({
   startFrame = 0,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1295,7 +1360,7 @@ var Cube3D = ({
   },
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const rotateY2 = chunkWEQRPTIM_cjs.interpolate(frame, [0, durationInFrames], [0, 360], {
     extrapolateRight: "extend"
   });
@@ -1349,8 +1414,8 @@ var ParticleSystem = ({
   particleShape = "circle",
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { width, height } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { width, height } = chunkVLRD4ANM_cjs.useVideoConfig();
   if (!PARTICLE_DIRECTIONS.includes(direction)) {
     throw new Error(
       `ParticleSystem: direction must be one of ${PARTICLE_DIRECTIONS.join(", ")}, got ${JSON.stringify(direction)} (for bursts use <Particles>)`
@@ -1442,7 +1507,7 @@ var LetterByLetter = ({
   style,
   letterStyle
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const letters = splitGraphemes(text);
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexWrap: "wrap", ...style }, children: letters.map((char, index) => {
     const letterStart = startFrame + index * delayPerLetter;
@@ -1493,7 +1558,7 @@ var WordByWord = ({
   style,
   wordStyle
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const words = text.split(" ");
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexWrap: "wrap", gap: "0.3em", ...style }, children: words.map((word, index) => {
     const wordStart = startFrame + index * delayPerWord;
@@ -1539,7 +1604,7 @@ var WaveText = ({
   style,
   letterStyle
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", alignItems: "center", ...style }, children: splitGraphemes(text).map((char, index) => {
     const offset = Math.sin(frame * speed + index * frequency) * amplitude;
     return /* @__PURE__ */ jsxRuntime.jsx(
@@ -1564,7 +1629,7 @@ var RainbowText = ({
   style,
   letterStyle
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexWrap: "wrap", ...style }, children: splitGraphemes(text).map((char, index) => {
     const hue = (frame * speed + index * 20) % 360;
     const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
@@ -1589,7 +1654,7 @@ var GradientText = ({
   angle: angle2 = 90,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   if (colors.length === 0) {
     throw new Error("GradientText: colors must contain at least one color");
   }
@@ -1620,7 +1685,7 @@ var Blur = ({
   startFrame = 0,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const blur = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1638,8 +1703,8 @@ var Bounce = ({
   damping = 0.7,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { fps } = chunkVLRD4ANM_cjs.useVideoConfig();
   const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
@@ -1659,7 +1724,7 @@ var Pulse = ({
   speed = 0.1,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const scale2 = minScale + (maxScale - minScale) * (0.5 + Math.sin(frame * speed) * 0.5);
   return /* @__PURE__ */ jsxRuntime.jsx("div", { style: { transform: `scale(${scale2})`, ...style }, children });
 };
@@ -1671,7 +1736,7 @@ var Swing = ({
   durationInFrames = 120,
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const dampFactor = Math.pow(damping, frame);
   const rotation = Math.sin(frame * speed) * angle2 * dampFactor;
   return /* @__PURE__ */ jsxRuntime.jsx(
@@ -1691,8 +1756,8 @@ var Confetti = ({
   colors = ["#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#ec4899"],
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { width, height } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { width, height } = chunkVLRD4ANM_cjs.useVideoConfig();
   const confettiPieces = React5__default.default.useMemo(() => {
     const seed = (n) => {
       const x = Math.sin(n * 9999) * 1e4;
@@ -1746,8 +1811,8 @@ var KineticTypography = ({
   type = "velocity",
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { fps } = chunkVLRD4ANM_cjs.useVideoConfig();
   const characters = splitGraphemes(text);
   return /* @__PURE__ */ jsxRuntime.jsx(
     "div",
@@ -1859,7 +1924,7 @@ var LiquidText = ({
   className = "",
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const id = React5__default.default.useId().replace(/:/g, "");
   const wavePath = React5__default.default.useMemo(() => {
     let path = `M 0 ${height}`;
@@ -1945,7 +2010,7 @@ var TextStack3D = ({
   className = "",
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const progress = chunkWEQRPTIM_cjs.interpolate(
     frame - startFrame,
     [0, durationInFrames],
@@ -2016,8 +2081,8 @@ var StickyGridScroll = ({
   className = "",
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { height } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { height } = chunkVLRD4ANM_cjs.useVideoConfig();
   const progress = chunkWEQRPTIM_cjs.interpolate(
     frame - startFrame,
     [0, scrollDuration],
@@ -2087,8 +2152,8 @@ var FlipImageReveal = ({
   className = "",
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { width: videoWidth, height: videoHeight } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { width: videoWidth, height: videoHeight } = chunkVLRD4ANM_cjs.useVideoConfig();
   const progress = chunkWEQRPTIM_cjs.interpolate(
     frame - startFrame,
     [0, durationInFrames],
@@ -2164,7 +2229,7 @@ var CardExpansionMask = ({
   className = "",
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   React5__default.default.useId().replace(/:/g, "");
   const progress = chunkWEQRPTIM_cjs.interpolate(
     frame - startFrame,
@@ -2853,8 +2918,8 @@ var pathFromPoints = (points, options = {}) => {
 
 // src/hooks/animation.ts
 var useSpring = (options = {}) => {
-  const currentFrame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { fps: videoFps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const currentFrame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { fps: videoFps } = chunkVLRD4ANM_cjs.useVideoConfig();
   const {
     fps = videoFps,
     frame = currentFrame,
@@ -2873,7 +2938,7 @@ var useSpring = (options = {}) => {
   });
 };
 var useInterpolate = (inputRange, outputRange, options) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   return chunkWEQRPTIM_cjs.interpolate(frame, inputRange, outputRange, options);
 };
 var useCycle = (items, frame, durationPerItem) => {
@@ -2881,26 +2946,26 @@ var useCycle = (items, frame, durationPerItem) => {
   return items[index];
 };
 var useDurationInFrames = (seconds) => {
-  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const { fps } = chunkVLRD4ANM_cjs.useVideoConfig();
   return Math.round(seconds * fps);
 };
 var useDelay = (delayInFrames) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   return frame >= delayInFrames;
 };
 var progressOf = (frame, durationInFrames) => durationInFrames > 1 ? frame / (durationInFrames - 1) : frame >= 0 ? 1 : 0;
 var useProgress = () => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { durationInFrames } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { durationInFrames } = chunkVLRD4ANM_cjs.useVideoConfig();
   return progressOf(frame, durationInFrames);
 };
 var useLoop = (loopDuration) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   return frame % loopDuration;
 };
 var useTimeline = () => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { durationInFrames, fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { durationInFrames, fps } = chunkVLRD4ANM_cjs.useVideoConfig();
   return {
     frame,
     durationInFrames,
@@ -2913,13 +2978,13 @@ var useTimeline = () => {
   };
 };
 var useWindowedFrame = (startFrame, endFrame) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const isInWindow = frame >= startFrame && frame < endFrame;
   const relativeFrame = frame - startFrame;
   return { isInWindow, relativeFrame: isInWindow ? relativeFrame : 0 };
 };
 var useAnimation = (startFrame, endFrame) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const isAnimating = frame >= startFrame && frame < endFrame;
   const isComplete = frame >= endFrame;
   const progress = isAnimating ? (frame - startFrame) / (endFrame - startFrame) : isComplete ? 1 : 0;
@@ -2931,7 +2996,7 @@ var useAnimation = (startFrame, endFrame) => {
   };
 };
 var useKeyframeState = (keyframes) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const sorted = [...keyframes].sort((a, b) => a.frame - b.frame);
   let prev = sorted[0];
   let next = sorted[sorted.length - 1];
@@ -2951,7 +3016,7 @@ var useKeyframeState = (keyframes) => {
   };
 };
 var useTransform = (options) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const transforms = [];
   if (options.translateX) {
     transforms.push(`translateX(${options.translateX(frame)}px)`);
@@ -2975,8 +3040,8 @@ var useTransform = (options) => {
   return style;
 };
 var useFade = (fadeInDuration, fadeOutDuration, options) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { durationInFrames } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { durationInFrames } = chunkVLRD4ANM_cjs.useVideoConfig();
   const startFrame = options?.startFrame ?? 0;
   const endFrame = options?.endFrame ?? durationInFrames - 1;
   if (frame < startFrame + fadeInDuration) {
@@ -2998,7 +3063,7 @@ var useFade = (fadeInDuration, fadeOutDuration, options) => {
   return 1;
 };
 var useSlide = (direction, distance, duration, startFrame = 0) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + duration],
@@ -3025,7 +3090,7 @@ var useSlide = (direction, distance, duration, startFrame = 0) => {
   return { transform };
 };
 var useShake = (intensity, duration, startFrame = 0) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const progress = chunkWEQRPTIM_cjs.interpolate(
     frame,
     [startFrame, startFrame + duration],
@@ -3038,23 +3103,23 @@ var useShake = (intensity, duration, startFrame = 0) => {
   return { transform: `translate(${shakeX}px, ${shakeY}px)` };
 };
 var usePulse = (minScale, maxScale, frequency) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { fps } = chunkVLRD4ANM_cjs.useVideoConfig();
   const progress = (Math.sin(frame / fps * frequency * Math.PI * 2) + 1) / 2;
   const scale2 = chunkWEQRPTIM_cjs.interpolate(progress, [0, 1], [minScale, maxScale]);
   return { transform: `scale(${scale2})` };
 };
 function useMemoizedFrame(compute, deps = []) {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   return React5.useMemo(() => compute(), [frame, ...deps]);
 }
 function useAnimationValue(compute, _frameDeps) {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   return React5.useMemo(() => compute(frame), [frame, compute]);
 }
 function useCachedFrame(compositionId, renderer) {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { width, height } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { width, height } = chunkVLRD4ANM_cjs.useVideoConfig();
   return React5.useMemo(() => {
     return renderer(frame);
   }, [compositionId, frame, width, height, renderer]);
@@ -3069,8 +3134,8 @@ function useFrameRange(startFrame, endFrame) {
   }, [startFrame, endFrame]);
 }
 function usePrecomputeFrames(compute, lookahead = 10) {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { durationInFrames } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { durationInFrames } = chunkVLRD4ANM_cjs.useVideoConfig();
   return React5.useMemo(() => {
     const cache = /* @__PURE__ */ new Map();
     for (let i = frame; i < Math.min(frame + lookahead, durationInFrames); i++) {
@@ -3080,8 +3145,8 @@ function usePrecomputeFrames(compute, lookahead = 10) {
   }, [frame, lookahead, durationInFrames, compute]);
 }
 function useOptimizedSpring(config, from = 0, to = 1) {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { fps } = chunkVLRD4ANM_cjs.useVideoConfig();
   return React5.useMemo(() => {
     return chunkWEQRPTIM_cjs.spring({ frame, fps, config, from, to });
   }, [frame, fps, config, from, to]);
@@ -3100,7 +3165,7 @@ function useOptimizedInterpolate(inputRange, outputRange, options) {
  * marketing videos, and automated video generation.
  *
  * @package MotionForge
- * @version 3.0.0
+ * @version 4.0.0
  * @license MIT
  */
 
@@ -3226,99 +3291,103 @@ Object.defineProperty(exports, "useKeyframes", {
 });
 Object.defineProperty(exports, "AbsoluteFill", {
   enumerable: true,
-  get: function () { return chunkWQ6AZCZD_cjs.AbsoluteFill; }
+  get: function () { return chunkZDGERDNT_cjs.AbsoluteFill; }
 });
 Object.defineProperty(exports, "Audio", {
   enumerable: true,
-  get: function () { return chunkWQ6AZCZD_cjs.Audio; }
+  get: function () { return chunkZDGERDNT_cjs.Audio; }
 });
 Object.defineProperty(exports, "Div", {
   enumerable: true,
-  get: function () { return chunkWQ6AZCZD_cjs.AbsoluteFill; }
+  get: function () { return chunkZDGERDNT_cjs.AbsoluteFill; }
 });
 Object.defineProperty(exports, "G", {
   enumerable: true,
-  get: function () { return chunkWQ6AZCZD_cjs.G; }
+  get: function () { return chunkZDGERDNT_cjs.G; }
 });
 Object.defineProperty(exports, "Img", {
   enumerable: true,
-  get: function () { return chunkWQ6AZCZD_cjs.Img; }
+  get: function () { return chunkZDGERDNT_cjs.Img; }
 });
 Object.defineProperty(exports, "Path", {
   enumerable: true,
-  get: function () { return chunkWQ6AZCZD_cjs.Path; }
+  get: function () { return chunkZDGERDNT_cjs.Path; }
 });
 Object.defineProperty(exports, "SVG", {
   enumerable: true,
-  get: function () { return chunkWQ6AZCZD_cjs.SVG; }
+  get: function () { return chunkZDGERDNT_cjs.SVG; }
 });
 Object.defineProperty(exports, "Text", {
   enumerable: true,
-  get: function () { return chunkWQ6AZCZD_cjs.Text; }
+  get: function () { return chunkZDGERDNT_cjs.Text; }
 });
 Object.defineProperty(exports, "Video", {
   enumerable: true,
-  get: function () { return chunkWQ6AZCZD_cjs.Video; }
+  get: function () { return chunkZDGERDNT_cjs.Video; }
 });
 Object.defineProperty(exports, "prefetch", {
   enumerable: true,
-  get: function () { return chunkWQ6AZCZD_cjs.prefetch; }
+  get: function () { return chunkZDGERDNT_cjs.prefetch; }
 });
 Object.defineProperty(exports, "Freeze", {
   enumerable: true,
-  get: function () { return chunkJRWGLEMD_cjs.Freeze; }
+  get: function () { return chunkQIA2L6IO_cjs.Freeze; }
 });
 Object.defineProperty(exports, "Loop", {
   enumerable: true,
-  get: function () { return chunkJRWGLEMD_cjs.Loop; }
+  get: function () { return chunkQIA2L6IO_cjs.Loop; }
 });
 Object.defineProperty(exports, "Retiming", {
   enumerable: true,
-  get: function () { return chunkJRWGLEMD_cjs.Retiming; }
+  get: function () { return chunkQIA2L6IO_cjs.Retiming; }
 });
 Object.defineProperty(exports, "Reverse", {
   enumerable: true,
-  get: function () { return chunkJRWGLEMD_cjs.Reverse; }
+  get: function () { return chunkQIA2L6IO_cjs.Reverse; }
 });
 Object.defineProperty(exports, "Sequence", {
   enumerable: true,
-  get: function () { return chunkJRWGLEMD_cjs.Sequence; }
+  get: function () { return chunkQIA2L6IO_cjs.Sequence; }
 });
 Object.defineProperty(exports, "Series", {
   enumerable: true,
-  get: function () { return chunkJRWGLEMD_cjs.Series; }
+  get: function () { return chunkQIA2L6IO_cjs.Series; }
 });
 Object.defineProperty(exports, "useRelativeCurrentFrame", {
   enumerable: true,
-  get: function () { return chunkJRWGLEMD_cjs.useRelativeCurrentFrame; }
+  get: function () { return chunkQIA2L6IO_cjs.useRelativeCurrentFrame; }
 });
 Object.defineProperty(exports, "useSequence", {
   enumerable: true,
-  get: function () { return chunkJRWGLEMD_cjs.useSequence; }
+  get: function () { return chunkQIA2L6IO_cjs.useSequence; }
+});
+Object.defineProperty(exports, "useIsCollectingAudio", {
+  enumerable: true,
+  get: function () { return chunkM5DYJOS5_cjs.useIsCollectingAudio; }
 });
 Object.defineProperty(exports, "FrameProvider", {
   enumerable: true,
-  get: function () { return chunkNS6WDBHG_cjs.FrameProvider; }
+  get: function () { return chunkVLRD4ANM_cjs.FrameProvider; }
 });
 Object.defineProperty(exports, "createAudioCollector", {
   enumerable: true,
-  get: function () { return chunkNS6WDBHG_cjs.createAudioCollector; }
+  get: function () { return chunkVLRD4ANM_cjs.createAudioCollector; }
 });
 Object.defineProperty(exports, "createRenderGate", {
   enumerable: true,
-  get: function () { return chunkNS6WDBHG_cjs.createRenderGate; }
+  get: function () { return chunkVLRD4ANM_cjs.createRenderGate; }
 });
 Object.defineProperty(exports, "useCurrentFrame", {
   enumerable: true,
-  get: function () { return chunkNS6WDBHG_cjs.useCurrentFrame; }
+  get: function () { return chunkVLRD4ANM_cjs.useCurrentFrame; }
 });
 Object.defineProperty(exports, "useDelayRender", {
   enumerable: true,
-  get: function () { return chunkNS6WDBHG_cjs.useDelayRender; }
+  get: function () { return chunkVLRD4ANM_cjs.useDelayRender; }
 });
 Object.defineProperty(exports, "useVideoConfig", {
   enumerable: true,
-  get: function () { return chunkNS6WDBHG_cjs.useVideoConfig; }
+  get: function () { return chunkVLRD4ANM_cjs.useVideoConfig; }
 });
 exports.AnimatedImage = AnimatedImage;
 exports.Blur = Blur;
@@ -3357,6 +3426,7 @@ exports.TextStack3D = TextStack3D;
 exports.Typewriter = Typewriter;
 exports.WaveText = WaveText;
 exports.WordByWord = WordByWord;
+exports.collectAudioTracks = collectAudioTracks;
 exports.fitRect = fitRect;
 exports.getParticles = getParticles;
 exports.interpolatePath = interpolatePath;

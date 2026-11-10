@@ -1,7 +1,8 @@
 'use client';'use strict';
 
-var chunkJRWGLEMD_cjs = require('../chunk-JRWGLEMD.cjs');
-var chunkNS6WDBHG_cjs = require('../chunk-NS6WDBHG.cjs');
+var chunkQIA2L6IO_cjs = require('../chunk-QIA2L6IO.cjs');
+var chunkM5DYJOS5_cjs = require('../chunk-M5DYJOS5.cjs');
+var chunkVLRD4ANM_cjs = require('../chunk-VLRD4ANM.cjs');
 var react = require('react');
 var fiber = require('@react-three/fiber');
 var jsxRuntime = require('react/jsx-runtime');
@@ -40,8 +41,8 @@ var Scale = ({ width, height }) => {
 };
 var FrameRenderer = ({ onRendered }) => {
   const advance = fiber.useThree((state) => state.advance);
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
-  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
+  const { fps } = chunkVLRD4ANM_cjs.useVideoConfig();
   react.useLayoutEffect(() => {
     advance(frame / fps);
     onRendered(frame);
@@ -49,7 +50,7 @@ var FrameRenderer = ({ onRendered }) => {
   return null;
 };
 var SuspenseHold = () => {
-  const { delayRender, continueRender } = chunkNS6WDBHG_cjs.useDelayRender();
+  const { delayRender, continueRender } = chunkVLRD4ANM_cjs.useDelayRender();
   react.useLayoutEffect(() => {
     const handle = delayRender("<ThreeCanvas> waiting for suspended scene content (textures, models) to load");
     return () => continueRender(handle);
@@ -72,6 +73,7 @@ var CanvasErrorBoundary = class extends react.Component {
   }
 };
 var ThreeCanvas = (props) => {
+  const collecting = chunkM5DYJOS5_cjs.useIsCollectingAudio();
   for (const name of SEQUENCE_PROPS) {
     if (name in props) {
       throw new Error(
@@ -87,16 +89,27 @@ var ThreeCanvas = (props) => {
       `<ThreeCanvas>: frameloop must be 'never' or left out, got ${JSON.stringify(frameloop)}: the canvas is drawn once per frame; animate with useCurrentFrame() instead of useFrame()`
     );
   }
-  const frameValue = react.useContext(chunkNS6WDBHG_cjs.FrameContext);
+  const frameValue = react.useContext(chunkVLRD4ANM_cjs.FrameContext);
   if (!frameValue) {
     throw new Error("<ThreeCanvas> must be used within a FrameProvider");
   }
-  const gateValue = react.useContext(chunkNS6WDBHG_cjs.GateContext);
-  const sequenceValue = react.useContext(chunkJRWGLEMD_cjs.SequenceContext);
-  const hostValue = react.useContext(chunkNS6WDBHG_cjs.HostContext);
-  const timelineValue = react.useContext(chunkNS6WDBHG_cjs.TimelineContext);
+  if (collecting) return null;
+  const gateValue = react.useContext(chunkVLRD4ANM_cjs.GateContext);
+  const sequenceValue = react.useContext(chunkQIA2L6IO_cjs.SequenceContext);
+  const hostValue = react.useContext(chunkVLRD4ANM_cjs.HostContext);
+  const outerTimeline = react.useContext(chunkVLRD4ANM_cjs.TimelineContext);
+  const timelineValue = react.useMemo(
+    () => outerTimeline && {
+      ...outerTimeline,
+      noAudio: outerTimeline.noAudio ?? {
+        inside: "ThreeCanvas",
+        why: "the canvas renders in a React root of its own, which collectAudioTracks() does not render. Put the sound outside the canvas."
+      }
+    },
+    [outerTimeline]
+  );
   const { frame } = frameValue;
-  const { delayRender, continueRender, cancelRender } = chunkNS6WDBHG_cjs.useDelayRender();
+  const { delayRender, continueRender, cancelRender } = chunkVLRD4ANM_cjs.useDelayRender();
   const created = react.useRef(false);
   const createdHold = react.useRef(null);
   react.useLayoutEffect(() => {
@@ -153,7 +166,7 @@ var ThreeCanvas = (props) => {
       resize: { offsetSize: true, ...resize },
       frameloop: "never",
       onCreated: handleCreated,
-      children: /* @__PURE__ */ jsxRuntime.jsx(chunkNS6WDBHG_cjs.FrameContext.Provider, { value: frameValue, children: /* @__PURE__ */ jsxRuntime.jsx(chunkNS6WDBHG_cjs.GateContext.Provider, { value: gateValue, children: /* @__PURE__ */ jsxRuntime.jsx(chunkNS6WDBHG_cjs.HostContext.Provider, { value: hostValue, children: /* @__PURE__ */ jsxRuntime.jsx(chunkNS6WDBHG_cjs.TimelineContext.Provider, { value: timelineValue, children: /* @__PURE__ */ jsxRuntime.jsxs(chunkJRWGLEMD_cjs.SequenceContext.Provider, { value: sequenceValue, children: [
+      children: /* @__PURE__ */ jsxRuntime.jsx(chunkVLRD4ANM_cjs.FrameContext.Provider, { value: frameValue, children: /* @__PURE__ */ jsxRuntime.jsx(chunkVLRD4ANM_cjs.GateContext.Provider, { value: gateValue, children: /* @__PURE__ */ jsxRuntime.jsx(chunkVLRD4ANM_cjs.HostContext.Provider, { value: hostValue, children: /* @__PURE__ */ jsxRuntime.jsx(chunkVLRD4ANM_cjs.TimelineContext.Provider, { value: timelineValue, children: /* @__PURE__ */ jsxRuntime.jsxs(chunkQIA2L6IO_cjs.SequenceContext.Provider, { value: sequenceValue, children: [
         /* @__PURE__ */ jsxRuntime.jsx(Scale, { width, height }),
         /* @__PURE__ */ jsxRuntime.jsxs(react.Suspense, { fallback: /* @__PURE__ */ jsxRuntime.jsx(SuspenseHold, {}), children: [
           children,
@@ -205,7 +218,7 @@ var DepthGallery3D = ({
   className = "",
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const progress = Math.max(0, (frame - startFrame) / durationInFrames);
   return /* @__PURE__ */ jsxRuntime.jsx("div", { className, style: { width: "100%", height: "100%", backgroundColor: "#000", ...style }, children: /* @__PURE__ */ jsxRuntime.jsx(fiber.Canvas, { camera: { position: [0, 0, 5], fov: 75 }, children: /* @__PURE__ */ jsxRuntime.jsx(DeterministicScene, { images, captions, progress }) }) });
 };
@@ -272,7 +285,7 @@ var ShaderImageReveal = ({
   className = "",
   style
 }) => {
-  const frame = chunkNS6WDBHG_cjs.useCurrentFrame();
+  const frame = chunkVLRD4ANM_cjs.useCurrentFrame();
   const progress = Math.max(0, Math.min(1, (frame - startFrame) / durationInFrames));
   return /* @__PURE__ */ jsxRuntime.jsx("div", { className, style: { width: "100%", height: "100%", ...style }, children: /* @__PURE__ */ jsxRuntime.jsx(fiber.Canvas, { orthographic: true, camera: { zoom: 100 }, children: /* @__PURE__ */ jsxRuntime.jsx(react.Suspense, { fallback: null, children: /* @__PURE__ */ jsxRuntime.jsx(RevealPlane, { src, progress }) }) }) });
 };

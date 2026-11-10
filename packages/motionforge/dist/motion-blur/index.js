@@ -1,7 +1,7 @@
-'use client';import { AbsoluteFill } from '../chunk-6ZUQCR5A.js';
-import '../chunk-545UZ5CT.js';
-import { Freeze } from '../chunk-POVQTMPB.js';
-import { useCurrentFrame } from '../chunk-L5HQH5HH.js';
+'use client';import { AbsoluteFill } from '../chunk-26M65GZW.js';
+import { Freeze } from '../chunk-SJDKZF4M.js';
+import '../chunk-ZIJRMQAM.js';
+import { useCurrentFrame } from '../chunk-3P73E4TK.js';
 import { jsxs, jsx } from 'react/jsx-runtime';
 
 // src/components/motion-blur/validate.ts

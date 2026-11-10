@@ -25,6 +25,8 @@ type ThreeCanvasProps = Omit<CanvasProps, 'frameloop' | 'children'> & {
  *   time in seconds. Animate with `useCurrentFrame()`, not `useFrame()`.
  * - Holds the render gate until the renderer exists, the frame is drawn, and
  *   suspended content (textures, models) has loaded.
+ * - Renders nothing in collectAudioTracks() (no WebGL there), and sound
+ *   inside the canvas throws: put it outside.
  */
 declare const ThreeCanvas: React.FC<ThreeCanvasProps>;
 

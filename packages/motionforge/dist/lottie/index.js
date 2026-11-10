@@ -1,4 +1,4 @@
-'use client';import { useDelayRender, useCurrentFrame, useVideoConfig } from '../chunk-L5HQH5HH.js';
+'use client';import { useDelayRender, useCurrentFrame, useVideoConfig } from '../chunk-3P73E4TK.js';
 import { useRef, useState, useEffect, useMemo } from 'react';
 import lottie from 'lottie-web';
 import { jsxs, jsx } from 'react/jsx-runtime';

@@ -1,6 +1,6 @@
 import React from 'react';
 import * as ToneModule from 'tone';
-import { A as AudioVolume } from '../audio-track-2QqcG4WJ.js';
+import { A as AudioVolume } from '../audio-track-BYBIAGke.js';
 
 /** Tone.js itself: what `import * as Tone from 'tone'` gives. */
 type Tone = typeof ToneModule;
@@ -44,9 +44,10 @@ interface ToneAudioProps {
 /**
  * A sound written with Tone.js, rendered offline (an OfflineAudioContext,
  * faster than real time) into an AudioBuffer and registered as an audio
- * track at the start of the enclosing sequence. While it renders it holds
- * the render gate; the result is cached by the source of `render`, `deps`
- * and the options. Renders nothing.
+ * track at the start of the enclosing sequence. The track is registered at
+ * once (`track.generated` describes the sound); while the samples render the
+ * component holds the render gate. The result is cached by the source of
+ * `render`, `deps` and the options (see toneKey). Renders nothing.
  *
  *   <ToneAudio durationInFrames={60} render={(Tone, { framesToSeconds }) => {
  *     const synth = new Tone.Synth().toDestination();
@@ -92,8 +93,45 @@ interface SfxProps {
  * A ZzFX sound effect as an audio track: `<Sfx at={12} zzfx={[...]} />`
  * plays the sound at frame 12 of the enclosing sequence. The samples are
  * computed when the component mounts (no gate needed) and handed to the
- * host as an AudioBuffer; renders nothing.
+ * host as an AudioBuffer (`track.generated`); renders nothing.
  */
 declare const Sfx: React.FC<SfxProps>;
 
-export { Sfx, type SfxProps, type Tone, ToneAudio, type ToneAudioProps, type ToneRenderContext, type ZzfxParams, renderZzfx };
+/**
+ * A generated sound to render ahead of use: the props of `<Sfx>` or
+ * `<ToneAudio>` that make up its cache key (where and how it plays, `at`,
+ * `volume`, `muted`, `name`, is not part of it).
+ */
+type PreparedSound = {
+    type: 'sfx';
+    zzfx: ZzfxParams;
+    seed?: number;
+    sampleRate?: number;
+} | {
+    type: 'tone';
+    durationInFrames: number;
+    render: ToneAudioProps['render'];
+    deps?: readonly unknown[];
+    seed?: number;
+    sampleRate?: number;
+    channels?: 1 | 2;
+};
+/**
+ * Renders generated sounds before they play: a sound that starts on input
+ * (a tap, whose frame is not known in advance) then plays at once. Holds the
+ * render gate until every sound is rendered and cached (inside a premounted
+ * sequence it does not), and returns whether they are. A `<Sfx>` or
+ * `<ToneAudio>` mounted later with the same key (see PreparedSound) uses the
+ * cached samples: it holds nothing and its track has `generated.buffer` set
+ * when it registers. A failed render goes to cancelRender(). Without an
+ * audio collector on the FrameProvider, and in collectAudioTracks(), nothing
+ * is rendered and it returns true.
+ *
+ *   usePrepareAudio([
+ *     { type: 'sfx', zzfx: POP },
+ *     { type: 'tone', durationInFrames: 30, render: chime },
+ *   ]);
+ */
+declare const usePrepareAudio: (sounds: readonly PreparedSound[]) => boolean;
+
+export { type PreparedSound, Sfx, type SfxProps, type Tone, ToneAudio, type ToneAudioProps, type ToneRenderContext, type ZzfxParams, renderZzfx, usePrepareAudio };

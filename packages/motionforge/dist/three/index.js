@@ -1,6 +1,7 @@
-'use client';import { SequenceContext } from '../chunk-POVQTMPB.js';
-import { FrameContext, GateContext, HostContext, TimelineContext, useDelayRender, useCurrentFrame, useVideoConfig } from '../chunk-L5HQH5HH.js';
-import { useContext, useRef, useLayoutEffect, useCallback, Suspense, Component, useState, useMemo } from 'react';
+'use client';import { SequenceContext } from '../chunk-SJDKZF4M.js';
+import { useIsCollectingAudio } from '../chunk-ZIJRMQAM.js';
+import { FrameContext, GateContext, HostContext, TimelineContext, useDelayRender, useCurrentFrame, useVideoConfig } from '../chunk-3P73E4TK.js';
+import { useContext, useMemo, useRef, useLayoutEffect, useCallback, Suspense, Component, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
 import { Image, Text, useTexture } from '@react-three/drei';
@@ -70,6 +71,7 @@ var CanvasErrorBoundary = class extends Component {
   }
 };
 var ThreeCanvas = (props) => {
+  const collecting = useIsCollectingAudio();
   for (const name of SEQUENCE_PROPS) {
     if (name in props) {
       throw new Error(
@@ -89,10 +91,21 @@ var ThreeCanvas = (props) => {
   if (!frameValue) {
     throw new Error("<ThreeCanvas> must be used within a FrameProvider");
   }
+  if (collecting) return null;
   const gateValue = useContext(GateContext);
   const sequenceValue = useContext(SequenceContext);
   const hostValue = useContext(HostContext);
-  const timelineValue = useContext(TimelineContext);
+  const outerTimeline = useContext(TimelineContext);
+  const timelineValue = useMemo(
+    () => outerTimeline && {
+      ...outerTimeline,
+      noAudio: outerTimeline.noAudio ?? {
+        inside: "ThreeCanvas",
+        why: "the canvas renders in a React root of its own, which collectAudioTracks() does not render. Put the sound outside the canvas."
+      }
+    },
+    [outerTimeline]
+  );
   const { frame } = frameValue;
   const { delayRender, continueRender, cancelRender } = useDelayRender();
   const created = useRef(false);

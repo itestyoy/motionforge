@@ -3,8 +3,74 @@
 var react = require('react');
 var jsxRuntime = require('react/jsx-runtime');
 
+// src/core/input-log.ts
+var checkedUpTo = /* @__PURE__ */ new WeakMap();
+var describe = (value) => {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
+};
+var checkInputLog = (log, previous) => {
+  if (!Array.isArray(log)) {
+    throw new Error(`FrameProvider: input must be an array of events { frame, type, ... }, got ${describe(log)}`);
+  }
+  const events = log;
+  let from = checkedUpTo.get(events) ?? 0;
+  if (from === 0 && previous && previous !== events && isAppendOf(previous, events)) {
+    from = checkedUpTo.get(previous) ?? 0;
+  }
+  for (let i = from; i < events.length; i++) {
+    const event = events[i];
+    if (typeof event !== "object" || event === null) {
+      throw new Error(`FrameProvider: input[${i}] must be an event { frame, type, ... }, got ${describe(event)}`);
+    }
+    if (!Number.isInteger(event.frame) || event.frame < 0) {
+      throw new Error(`FrameProvider: input[${i}].frame must be an integer >= 0, got ${describe(event.frame)}`);
+    }
+    if (typeof event.type !== "string" || event.type === "") {
+      throw new Error(`FrameProvider: input[${i}].type must be a non-empty string, got ${describe(event.type)}`);
+    }
+    if (i > 0 && event.frame < events[i - 1].frame) {
+      throw new Error(
+        `FrameProvider: input[${i}].frame (${event.frame}) is before input[${i - 1}].frame (${events[i - 1].frame}): the input log is append-only, in frame order`
+      );
+    }
+  }
+  checkedUpTo.set(events, events.length);
+  return events;
+};
+var isAppendOf = (previous, next) => {
+  if (previous === next) return true;
+  if (next.length < previous.length) return false;
+  if (previous.length === 0) return true;
+  return next[0] === previous[0] && next[previous.length - 1] === previous[previous.length - 1];
+};
+var firstAtOrAfter = (log, frame) => {
+  let low = 0;
+  let high = log.length;
+  while (low < high) {
+    const mid = low + high >>> 1;
+    if (log[mid].frame < frame) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+};
+var firstAfter = (log, frame) => {
+  let low = 0;
+  let high = log.length;
+  while (low < high) {
+    const mid = low + high >>> 1;
+    if (log[mid].frame <= frame) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+};
+
 // src/core/render-gate.ts
 var DEFAULT_TIMEOUT_MS = 3e4;
+var MISSING_INPUT = "waitUntilReady: this FrameProvider renders an input log, so pass the log you gave it: waitUntilReady({ frame, input }). Without it the wait can resolve before React has rendered an event you appended (React renders pointermove and other continuous events later), and the frame would miss it.";
 var internalsOf = /* @__PURE__ */ new WeakMap();
 var pageWidePending = /* @__PURE__ */ new Map();
 var pageWideError = null;
@@ -38,6 +104,7 @@ var createRenderGate = () => {
   let lastHandle = 0;
   let error = null;
   let committedFrame = null;
+  let committedInput = null;
   let attached = false;
   let checkScheduled = false;
   const waiters = /* @__PURE__ */ new Set();
@@ -52,6 +119,7 @@ var createRenderGate = () => {
     if (waiter.timer !== null) clearTimeout(waiter.timer);
     if (waiters.size === 0) pageWideListeners.delete(scheduleCheck);
   };
+  const inputCommitted = (waiter) => waiter.input === void 0 || committedInput !== null && isAppendOf(waiter.input, committedInput);
   const check = () => {
     checkScheduled = false;
     for (const waiter of [...waiters]) {
@@ -59,7 +127,10 @@ var createRenderGate = () => {
       if (failed) {
         settle(waiter);
         waiter.reject(failed);
-      } else if (committedFrame !== null && (waiter.frame === void 0 || waiter.frame === committedFrame) && blocking().length === 0) {
+      } else if (committedFrame !== null && committedInput !== null && waiter.input === void 0) {
+        settle(waiter);
+        waiter.reject(new Error(MISSING_INPUT));
+      } else if (committedFrame !== null && (waiter.frame === void 0 || waiter.frame === committedFrame) && inputCommitted(waiter) && blocking().length === 0) {
         settle(waiter);
         waiter.resolve();
       }
@@ -77,9 +148,12 @@ var createRenderGate = () => {
   };
   const gate = {
     waitUntilReady(options = {}) {
-      const { frame, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
+      const { frame, input, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
       if (frame !== void 0 && (!Number.isInteger(frame) || frame < 0)) {
         throw new Error(`waitUntilReady: frame must be a non-negative integer, got ${frame}`);
+      }
+      if (input !== void 0 && !Array.isArray(input)) {
+        throw new Error(`waitUntilReady: input must be the input log (an array) passed to FrameProvider, got ${JSON.stringify(input)}`);
       }
       if (typeof timeoutMs !== "number" || Number.isNaN(timeoutMs) || timeoutMs <= 0) {
         throw new Error(`waitUntilReady: timeoutMs must be a positive number (or Infinity), got ${timeoutMs}`);
@@ -87,11 +161,11 @@ var createRenderGate = () => {
       const failed = failure();
       if (failed) return Promise.reject(failed);
       return new Promise((resolve, reject) => {
-        const waiter = { frame, resolve, reject, timer: null };
+        const waiter = { frame, input, resolve, reject, timer: null };
         if (Number.isFinite(timeoutMs)) {
           waiter.timer = setTimeout(() => {
             settle(waiter);
-            const notCommitted = frame !== void 0 && committedFrame !== frame ? `frame ${frame} was not committed (FrameProvider is at ${committedFrame ?? "no frame yet"}); ` : "";
+            const notCommitted = frame !== void 0 && committedFrame !== frame ? `frame ${frame} was not committed (FrameProvider is at ${committedFrame ?? "no frame yet"}); ` : !inputCommitted(waiter) ? `the input log of ${input.length} events was not committed (FrameProvider renders ${committedInput === null ? "no input log" : `a log of ${committedInput.length} events that does not extend it`}); ` : "";
             reject(
               new Error(
                 `waitUntilReady: the frame was not ready after ${timeoutMs} ms: ${notCommitted}${describePending()}`
@@ -149,10 +223,12 @@ var createRenderGate = () => {
       return () => {
         attached = false;
         committedFrame = null;
+        committedInput = null;
       };
     },
-    commit(frame) {
+    commit(frame, input) {
       committedFrame = frame;
+      committedInput = input;
       scheduleCheck();
     },
     changed: scheduleCheck,
@@ -176,18 +252,32 @@ var getGateInternals = (gate) => {
 
 // src/core/audio-collector.ts
 var internalsOf2 = /* @__PURE__ */ new WeakMap();
+var listTracks = (entries) => {
+  const tracks = [];
+  for (const { track, most } of entries) {
+    for (let i = 0; i < most; i++) tracks.push(i === 0 ? track : { ...track, id: `${track.id}#${i + 1}` });
+  }
+  tracks.sort((a, b) => a.startFrame - b.startFrame || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return Object.freeze(tracks);
+};
+var attachOnce = (attached) => () => {
+  if (attached.value) {
+    throw new Error(
+      "An audio collector can serve only one FrameProvider at a time; create one collector per FrameProvider"
+    );
+  }
+  attached.value = true;
+  return () => {
+    attached.value = false;
+  };
+};
 var createAudioCollector = () => {
   const entries = /* @__PURE__ */ new Map();
   const listeners = /* @__PURE__ */ new Set();
-  let snapshot = [];
-  let attached = false;
+  let snapshot = Object.freeze([]);
+  const attached = { value: false };
   const publish = () => {
-    const tracks = [];
-    for (const { track, most } of entries.values()) {
-      for (let i = 0; i < most; i++) tracks.push(i === 0 ? track : { ...track, id: `${track.id}#${i + 1}` });
-    }
-    tracks.sort((a, b) => a.startFrame - b.startFrame || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    snapshot = Object.freeze(tracks);
+    snapshot = listTracks(entries.values());
     listeners.forEach((listener) => listener());
   };
   const collector = {
@@ -203,17 +293,8 @@ var createAudioCollector = () => {
     }
   };
   internalsOf2.set(collector, {
-    attach() {
-      if (attached) {
-        throw new Error(
-          "An audio collector can serve only one FrameProvider at a time; create one collector per FrameProvider"
-        );
-      }
-      attached = true;
-      return () => {
-        attached = false;
-      };
-    },
+    collecting: false,
+    attach: attachOnce(attached),
     mount(track) {
       let entry = entries.get(track.id);
       if (!entry) {
@@ -232,9 +313,49 @@ var createAudioCollector = () => {
         released = true;
         current.mounted -= 1;
       };
+    },
+    collect() {
+      throw new Error("collect() is for the collector of collectAudioTracks()");
     }
   });
   return collector;
+};
+var createCollectingCollector = () => {
+  const entries = /* @__PURE__ */ new Map();
+  let frame = null;
+  const collector = {
+    getTracks: () => listTracks(entries.values()),
+    subscribe() {
+      throw new Error("The tracks of collectAudioTracks() are complete when it resolves: there is nothing to subscribe to");
+    }
+  };
+  internalsOf2.set(collector, {
+    collecting: true,
+    attach: attachOnce({ value: false }),
+    mount() {
+      throw new Error("mount() is for the collector of createAudioCollector()");
+    },
+    collect(instance, track) {
+      if (!frame) throw new Error("collect() outside of a frame of collectAudioTracks()");
+      if (!entries.has(track.id)) entries.set(track.id, { track: Object.freeze({ ...track }), most: 0 });
+      const copies = frame.get(track.id) ?? /* @__PURE__ */ new Set();
+      copies.add(instance);
+      frame.set(track.id, copies);
+    }
+  });
+  return {
+    collector,
+    beginFrame() {
+      frame = /* @__PURE__ */ new Map();
+    },
+    endFrame() {
+      for (const [id, copies] of frame ?? []) {
+        const entry = entries.get(id);
+        entry.most = Math.max(entry.most, copies.size);
+      }
+      frame = null;
+    }
+  };
 };
 var isAudioCollector = (value) => typeof value === "object" && value !== null && internalsOf2.has(value);
 var getAudioCollectorInternals = (collector) => {
@@ -256,7 +377,7 @@ var hashString = (text) => {
 };
 
 // src/core/static-files.ts
-var describe = (value) => {
+var describe2 = (value) => {
   try {
     return typeof value === "function" ? "a function" : JSON.stringify(value) ?? String(value);
   } catch {
@@ -265,7 +386,7 @@ var describe = (value) => {
 };
 var checkPath = (path) => {
   if (typeof path !== "string" || path === "") {
-    throw new Error(`staticFile: path must be a non-empty string, got ${describe(path)}`);
+    throw new Error(`staticFile: path must be a non-empty string, got ${describe2(path)}`);
   }
   if (/^[a-z][a-z\d+.-]*:/i.test(path)) {
     throw new Error(`staticFile(${JSON.stringify(path)}): this is already a URL; use it as it is`);
@@ -292,82 +413,17 @@ var makeStaticFileResolver = (staticFiles) => {
     return (path) => {
       const url = staticFiles(checkPath(path));
       if (typeof url !== "string" || url === "") {
-        throw new Error(`staticFile(${JSON.stringify(path)}): the staticFiles function of the FrameProvider must return a non-empty string (a URL), got ${describe(url)}`);
+        throw new Error(`staticFile(${JSON.stringify(path)}): the staticFiles function of the FrameProvider must return a non-empty string (a URL), got ${describe2(url)}`);
       }
       return url;
     };
   }
-  throw new Error(`FrameProvider: staticFiles must be a base URL (a non-empty string) or a function (path) => url, got ${describe(staticFiles)}`);
+  throw new Error(`FrameProvider: staticFiles must be a base URL (a non-empty string) or a function (path) => url, got ${describe2(staticFiles)}`);
 };
 var noStaticFiles = (path) => {
   throw new Error(
     `staticFile(${JSON.stringify(checkPath(path))}): the FrameProvider has no staticFiles. The host app decides where static files come from: <FrameProvider staticFiles="https://cdn.example.com/creative/"> (a base URL) or staticFiles={(path) => url}.`
   );
-};
-
-// src/core/input-log.ts
-var checkedUpTo = /* @__PURE__ */ new WeakMap();
-var describe2 = (value) => {
-  try {
-    return JSON.stringify(value) ?? String(value);
-  } catch {
-    return String(value);
-  }
-};
-var checkInputLog = (log, previous) => {
-  if (!Array.isArray(log)) {
-    throw new Error(`FrameProvider: input must be an array of events { frame, type, ... }, got ${describe2(log)}`);
-  }
-  const events = log;
-  let from = checkedUpTo.get(events) ?? 0;
-  if (from === 0 && previous && previous !== events && isAppendOf(previous, events)) {
-    from = checkedUpTo.get(previous) ?? 0;
-  }
-  for (let i = from; i < events.length; i++) {
-    const event = events[i];
-    if (typeof event !== "object" || event === null) {
-      throw new Error(`FrameProvider: input[${i}] must be an event { frame, type, ... }, got ${describe2(event)}`);
-    }
-    if (!Number.isInteger(event.frame) || event.frame < 0) {
-      throw new Error(`FrameProvider: input[${i}].frame must be an integer >= 0, got ${describe2(event.frame)}`);
-    }
-    if (typeof event.type !== "string" || event.type === "") {
-      throw new Error(`FrameProvider: input[${i}].type must be a non-empty string, got ${describe2(event.type)}`);
-    }
-    if (i > 0 && event.frame < events[i - 1].frame) {
-      throw new Error(
-        `FrameProvider: input[${i}].frame (${event.frame}) is before input[${i - 1}].frame (${events[i - 1].frame}): the input log is append-only, in frame order`
-      );
-    }
-  }
-  checkedUpTo.set(events, events.length);
-  return events;
-};
-var isAppendOf = (previous, next) => {
-  if (previous === next) return true;
-  if (next.length < previous.length) return false;
-  if (previous.length === 0) return true;
-  return next[0] === previous[0] && next[previous.length - 1] === previous[previous.length - 1];
-};
-var firstAtOrAfter = (log, frame) => {
-  let low = 0;
-  let high = log.length;
-  while (low < high) {
-    const mid = low + high >>> 1;
-    if (log[mid].frame < frame) low = mid + 1;
-    else high = mid;
-  }
-  return low;
-};
-var firstAfter = (log, frame) => {
-  let low = 0;
-  let high = log.length;
-  while (low < high) {
-    const mid = low + high >>> 1;
-    if (log[mid].frame <= frame) low = mid + 1;
-    else high = mid;
-  }
-  return low;
 };
 var useIsomorphicLayoutEffect = typeof window === "undefined" ? react.useEffect : react.useLayoutEffect;
 var FrameContext = react.createContext(null);
@@ -451,7 +507,7 @@ var FrameProvider = ({
     [owned, outer]
   );
   const timeline = react.useMemo(
-    () => ({ offset: 0, start: 0, end: durationInFrames, remappedBy: null }),
+    () => ({ offset: 0, start: 0, end: durationInFrames, noAudio: null, placements: [{ offset: 0, start: 0, end: durationInFrames }] }),
     [durationInFrames]
   );
   const outerHost = react.useContext(HostContext);
@@ -485,9 +541,10 @@ var FrameProvider = ({
   );
   react.useEffect(() => owned ? getGateInternals(owned).attach() : void 0, [owned]);
   react.useEffect(() => audio ? getAudioCollectorInternals(audio).attach() : void 0, [audio]);
+  const committedLog = input === void 0 ? null : log;
   react.useEffect(() => {
-    if (owned) getGateInternals(owned).commit(frame);
-  }, [owned, frame]);
+    if (owned) getGateInternals(owned).commit(frame, committedLog);
+  }, [owned, frame, committedLog]);
   const [cancelled, setCancelled] = react.useState(null);
   react.useEffect(
     () => owned === privateGate ? getGateInternals(privateGate).onError((error) => setCancelled(() => error)) : void 0,
@@ -573,6 +630,7 @@ exports.GateContext = GateContext;
 exports.HostContext = HostContext;
 exports.TimelineContext = TimelineContext;
 exports.createAudioCollector = createAudioCollector;
+exports.createCollectingCollector = createCollectingCollector;
 exports.createRenderGate = createRenderGate;
 exports.firstAfter = firstAfter;
 exports.firstAtOrAfter = firstAtOrAfter;
@@ -585,5 +643,5 @@ exports.noStaticFiles = noStaticFiles;
 exports.useCurrentFrame = useCurrentFrame;
 exports.useDelayRender = useDelayRender;
 exports.useVideoConfig = useVideoConfig;
-//# sourceMappingURL=chunk-NS6WDBHG.cjs.map
-//# sourceMappingURL=chunk-NS6WDBHG.cjs.map
+//# sourceMappingURL=chunk-VLRD4ANM.cjs.map
+//# sourceMappingURL=chunk-VLRD4ANM.cjs.map

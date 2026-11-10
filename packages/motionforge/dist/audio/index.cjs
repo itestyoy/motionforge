@@ -1,8 +1,70 @@
 'use client';'use strict';
 
-var chunkSW2AKXWG_cjs = require('../chunk-SW2AKXWG.cjs');
-var chunkNS6WDBHG_cjs = require('../chunk-NS6WDBHG.cjs');
+var chunkM5DYJOS5_cjs = require('../chunk-M5DYJOS5.cjs');
+var chunkVLRD4ANM_cjs = require('../chunk-VLRD4ANM.cjs');
 var react = require('react');
+
+// src/core/generated-audio.ts
+var Generated = class {
+  constructor(kind, key, make) {
+    this.kind = kind;
+    this.key = key;
+    this.make = make;
+    this.rendered = null;
+    this.pending = null;
+  }
+  get buffer() {
+    return this.rendered;
+  }
+  render() {
+    if (this.rendered) return Promise.resolve(this.rendered);
+    if (this.pending) return this.pending;
+    let made;
+    try {
+      made = this.make();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    if (!(made instanceof Promise)) {
+      this.rendered = made;
+      return Promise.resolve(made);
+    }
+    const pending = made.then(
+      (buffer) => {
+        this.rendered = buffer;
+        this.pending = null;
+        return buffer;
+      },
+      (error) => {
+        this.pending = null;
+        throw error;
+      }
+    );
+    this.pending = pending;
+    return pending;
+  }
+  renderNow() {
+    if (!this.rendered) {
+      const made = this.make();
+      if (made instanceof Promise) throw new Error(`renderNow: ${this.kind} audio renders asynchronously`);
+      this.rendered = made;
+    }
+    return this.rendered;
+  }
+};
+var LIMIT = 64;
+var descriptors = /* @__PURE__ */ new Map();
+var generatedAudio = (kind, key, make) => {
+  let descriptor = descriptors.get(key);
+  if (descriptor) {
+    descriptors.delete(key);
+  } else {
+    descriptor = new Generated(kind, key, make);
+  }
+  descriptors.set(key, descriptor);
+  while (descriptors.size > LIMIT) descriptors.delete(descriptors.keys().next().value);
+  return descriptor;
+};
 
 // src/components/audio/seeded-random.ts
 var seededRandom = (seed) => {
@@ -31,25 +93,7 @@ var checkSeed = (component, seed) => {
   return seed;
 };
 
-// src/components/audio/generated-cache.ts
-var LIMIT = 64;
-var entries = /* @__PURE__ */ new Map();
-var getGenerated = (key) => {
-  if (!entries.has(key)) return void 0;
-  const value = entries.get(key);
-  entries.delete(key);
-  entries.set(key, value);
-  return value;
-};
-var setGenerated = (key, value) => {
-  entries.delete(key);
-  entries.set(key, value);
-  while (entries.size > LIMIT) entries.delete(entries.keys().next().value);
-  return value;
-};
-var deleteGenerated = (key, value) => {
-  if (entries.get(key) === value) entries.delete(key);
-};
+// src/components/audio/generated-utils.ts
 var describe = (value) => {
   try {
     return JSON.stringify(value) ?? String(value);
@@ -129,97 +173,64 @@ var renderOffline = async ({ render, fps, durationInSeconds, sampleRate, channel
   context.emit = function seededEmit(...args) {
     return withRandom(random, () => emit.apply(this, args));
   };
-  const rendered2 = await context.render();
-  const buffer = rendered2.get();
+  const rendered = await context.render();
+  const buffer = rendered.get();
   if (!buffer) throw new Error("<ToneAudio>: the offline render returned no audio");
   return buffer;
 };
-var renderTone = (key, job) => {
-  const cached = getGenerated(key);
-  if (cached) return cached;
+var renderQueued = (job) => {
   const promise = queue.then(() => renderOffline(job));
   queue = promise.catch(() => void 0);
-  promise.catch(() => deleteGenerated(key, promise));
-  return setGenerated(key, promise);
+  return promise;
 };
-var rendered = /* @__PURE__ */ new Map();
-var remember = (key, buffer) => {
-  rendered.delete(key);
-  rendered.set(key, buffer);
-  while (rendered.size > 64) rendered.delete(rendered.keys().next().value);
-};
-var checkProps = ({ durationInFrames, render, deps, sampleRate, channels }) => {
+var toneKey = (render, deps, durationInFrames, fps, sampleRate, channels, seed) => JSON.stringify(["tone", String(render), deps, durationInFrames, fps, sampleRate, channels, seed]);
+var toneAudio = (job) => generatedAudio(
+  "tone",
+  toneKey(job.render, job.deps, job.durationInFrames, job.fps, job.sampleRate, job.channels, job.seed),
+  () => renderQueued(job)
+);
+var checkToneProps = (component, { durationInFrames, render, deps, sampleRate, channels }) => {
   if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
-    throw new Error(`<ToneAudio>: durationInFrames must be a positive integer, got ${JSON.stringify(durationInFrames)}`);
+    throw new Error(`${component}: durationInFrames must be a positive integer, got ${JSON.stringify(durationInFrames)}`);
   }
   if (typeof render !== "function") {
-    throw new Error(`<ToneAudio>: render must be a function (Tone) => { ... }, got ${JSON.stringify(render)}`);
+    throw new Error(`${component}: render must be a function (Tone) => { ... }, got ${JSON.stringify(render)}`);
   }
   if (deps !== void 0 && !Array.isArray(deps)) {
-    throw new Error(`<ToneAudio>: deps must be an array, got ${JSON.stringify(deps)}`);
+    throw new Error(`${component}: deps must be an array, got ${JSON.stringify(deps)}`);
   }
-  if (deps !== void 0) checkJson("<ToneAudio>", "deps", deps);
+  if (deps !== void 0) checkJson(component, "deps", deps);
   if (!Number.isInteger(sampleRate) || sampleRate < 3e3 || sampleRate > 768e3) {
-    throw new Error(`<ToneAudio>: sampleRate must be an integer from 3000 to 768000 (Hz), got ${JSON.stringify(sampleRate)}`);
+    throw new Error(`${component}: sampleRate must be an integer from 3000 to 768000 (Hz), got ${JSON.stringify(sampleRate)}`);
   }
   if (channels !== 1 && channels !== 2) {
-    throw new Error(`<ToneAudio>: channels must be 1 or 2, got ${JSON.stringify(channels)}`);
+    throw new Error(`${component}: channels must be 1 or 2, got ${JSON.stringify(channels)}`);
   }
 };
 var ToneAudio = (props) => {
   const { durationInFrames, render, deps = [], seed = 0, sampleRate = 48e3, channels = 2, volume, muted = false, name } = props;
-  checkProps({ ...props, sampleRate, channels });
+  checkToneProps("<ToneAudio>", { ...props, sampleRate, channels });
   checkSeed("<ToneAudio>", seed);
   if (typeof muted !== "boolean") throw new Error(`<ToneAudio>: muted must be a boolean, got ${JSON.stringify(muted)}`);
   if (name !== void 0 && typeof name !== "string") throw new Error(`<ToneAudio>: name must be a string, got ${JSON.stringify(name)}`);
   if (volume !== void 0 && typeof volume !== "function" && !(typeof volume === "number" && Number.isFinite(volume) && volume >= 0)) {
     throw new Error(`<ToneAudio>: volume must be a number >= 0 or a function (frame) => number, got ${JSON.stringify(volume)}`);
   }
-  const host = react.useContext(chunkNS6WDBHG_cjs.HostContext);
-  const collector = host?.audio ?? null;
-  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
-  const { delayRender, continueRender, cancelRender } = chunkNS6WDBHG_cjs.useDelayRender();
-  const key = JSON.stringify(["tone", String(render), deps, durationInFrames, fps, sampleRate, channels, seed]);
-  const renderRef = react.useRef(render);
-  renderRef.current = render;
-  const [done, setDone] = react.useState(null);
-  const buffer = done?.key === key ? done.buffer : rendered.get(key) ?? null;
-  const handle = react.useRef(null);
-  react.useEffect(() => {
-    if (!collector || rendered.has(key)) return;
-    const current = delayRender(`<ToneAudio> rendering ${durationInFrames} frames offline`);
-    handle.current = current;
-    let active = true;
-    renderTone(key, {
-      render: renderRef.current,
-      fps,
-      durationInSeconds: durationInFrames / fps,
-      sampleRate,
-      channels,
-      seed
-    }).then(
-      (result) => {
-        remember(key, result);
-        if (active) setDone({ key, buffer: result });
-      },
-      (error) => {
-        if (!active) return;
-        cancelRender(error);
-        continueRender(current);
-      }
-    );
-    return () => {
-      active = false;
-      continueRender(current);
-      handle.current = null;
-    };
-  }, [collector, key, delayRender, continueRender, cancelRender]);
-  chunkSW2AKXWG_cjs.useAudioTrack(
+  const host = react.useContext(chunkVLRD4ANM_cjs.HostContext);
+  const listened = Boolean(host?.audio);
+  const { fps } = chunkVLRD4ANM_cjs.useVideoConfig();
+  const { delayRender, continueRender, cancelRender } = chunkVLRD4ANM_cjs.useDelayRender();
+  const key = toneKey(render, deps, durationInFrames, fps, sampleRate, channels, seed);
+  const generated = react.useMemo(
+    () => listened ? toneAudio({ render, deps, durationInFrames, fps, durationInSeconds: durationInFrames / fps, sampleRate, channels, seed }) : null,
+    // The other inputs are in `key`.
+    [listened, key]
+  );
+  chunkM5DYJOS5_cjs.useAudioTrack(
     "ToneAudio",
-    buffer && {
+    generated && {
       src: null,
-      buffer,
-      bufferKey: key,
+      generated,
       name: name ?? null,
       trimBefore: 0,
       trimAfter: null,
@@ -232,11 +243,24 @@ var ToneAudio = (props) => {
     }
   );
   react.useEffect(() => {
-    if (buffer && handle.current !== null) {
-      continueRender(handle.current);
-      handle.current = null;
-    }
-  }, [buffer, continueRender]);
+    if (!generated || generated.buffer) return;
+    const handle = delayRender(`<ToneAudio> rendering ${durationInFrames} frames offline`);
+    let active = true;
+    generated.render().then(
+      () => {
+        if (active) continueRender(handle);
+      },
+      (error) => {
+        if (!active) return;
+        cancelRender(error);
+        continueRender(handle);
+      }
+    );
+    return () => {
+      active = false;
+      continueRender(handle);
+    };
+  }, [generated, durationInFrames, delayRender, continueRender, cancelRender]);
   return null;
 };
 
@@ -381,10 +405,31 @@ var renderZzfx = (params, sampleRate = 44100, seed = 0) => {
   for (let i = 0; i < samples.length; i++) samples[i] *= ZZFX_VOLUME;
   return samples;
 };
+var sfxKey = (params, sampleRate, seed) => JSON.stringify(["zzfx", params, sampleRate, seed]);
+var samplesByKey = /* @__PURE__ */ new Map();
+var zzfxSamples = (key, params, sampleRate, seed) => {
+  let samples = samplesByKey.get(key);
+  if (samples) {
+    samplesByKey.delete(key);
+  } else {
+    samples = renderZzfx(params, sampleRate, seed);
+  }
+  samplesByKey.set(key, samples);
+  while (samplesByKey.size > 64) samplesByKey.delete(samplesByKey.keys().next().value);
+  return samples;
+};
+var sfxAudio = (params, sampleRate, seed) => {
+  const key = sfxKey(params, sampleRate, seed);
+  return {
+    generated: generatedAudio("zzfx", key, () => toAudioBuffer("<Sfx>", [zzfxSamples(key, params, sampleRate, seed)], sampleRate)),
+    length: () => zzfxSamples(key, params, sampleRate, seed).length
+  };
+};
 var Sfx = ({ zzfx, at = 0, seed = 0, sampleRate = 44100, volume, muted = false, name }) => {
-  const host = react.useContext(chunkNS6WDBHG_cjs.HostContext);
-  const timeline = react.useContext(chunkNS6WDBHG_cjs.TimelineContext);
-  const { fps } = chunkNS6WDBHG_cjs.useVideoConfig();
+  const host = react.useContext(chunkVLRD4ANM_cjs.HostContext);
+  const timeline = react.useContext(chunkVLRD4ANM_cjs.TimelineContext);
+  const collecting = chunkM5DYJOS5_cjs.useIsCollectingAudio();
+  const { fps } = chunkVLRD4ANM_cjs.useVideoConfig();
   const params = checkParams("<Sfx>", zzfx);
   checkSampleRate("<Sfx>", sampleRate);
   checkSeed("<Sfx>", seed);
@@ -401,18 +446,19 @@ var Sfx = ({ zzfx, at = 0, seed = 0, sampleRate = 44100, volume, muted = false, 
   }
   if (typeof muted !== "boolean") throw new Error(`<Sfx>: muted must be a boolean, got ${JSON.stringify(muted)}`);
   if (name !== void 0 && typeof name !== "string") throw new Error(`<Sfx>: name must be a string, got ${JSON.stringify(name)}`);
-  const key = JSON.stringify(["zzfx", params, sampleRate, seed]);
-  const collect = Boolean(host?.audio);
-  const buffer = react.useMemo(() => {
-    if (!collect) return null;
-    return getGenerated(key) ?? setGenerated(key, toAudioBuffer("<Sfx>", [renderZzfx(params, sampleRate, seed)], sampleRate));
-  }, [collect, key]);
-  chunkSW2AKXWG_cjs.useAudioTrack(
+  const key = sfxKey(params, sampleRate, seed);
+  const listened = Boolean(host?.audio);
+  const sound = react.useMemo(() => {
+    if (!listened) return null;
+    const { generated, length } = sfxAudio(params, sampleRate, seed);
+    if (!collecting) generated.renderNow();
+    return { generated, length: length() };
+  }, [listened, collecting, key]);
+  chunkM5DYJOS5_cjs.useAudioTrack(
     "Sfx",
-    buffer && {
+    sound && {
       src: null,
-      buffer,
-      bufferKey: key,
+      generated: sound.generated,
       name: name ?? null,
       trimBefore: 0,
       trimAfter: null,
@@ -421,14 +467,108 @@ var Sfx = ({ zzfx, at = 0, seed = 0, sampleRate = 44100, volume, muted = false, 
       muted,
       volume,
       at,
-      lengthInFrames: buffer.length / buffer.sampleRate * fps
+      lengthInFrames: sound.length / sampleRate * fps
     }
   );
   return null;
+};
+var describe2 = (value) => {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
+};
+var SFX_KEYS = ["type", "zzfx", "seed", "sampleRate"];
+var TONE_KEYS = ["type", "durationInFrames", "render", "deps", "seed", "sampleRate", "channels"];
+var usePrepareAudio = (sounds) => {
+  if (!Array.isArray(sounds)) {
+    throw new Error(`usePrepareAudio: sounds must be an array, got ${describe2(sounds)}`);
+  }
+  const host = react.useContext(chunkVLRD4ANM_cjs.HostContext);
+  const listened = Boolean(host?.audio);
+  const collecting = chunkM5DYJOS5_cjs.useIsCollectingAudio();
+  const { fps } = chunkVLRD4ANM_cjs.useVideoConfig();
+  const { delayRender, continueRender, cancelRender } = chunkVLRD4ANM_cjs.useDelayRender();
+  const keys = sounds.map((sound, index) => {
+    const where = `usePrepareAudio: sounds[${index}]`;
+    if (typeof sound !== "object" || sound === null || sound.type !== "sfx" && sound.type !== "tone") {
+      throw new Error(`${where} must be { type: 'sfx', zzfx, ... } or { type: 'tone', durationInFrames, render, ... }, got ${describe2(sound)}`);
+    }
+    const allowed = sound.type === "sfx" ? SFX_KEYS : TONE_KEYS;
+    for (const key2 of Object.keys(sound)) {
+      if (!allowed.includes(key2)) {
+        throw new Error(
+          `${where}: a ${sound.type} sound takes ${allowed.join(", ")}, not ${JSON.stringify(key2)} (where and how it plays is the component's)`
+        );
+      }
+    }
+    const seed = sound.seed ?? 0;
+    checkSeed(where, seed);
+    if (sound.type === "sfx") {
+      const sampleRate2 = sound.sampleRate ?? 44100;
+      checkSampleRate(where, sampleRate2);
+      return sfxKey(checkParams(where, sound.zzfx), sampleRate2, seed);
+    }
+    const sampleRate = sound.sampleRate ?? 48e3;
+    const channels = sound.channels ?? 2;
+    checkToneProps(where, { ...sound, sampleRate, channels });
+    return toneKey(sound.render, sound.deps ?? [], sound.durationInFrames, fps, sampleRate, channels, seed);
+  });
+  const key = keys.join("\n");
+  const latest = react.useRef(sounds);
+  latest.current = sounds;
+  const generated = react.useMemo(
+    () => listened && !collecting ? latest.current.map(
+      (sound) => sound.type === "sfx" ? sfxAudio(checkParams("usePrepareAudio", sound.zzfx), sound.sampleRate ?? 44100, sound.seed ?? 0).generated : toneAudio({
+        render: sound.render,
+        deps: sound.deps ?? [],
+        durationInFrames: sound.durationInFrames,
+        fps,
+        durationInSeconds: sound.durationInFrames / fps,
+        sampleRate: sound.sampleRate ?? 48e3,
+        channels: sound.channels ?? 2,
+        seed: sound.seed ?? 0
+      })
+    ) : [],
+    [listened, collecting, key, fps]
+  );
+  const cached = generated.every((sound) => sound.buffer !== null);
+  const [renderedKey, setRenderedKey] = react.useState(null);
+  const handle = react.useRef(null);
+  react.useEffect(() => {
+    if (cached) return void 0;
+    const current = delayRender(`usePrepareAudio rendering ${generated.length} sound${generated.length === 1 ? "" : "s"}`);
+    handle.current = current;
+    let active = true;
+    Promise.all(generated.map((sound) => sound.render())).then(
+      () => {
+        if (active) setRenderedKey(key);
+      },
+      (error) => {
+        if (!active) return;
+        cancelRender(error);
+        continueRender(current);
+      }
+    );
+    return () => {
+      active = false;
+      continueRender(current);
+      handle.current = null;
+    };
+  }, [generated, cached, key, delayRender, continueRender, cancelRender]);
+  react.useEffect(() => {
+    if (renderedKey === key && handle.current !== null) {
+      continueRender(handle.current);
+      handle.current = null;
+    }
+  }, [renderedKey, key, continueRender]);
+  return cached || renderedKey === key;
 };
 
 exports.Sfx = Sfx;
 exports.ToneAudio = ToneAudio;
 exports.renderZzfx = renderZzfx;
+exports.usePrepareAudio = usePrepareAudio;
 //# sourceMappingURL=index.cjs.map
 //# sourceMappingURL=index.cjs.map
