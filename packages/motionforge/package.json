@@ -10,19 +10,34 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./three": {
-      "types": "./dist/three/index.d.ts",
-      "import": "./dist/three/index.js",
-      "require": "./dist/three/index.cjs"
+      "import": {
+        "types": "./dist/three/index.d.ts",
+        "default": "./dist/three/index.js"
+      },
+      "require": {
+        "types": "./dist/three/index.d.cts",
+        "default": "./dist/three/index.cjs"
+      }
     },
     "./lottie": {
-      "types": "./dist/lottie/index.d.ts",
-      "import": "./dist/lottie/index.js",
-      "require": "./dist/lottie/index.cjs"
+      "import": {
+        "types": "./dist/lottie/index.d.ts",
+        "default": "./dist/lottie/index.js"
+      },
+      "require": {
+        "types": "./dist/lottie/index.d.cts",
+        "default": "./dist/lottie/index.cjs"
+      }
     }
   },
   "files": [

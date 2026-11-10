@@ -38,6 +38,8 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 
 ### Fixed
 - All entries are built together and share one frame context.
+- Every built file starts with `'use client'` (the source directives were lost in bundling).
+- `require()` consumers get the CommonJS type declarations (`.d.cts`): each `exports` entry has its own `types` under `import` and `require`.
 - `spring()` returns `from` for frames before the start instead of diverging.
 - `interpolate()` with `extrapolateRight: 'extend'` continues the last segment, not the first.
 - `interpolateColors()` holds the end colors outside the input range and keeps alpha of `rgba()` / `#rrggbbaa`.
