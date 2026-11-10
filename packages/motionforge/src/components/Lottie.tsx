@@ -8,6 +8,7 @@ import { useDelayRender } from '../core/delay-render';
 export interface LottieProps {
   /**
    * Source of the Lottie animation. Can be a URL to a JSON file or an imported JSON object.
+   * An object is compared by content: a new object with the same JSON does not reload.
    */
   src: string | object;
   /**
@@ -48,6 +49,22 @@ export interface LottieProps {
   className?: string;
 }
 
+// Identity of a source: the URL, or the JSON of the data. The JSON of an
+// object is computed once per object.
+const jsonOfData = new WeakMap<object, string>();
+const sourceKey = (src: unknown): string => {
+  if (typeof src === 'string' && src !== '') return `url:${src}`;
+  if (typeof src === 'object' && src !== null) {
+    let json = jsonOfData.get(src);
+    if (json === undefined) {
+      json = JSON.stringify(src);
+      jsonOfData.set(src, json);
+    }
+    return `data:${json}`;
+  }
+  throw new Error(`Lottie: src must be a URL or animation data (an object), got ${JSON.stringify(src)}`);
+};
+
 /**
  * Lottie Component for MotionForge.
  *
@@ -75,6 +92,7 @@ export const Lottie: React.FC<LottieProps> = ({
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { delayRender, continueRender, cancelRender } = useDelayRender();
+  const srcKey = sourceKey(src);
   // Held from loading until the frame is set on the loaded animation.
   const loadHandle = useRef<number | null>(null);
 
@@ -152,7 +170,8 @@ export const Lottie: React.FC<LottieProps> = ({
       fail(err instanceof Error ? err.message : String(err));
       return () => {};
     }
-  }, [src, delayRender, continueRender, cancelRender]);
+    // Keyed by `srcKey`: `src` is read when its content changes, not on every new object.
+  }, [srcKey, delayRender, continueRender, cancelRender]);
 
   // Handle frame synchronization
   useEffect(() => {

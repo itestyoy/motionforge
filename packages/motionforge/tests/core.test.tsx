@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { FrameProvider, useCurrentFrame, useVideoConfig } from '../src/core/context';
 import { Composition } from '../src/components/Composition';
-import { Freeze, Loop, Retiming, Sequence, Series } from '../src/components/Sequence';
+import { Freeze, Loop, Retiming, Reverse, Sequence, Series } from '../src/components/Sequence';
 import { useFade, useProgress, useTimeline } from '../src/hooks/animation';
 import { useMemoizedFrame } from '../src/hooks/performance';
 import * as entry from '../src/index';
@@ -189,5 +189,50 @@ describe('public hooks', () => {
     for (const name of ['usePerformanceMonitor', 'useThrottledFrame', 'useBatchFrameProcessor', 'useRenderPriority']) {
       expect(entry).not.toHaveProperty(name);
     }
+  });
+});
+
+describe('input checks', () => {
+  it('Loop needs a positive integer duration and times, and a frame >= 0', () => {
+    for (const durationInFrames of [0, -1, 2.5, Number.NaN]) {
+      expect(() => renderAt(5, <Loop durationInFrames={durationInFrames}><ShowFrame id="a" /></Loop>)).toThrow(
+        /Loop: durationInFrames must be a positive integer/,
+      );
+    }
+    for (const times of [0, 1.5, -2]) {
+      expect(() => renderAt(5, <Loop durationInFrames={10} times={times}><ShowFrame id="a" /></Loop>)).toThrow(
+        /Loop: times must be a positive integer or Infinity/,
+      );
+    }
+    expect(() =>
+      renderAt(5, <Freeze frame={-3}><Loop durationInFrames={10}><ShowFrame id="a" /></Loop></Freeze>),
+    ).toThrow(/Loop: the current frame must be >= 0, got -3/);
+    expect(valueOf(renderAt(25, <Loop durationInFrames={10} times={3}><ShowFrame id="a" /></Loop>), 'a')).toBe('5');
+    expect(valueOf(renderAt(30, <Loop durationInFrames={10} times={3}><ShowFrame id="a" /></Loop>), 'a')).toBeNull();
+  });
+
+  it('Sequence needs integer from and offset and a positive integer duration', () => {
+    expect(() => renderAt(0, <Sequence from={1.5}><ShowFrame id="a" /></Sequence>)).toThrow(/from must be an integer/);
+    expect(() => renderAt(0, <Sequence from={0} offset={Number.NaN}><ShowFrame id="a" /></Sequence>)).toThrow(
+      /offset must be an integer/,
+    );
+    for (const durationInFrames of [0, -10, 1.5, Infinity]) {
+      expect(() => renderAt(0, <Sequence from={0} durationInFrames={durationInFrames}><ShowFrame id="a" /></Sequence>)).toThrow(
+        /durationInFrames must be a positive integer \(leave it out to run to the end\)/,
+      );
+    }
+  });
+
+  it('Reverse plays backwards with its own duration in useVideoConfig()', () => {
+    const scene = <Reverse durationInFrames={20}><ShowFrame id="f" /><ShowDuration id="d" /></Reverse>;
+    expect(valueOf(renderAt(0, scene), 'f')).toBe('19');
+    expect(valueOf(renderAt(19, scene), 'f')).toBe('0');
+    expect(valueOf(renderAt(5, scene), 'd')).toBe('20');
+    expect(() => renderAt(0, <Reverse durationInFrames={0}><ShowFrame id="f" /></Reverse>)).toThrow(
+      /Reverse: durationInFrames must be a positive integer/,
+    );
+    expect(() => renderAt(0, <Freeze frame={-1}><Reverse durationInFrames={5}>{null}</Reverse></Freeze>)).toThrow(
+      /Reverse: the current frame must be >= 0/,
+    );
   });
 });

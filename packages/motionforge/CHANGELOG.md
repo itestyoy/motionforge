@@ -26,6 +26,8 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - `usePerformanceMonitor`, `useThrottledFrame`, `useBatchFrameProcessor` and `useRenderPriority`: they returned constants or ignored their arguments.
 
 ### Changed (breaking)
+- `Loop` throws unless `durationInFrames` is a positive integer and `times` a positive integer or `Infinity`, and on a negative current frame; `Reverse` likewise for `durationInFrames` and the frame. `Sequence` throws on a non-integer `from` or `offset` and on a `durationInFrames` that is not a positive integer.
+- `Retiming` has no `name` prop (it was never used).
 - `Freeze` follows Remotion: `<Freeze frame active?>` shows `frame` while `active` (a boolean or a function of the frame, default `true`) for its whole lifetime. `durationInFrames` (hold, then resume) and the unused `name` prop are removed; `frame` must be an integer.
 - `interpolate()` throws on an unknown `extrapolateLeft` / `extrapolateRight` and on an `easing` that is not a function (or an array of them, one per segment).
 - `ParticleSystem` has no `direction="explode"` any more (use `<Particles>`), and it throws on an unknown `direction`.
@@ -47,12 +49,14 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - `GradientText` animates `backgroundPosition` over a fixed, seamlessly repeating gradient; it throws when `colors` is empty.
 - `Lottie` maps composition frames to Lottie frames by time (`frame / fps × Lottie frame rate × playbackRate`), not one to one. Its root is now a wrapper element around the lottie-web container.
 - `FrameProvider` and `Composition` throw when `frame` is not an integer from 0 to `durationInFrames - 1`, or when `fps`, `width`, `height` or `durationInFrames` is not positive.
-- Inside `Sequence`, `Loop` and `Series.Sequence`, `useVideoConfig().durationInFrames` is the length of the sequence (`Sequence`: its `durationInFrames`, or the rest of the parent when it has none; `Loop`: one iteration; `Series.Sequence`: its own).
+- Inside `Sequence`, `Loop`, `Reverse` and `Series.Sequence`, `useVideoConfig().durationInFrames` is the length of the sequence (`Sequence`: its `durationInFrames`, or the rest of the parent when it has none; `Loop`: one iteration; `Reverse` and `Series.Sequence`: their own).
 - The `Loop` context hook is exported as `useLoopInfo()` (it was unreachable: `useLoop` is the frame-modulo hook from `hooks/animation`).
 - `Retiming` with a function `playbackRate` advances by the rate on each frame: the content frame is `floor(Σ playbackRate(i) for i < frame)`, so speed ramps no longer jump or run backwards.
 - `useFade()` without `endFrame` fades out to 0 on the last frame (`durationInFrames - 1`).
 
 ### Fixed
+- `Lottie` does not reload when `src` is a new object with the same data (it is compared by its JSON); it throws on a `src` that is neither a URL nor an object.
+- README Quick Start imports `useVideoConfig`.
 - Every easing returns exactly 0 at 0 and 1 at 1 (e.g. `easeInSine(1)` was 0.9999999999999999).
 - All entries are built together and share one frame context.
 - Every built file starts with `'use client'` (the source directives were lost in bundling).

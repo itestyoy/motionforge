@@ -55,6 +55,17 @@ export const Sequence: React.FC<SequenceProps> = ({
   const currentFrame = useCurrentFrame();
   const parent = useContext(FrameContext);
   const parentGate = useContext(GateContext);
+  if (!Number.isInteger(from)) {
+    throw new Error(`Sequence: from must be an integer, got ${from}`);
+  }
+  if (!Number.isInteger(offset)) {
+    throw new Error(`Sequence: offset must be an integer, got ${offset}`);
+  }
+  if (durationInFrames !== undefined && (!Number.isInteger(durationInFrames) || durationInFrames <= 0)) {
+    throw new Error(
+      `Sequence: durationInFrames must be a positive integer (leave it out to run to the end), got ${durationInFrames}`,
+    );
+  }
   if (!Number.isInteger(premountFor) || premountFor < 0) {
     throw new Error(`Sequence: premountFor must be a non-negative integer, got ${premountFor}`);
   }
@@ -181,20 +192,35 @@ export const useRelativeCurrentFrame = () => useContext(RelativeFrameContext);
 
 // Loop Component - loops a sequence for specified number of times
 interface LoopProps {
+  /** Length of one iteration (a positive integer). */
   durationInFrames: number;
+  /** Number of iterations (a positive integer, default Infinity); after them nothing is rendered. */
   times?: number;
   children: ReactNode;
   name?: string;
 }
 
+// Loop and Reverse map the frame with a modulo, which needs frames >= 0.
+const checkFrameNotNegative = (component: string, frame: number) => {
+  if (frame < 0) {
+    throw new Error(`${component}: the current frame must be >= 0, got ${frame} (a parent shifted it below 0)`);
+  }
+};
+
 export const Loop: React.FC<LoopProps> = ({
   durationInFrames,
   times = Infinity,
   children,
-  name,
 }) => {
   const currentFrame = useCurrentFrame();
-  
+  if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
+    throw new Error(`Loop: durationInFrames must be a positive integer, got ${durationInFrames}`);
+  }
+  if (times !== Infinity && (!Number.isInteger(times) || times <= 0)) {
+    throw new Error(`Loop: times must be a positive integer or Infinity, got ${times}`);
+  }
+  checkFrameNotNegative('Loop', currentFrame);
+
   // Calculate looped frame
   const totalFrames = times === Infinity ? durationInFrames : durationInFrames * times;
   const loopedFrame = currentFrame % durationInFrames;
@@ -274,7 +300,6 @@ interface RetimingProps {
    * content frame at `frame` is floor(sum of playbackRate(i) for i < frame).
    */
   playbackRate: number | ((frame: number) => number);
-  name?: string;
 }
 
 const checkRate = (rate: number, frame: number): number => {
@@ -329,6 +354,7 @@ export const Retiming: React.FC<RetimingProps> = ({
 // Reverse Component - plays frames in reverse
 interface ReverseProps {
   children: ReactNode;
+  /** Length of the reversed content (a positive integer); it repeats after that. */
   durationInFrames: number;
 }
 
@@ -337,10 +363,14 @@ export const Reverse: React.FC<ReverseProps> = ({
   durationInFrames,
 }) => {
   const currentFrame = useCurrentFrame();
+  if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
+    throw new Error(`Reverse: durationInFrames must be a positive integer, got ${durationInFrames}`);
+  }
+  checkFrameNotNegative('Reverse', currentFrame);
   const reversedFrame = durationInFrames - 1 - (currentFrame % durationInFrames);
 
   return (
-    <SequenceFrameProvider relativeFrame={reversedFrame}>
+    <SequenceFrameProvider relativeFrame={reversedFrame} durationInFrames={durationInFrames}>
       {children}
     </SequenceFrameProvider>
   );

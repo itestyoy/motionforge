@@ -41,9 +41,10 @@ bun add motionforge
 ## 🚀 Quick Start
 
 ```tsx
-import { 
-  AbsoluteFill, 
-  useCurrentFrame, 
+import {
+  AbsoluteFill,
+  useCurrentFrame,
+  useVideoConfig,
   interpolate,
   spring,
   FrameProvider,
@@ -167,10 +168,10 @@ All entries share one frame context, so components from `motionforge/three` and 
 |-----------|-------------|
 | `AbsoluteFill` | Full-screen container with absolute positioning |
 | `Sequence` | Time-based rendering for scene management; inside it `useCurrentFrame()` counts from the sequence start; `premountFor` mounts it early, invisibly |
-| `Loop` | Loop content infinitely or for a set number of times |
+| `Loop` | Loop content infinitely or for a set number of times (`durationInFrames` and `times` positive integers) |
 | `Freeze` | `<Freeze frame={n} active?>`: the children see frame `n` while `active` (a boolean or `(frame) => boolean`, default `true`), the current frame otherwise |
 | `Retiming` | Variable speed playback; with a function rate the content frame is `floor(Σ rate(i), i < frame)` |
-| `Reverse` | Play content backwards |
+| `Reverse` | Play content backwards; inside it `useVideoConfig().durationInFrames` is its `durationInFrames` |
 | `Series` | Scenes one after another: `<Series.Sequence durationInFrames offset? name? layout? premountFor?>` children only |
 
 ### Series
@@ -393,7 +394,7 @@ The `Lottie` component supports several props to control playback and appearance
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `src` | `string \| object` | - | URL to JSON or imported JSON object |
+| `src` | `string \| object` | - | URL to JSON or imported JSON object; an object is compared by content, so a new object with the same data does not reload |
 | `frameStart` | `number` | `0` | Lottie frame (on the animation's own timeline) to start from |
 | `frameEnd` | `number` | - | Lottie frame to stop at (default: its last frame) |
 | `playbackRate` | `number` | `1` | Speed of the animation; composition frame `f` shows the Lottie at time `f / fps × playbackRate` |

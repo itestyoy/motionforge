@@ -55,6 +55,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  vi.restoreAllMocks();
 });
 
 const renderAt = (frame: number, node: React.ReactNode, gate?: RenderGate) =>
@@ -116,6 +117,23 @@ describe('Lottie', () => {
     expect(animations).toHaveLength(2);
     expect(animations[0].destroy).toHaveBeenCalled();
     expect(container.querySelector('[data-lottie-loaded]')!.getAttribute('data-lottie-loaded')).toBe('false');
+  });
+
+  it('does not reload for a new object with the same data', () => {
+    renderAt(0, <Lottie src={{ layers: [1, 2] }} />);
+    act(() => animations[0].emit('DOMLoaded'));
+    renderAt(1, <Lottie src={{ layers: [1, 2] }} />);
+    renderAt(2, <Lottie src={JSON.parse('{"layers":[1,2]}')} />);
+    expect(animations).toHaveLength(1);
+    expect(animations[0].destroy).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-lottie-loaded]')!.getAttribute('data-lottie-loaded')).toBe('true');
+  });
+
+  it('throws on a src that is neither a URL nor data', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    // @ts-expect-error not a source
+    expect(() => renderAt(0, <Lottie src={null} />)).toThrow(/src must be a URL or animation data/);
+    expect(() => renderAt(0, <Lottie src="" />)).toThrow(/src must be a URL or animation data/);
   });
 
   it('shows an error when the data fails to load, cancels the render, and recovers with a new src', async () => {
