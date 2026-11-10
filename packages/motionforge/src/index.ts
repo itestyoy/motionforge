@@ -59,8 +59,6 @@ export {
   Img,
   Text,
   SVG,
-  Rect,
-  Circle,
   Path,
   G,
   staticFile,

@@ -36,6 +36,7 @@ export default defineConfig({
     'layout-utils/index': 'src/layout-utils.ts',
     'gif/index': 'src/gif.ts',
     'media-utils/index': 'src/media-utils.ts',
+    'shapes/index': 'src/shapes.ts',
   },
   format: ['esm', 'cjs'],
   dts: true,

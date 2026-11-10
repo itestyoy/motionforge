@@ -35,6 +35,9 @@ const motionBlur: any = motionBlurEntry;
 const layoutUtils: any = layoutUtilsEntry;
 const gif: any = gifEntry;
 const mediaUtils: any = mediaUtilsEntry;
+// @ts-ignore
+import * as shapesEntry from '../dist/shapes/index.js';
+const shapes: any = shapesEntry;
 
 const packageDir = fileURLToPath(new URL('..', import.meta.url));
 const distDir = join(packageDir, 'dist');
@@ -94,6 +97,21 @@ describe('built entries', () => {
     expect(html.match(/<b>(\d+)<\/b>/g)).toEqual(['<b>8</b>', '<b>10</b>']);
   });
 
+  it('exports the shapes as in Remotion', () => {
+    expect(Object.keys(shapes).sort()).toEqual([
+      'Arrow', 'Callout', 'Circle', 'Ellipse', 'Heart', 'Pie', 'Polygon', 'Rect', 'Spark', 'Star', 'Triangle',
+      'makeArrow', 'makeCallout', 'makeCircle', 'makeEllipse', 'makeHeart', 'makePie', 'makePolygon', 'makeRect',
+      'makeSpark', 'makeStar', 'makeTriangle',
+    ]);
+    // The old SVG element wrappers are gone from the main entry.
+    for (const name of ['Rect', 'Circle']) {
+      expect(main, name).not.toHaveProperty(name);
+    }
+    for (const name of ['parsePath', 'interpolatePath', 'interpolatePaths', 'warpPath', 'getBoundingBox', 'SVG', 'Path', 'G']) {
+      expect(main, name).toHaveProperty(name);
+    }
+  });
+
   it('keeps three.js, lottie and the GIF decoder out of the main entry and the chunks it imports', () => {
     expect(main).not.toHaveProperty('DepthGallery3D');
     expect(main).not.toHaveProperty('ThreeCanvas');
@@ -147,6 +165,7 @@ describe('built entries', () => {
       ['./layout-utils', 'layout-utils/index'],
       ['./gif', 'gif/index'],
       ['./media-utils', 'media-utils/index'],
+      ['./shapes', 'shapes/index'],
     ];
     expect(Object.keys(pkg.exports)).toEqual(entries.map(([subpath]) => subpath));
     for (const [subpath, base] of entries) {

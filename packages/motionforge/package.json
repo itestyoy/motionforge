@@ -78,6 +78,16 @@
         "types": "./dist/media-utils/index.d.cts",
         "default": "./dist/media-utils/index.cjs"
       }
+    },
+    "./shapes": {
+      "import": {
+        "types": "./dist/shapes/index.d.ts",
+        "default": "./dist/shapes/index.js"
+      },
+      "require": {
+        "types": "./dist/shapes/index.d.cts",
+        "default": "./dist/shapes/index.cjs"
+      }
     }
   },
   "files": [
