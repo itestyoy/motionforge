@@ -7,7 +7,7 @@ import { useDelayRender } from '../../core/delay-render';
 import { AudioVolume, useAudioTrack } from '../../core/audio-track';
 import { generatedAudio } from '../../core/generated-audio';
 import { checkSeed, seededRandom, withRandom } from './seeded-random';
-import { checkJson } from './generated-utils';
+import { checkJson, checkKnownProps, describe, type KnownProps } from './generated-utils';
 
 /** Tone.js itself: what `import * as Tone from 'tone'` gives. */
 export type Tone = typeof ToneModule;
@@ -156,12 +156,32 @@ export const toneAudio = (job: RenderJob & { deps: readonly unknown[]; durationI
     () => renderQueued(job),
   );
 
-export const checkToneProps = (component: string, { durationInFrames, render, deps, sampleRate, channels }: Pick<ToneAudioProps, 'durationInFrames' | 'render' | 'deps' | 'sampleRate' | 'channels'>) => {
+const RENDER_EXAMPLE = "(Tone) => { new Tone.Synth().toDestination().triggerAttackRelease('C5', '8n', 0); }";
+
+/** How a prop is written in an error's example: as a JSX attribute or an object key. */
+export type Usage = 'jsx' | 'object';
+const usage = (style: Usage, name: string, value: string) => (style === 'jsx' ? `${name}={${value}}` : `${name}: ${value}`);
+
+export const checkToneProps = (
+  component: string,
+  { durationInFrames, render, deps, sampleRate, channels }: Pick<ToneAudioProps, 'durationInFrames' | 'render' | 'deps' | 'sampleRate' | 'channels'>,
+  style: Usage = 'jsx',
+) => {
+  if (durationInFrames === undefined) {
+    throw new Error(
+      `${component}: pass the length of the sound in frames as \`${usage(style, 'durationInFrames', '30')}\` (got no \`durationInFrames\`)`,
+    );
+  }
   if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
     throw new Error(`${component}: durationInFrames must be a positive integer, got ${JSON.stringify(durationInFrames)}`);
   }
+  if (render === undefined) {
+    throw new Error(`${component}: pass the Tone.js code as \`${usage(style, 'render', RENDER_EXAMPLE)}\` (got no \`render\`)`);
+  }
   if (typeof render !== 'function') {
-    throw new Error(`${component}: render must be a function (Tone) => { ... }, got ${JSON.stringify(render)}`);
+    throw new Error(
+      `${component}: \`render\` must be a function of Tone with the Tone.js code, e.g. \`${usage(style, 'render', RENDER_EXAMPLE)}\`, got ${describe(render)}`,
+    );
   }
   if (deps !== undefined && !Array.isArray(deps)) {
     throw new Error(`${component}: deps must be an array, got ${JSON.stringify(deps)}`);
@@ -173,6 +193,55 @@ export const checkToneProps = (component: string, { durationInFrames, render, de
   if (channels !== 1 && channels !== 2) {
     throw new Error(`${component}: channels must be 1 or 2, got ${JSON.stringify(channels)}`);
   }
+};
+
+// Names a scene may use for a prop of <ToneAudio> (lower case, without - and _).
+export const TONE_ALIASES: Readonly<Record<string, string>> = {
+  ...Object.fromEntries(
+    ['duration', 'durationframes', 'length', 'lengthinframes', 'frames', 'numframes'].map((name) => [name, 'durationInFrames']),
+  ),
+  ...Object.fromEntries(
+    ['code', 'fn', 'func', 'function', 'synth', 'callback', 'cb', 'play', 'compose', 'build', 'tone', 'music', 'onrender', 'children'].map(
+      (name) => [name, 'render'],
+    ),
+  ),
+  ...Object.fromEntries(['dependencies', 'dependson', 'inputs', 'data'].map((name) => [name, 'deps'])),
+  ...Object.fromEntries(['gain', 'vol', 'level', 'loudness'].map((name) => [name, 'volume'])),
+  ...Object.fromEntries(['mute', 'silent'].map((name) => [name, 'muted'])),
+  ...Object.fromEntries(['label', 'title', 'trackname'].map((name) => [name, 'name'])),
+  ...Object.fromEntries(['rate', 'hz'].map((name) => [name, 'sampleRate'])),
+  ...Object.fromEntries(['channelcount', 'numberofchannels', 'numchannels'].map((name) => [name, 'channels'])),
+  ...Object.fromEntries(['randomseed', 'rngseed'].map((name) => [name, 'seed'])),
+};
+
+const TONE_NOTES: Readonly<Record<string, string>> = {
+  ...Object.fromEntries(
+    ['at', 'from', 'start', 'startat', 'startframe', 'startfrom', 'frame', 'delay', 'offset', 'time', 'when'].map((name) => [
+      name,
+      '<ToneAudio> starts at the start of its sequence: put it in <Sequence from={12}>, or schedule notes later inside render',
+    ]),
+  ),
+  ...Object.fromEntries(
+    ['durationinseconds', 'seconds'].map((name) => [name, 'the length is durationInFrames, in frames (seconds × fps)']),
+  ),
+  ...Object.fromEntries(
+    ['zzfx', 'params', 'parameters', 'preset'].map((name) => [
+      name,
+      "a ZzFX sound is <Sfx zzfx={[1, 0, 900, 0, 0.02, 0.04]} />, also from 'motionforge/audio'",
+    ]),
+  ),
+  ...Object.fromEntries(['src', 'url', 'file'].map((name) => [name, `a sound file is <Audio src="..." /> from 'motionforge'`])),
+};
+
+/** The props of <ToneAudio>, for the error on one it does not take. */
+export const TONE_PROPS: KnownProps = {
+  component: '<ToneAudio>',
+  noun: 'prop',
+  accepted: ['durationInFrames', 'render', 'deps', 'seed', 'sampleRate', 'channels', 'volume', 'muted', 'name'],
+  required: ['durationInFrames', 'render'],
+  aliases: TONE_ALIASES,
+  notes: TONE_NOTES,
+  example: `<ToneAudio durationInFrames={30} render={${RENDER_EXAMPLE}} />`,
 };
 
 /**
@@ -191,6 +260,7 @@ export const checkToneProps = (component: string, { durationInFrames, render, de
  */
 export const ToneAudio: React.FC<ToneAudioProps> = (props) => {
   const { durationInFrames, render, deps = [], seed = 0, sampleRate = 48000, channels = 2, volume, muted = false, name } = props;
+  checkKnownProps(TONE_PROPS, props);
   checkToneProps('<ToneAudio>', { ...props, sampleRate, channels });
   checkSeed('<ToneAudio>', seed);
   if (typeof muted !== 'boolean') throw new Error(`<ToneAudio>: muted must be a boolean, got ${JSON.stringify(muted)}`);

@@ -4,9 +4,10 @@ import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { HostContext, useVideoConfig } from '../../core/context';
 import { useDelayRender } from '../../core/delay-render';
 import { useIsCollectingAudio } from '../../core/audio-track';
-import { checkParams, checkSampleRate, sfxAudio, sfxKey, type ZzfxParams } from './Sfx';
-import { checkToneProps, toneAudio, toneKey, type ToneAudioProps } from './ToneAudio';
+import { checkParams, checkSampleRate, SFX_ALIASES, sfxAudio, sfxKey, ZZFX_EXAMPLE, type ZzfxParams } from './Sfx';
+import { checkToneProps, TONE_ALIASES, toneAudio, toneKey, type ToneAudioProps } from './ToneAudio';
 import { checkSeed } from './seeded-random';
+import { checkKnownProps, describe, type KnownProps } from './generated-utils';
 
 /**
  * A generated sound to render ahead of use: the props of `<Sfx>` or
@@ -30,16 +31,49 @@ export type PreparedSound =
       channels?: 1 | 2;
     };
 
-const describe = (value: unknown) => {
-  try {
-    return JSON.stringify(value) ?? String(value);
-  } catch {
-    return String(value);
+// Where and how a sound plays is the component's, not part of the prepared sound.
+const PLAYBACK = ['at', 'volume', 'muted', 'name'];
+
+/**
+ * The keys of a prepared sound: the component's cache-key props, with the
+ * component's aliases; its playback props (and their aliases) are explained.
+ */
+const soundKeys = (type: 'sfx' | 'tone', where: string, accepted: string[], required: string[], aliases: Readonly<Record<string, string>>, example: string): KnownProps => {
+  const component = type === 'sfx' ? '<Sfx>' : '<ToneAudio>';
+  const playback = (name: string) => `where and how a sound plays (\`${name}\`) goes on the ${component} that plays it, not in the prepared sound`;
+  const notes: Record<string, string> = Object.fromEntries(PLAYBACK.map((name) => [name.toLowerCase(), playback(name)]));
+  const own: Record<string, string> = {};
+  for (const [alias, name] of Object.entries(aliases)) {
+    if (accepted.includes(name)) own[alias] = name;
+    else if (PLAYBACK.includes(name)) notes[alias] = playback(name);
   }
+  return { component: where, subject: `A ${type} sound`, noun: 'key', accepted, required, aliases: own, notes, example };
 };
 
-const SFX_KEYS = ['type', 'zzfx', 'seed', 'sampleRate'];
-const TONE_KEYS = ['type', 'durationInFrames', 'render', 'deps', 'seed', 'sampleRate', 'channels'];
+const sfxKeys = (where: string) =>
+  soundKeys('sfx', where, ['type', 'zzfx', 'seed', 'sampleRate'], ['type', 'zzfx'], SFX_ALIASES, `{ type: 'sfx', zzfx: ${ZZFX_EXAMPLE} }`);
+const toneKeys = (where: string) =>
+  soundKeys(
+    'tone',
+    where,
+    ['type', 'durationInFrames', 'render', 'deps', 'seed', 'sampleRate', 'channels'],
+    ['type', 'durationInFrames', 'render'],
+    TONE_ALIASES,
+    "{ type: 'tone', durationInFrames: 30, render: (Tone) => { new Tone.Synth().toDestination().triggerAttackRelease('C5', '8n', 0); } }",
+  );
+
+const SOUND_SHAPES = `{ type: 'sfx', zzfx: ${ZZFX_EXAMPLE} } (a ZzFX sound) or { type: 'tone', durationInFrames: 30, render: (Tone) => { ... } } (Tone.js code)`;
+
+/** The `type` a sound without a valid one most likely means, as a hint. */
+const typeHint = (sound: Record<string, unknown>): string => {
+  const keys = Object.keys(sound).map((key) => key.toLowerCase());
+  const type = typeof sound.type === 'string' ? sound.type.toLowerCase() : null;
+  if (type === 'zzfx' || keys.includes('zzfx')) return ` (with \`zzfx\` it is \`type: 'sfx'\`)`;
+  if (type === 'toneaudio' || keys.includes('render') || keys.includes('durationinframes')) {
+    return ` (with \`render\` it is \`type: 'tone'\`)`;
+  }
+  return '';
+};
 
 /**
  * Renders generated sounds before they play: a sound that starts on input
@@ -70,27 +104,25 @@ export const usePrepareAudio = (sounds: readonly PreparedSound[]): boolean => {
   // Checked like the components' props; the keys identify the sounds.
   const keys = sounds.map((sound, index) => {
     const where = `usePrepareAudio: sounds[${index}]`;
-    if (typeof sound !== 'object' || sound === null || (sound.type !== 'sfx' && sound.type !== 'tone')) {
-      throw new Error(`${where} must be { type: 'sfx', zzfx, ... } or { type: 'tone', durationInFrames, render, ... }, got ${describe(sound)}`);
+    if (typeof sound !== 'object' || sound === null || Array.isArray(sound)) {
+      throw new Error(`${where} must be ${SOUND_SHAPES}, got ${describe(sound)}`);
     }
-    const allowed = sound.type === 'sfx' ? SFX_KEYS : TONE_KEYS;
-    for (const key of Object.keys(sound)) {
-      if (!allowed.includes(key)) {
-        throw new Error(
-          `${where}: a ${sound.type} sound takes ${allowed.join(', ')}, not ${JSON.stringify(key)} (where and how it plays is the component's)`,
-        );
-      }
+    if (sound.type !== 'sfx' && sound.type !== 'tone') {
+      const raw = sound as Record<string, unknown>;
+      const got = 'type' in raw ? `\`type: ${describe(raw.type)}\`` : 'no `type`';
+      throw new Error(`${where} must be ${SOUND_SHAPES}${typeHint(raw)}, got ${got}: ${describe(raw)}`);
     }
+    checkKnownProps(sound.type === 'sfx' ? sfxKeys(where) : toneKeys(where), sound);
     const seed = sound.seed ?? 0;
     checkSeed(where, seed);
     if (sound.type === 'sfx') {
       const sampleRate = sound.sampleRate ?? 44100;
       checkSampleRate(where, sampleRate);
-      return sfxKey(checkParams(where, sound.zzfx), sampleRate, seed);
+      return sfxKey(checkParams(where, sound.zzfx, `zzfx: ${ZZFX_EXAMPLE}`), sampleRate, seed);
     }
     const sampleRate = sound.sampleRate ?? 48000;
     const channels = sound.channels ?? 2;
-    checkToneProps(where, { ...sound, sampleRate, channels });
+    checkToneProps(where, { ...sound, sampleRate, channels }, 'object');
     return toneKey(sound.render, sound.deps ?? [], sound.durationInFrames, fps, sampleRate, channels, seed);
   });
   const key = keys.join('\n');

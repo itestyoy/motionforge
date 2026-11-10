@@ -874,6 +874,8 @@ import { ToneAudio, Sfx } from 'motionforge/audio';
 - `renderZzfx(params, sampleRate = 44100, seed = 0) → Float32Array` is the same as a pure function (no Web Audio needed): ZzFX's samples at the loudness `zzfx()` plays them (its master volume 0.3 applied).
 - ZzFX 1.4.0 (MIT, Frank Force) is vendored with its license header: only its sample generator, with the sample rate and the random number generator as arguments; the arithmetic is unchanged (a test compares it with the original).
 
+**Errors.** `<Sfx>`, `<ToneAudio>` and the sounds of `usePrepareAudio()` throw on a prop (key) they do not take, naming the one most likely meant (`params`, `sound`, `preset` → `zzfx`; `start`, `from`, `frame`, `delay` → `at`; `duration` → `durationInFrames`; `code`, `fn`, `synth` → `render`; close spellings) and listing the accepted ones with an example; a missing `zzfx`, `durationInFrames` or `render` is named with an example of how to pass it.
+
 **Determinism.** ZzFX's randomness and Tone's noise, `Tone.Loop` probability/humanize, `Pattern` random modes and the scene's own `Math.random()` all draw from `Math.random`, so generated audio is seeded:
 
 - `renderZzfx` / `Sfx` draw from a seeded generator passed to the vendored code: the same parameters, sample rate and seed always give the same samples.

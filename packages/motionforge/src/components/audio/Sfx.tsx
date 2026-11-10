@@ -6,7 +6,7 @@ import { AudioVolume, useAudioTrack, useIsCollectingAudio } from '../../core/aud
 import { generatedAudio } from '../../core/generated-audio';
 import { buildZzfxSamples, ZZFX_VOLUME } from './zzfx';
 import { checkSeed, seededRandom } from './seeded-random';
-import { toAudioBuffer } from './generated-utils';
+import { checkKnownProps, describe, type KnownProps, toAudioBuffer } from './generated-utils';
 
 /**
  * ZzFX parameters, as the ZzFX designer (https://killedbyapixel.github.io/ZzFX/)
@@ -19,9 +19,26 @@ export type ZzfxParams = ReadonlyArray<number | undefined>;
 
 const MAX_PARAMS = 21;
 
-export const checkParams = (component: string, params: unknown): (number | undefined)[] => {
+/** ZzFX parameters for the examples in error messages (a short blip). */
+export const ZZFX_EXAMPLE = '[1, 0, 900, 0, 0.02, 0.04]';
+
+/**
+ * Checks ZzFX parameters. `usage` shows how they are passed where they are
+ * missing or wrong (`zzfx={[...]}` on `<Sfx>`), `name` names them.
+ */
+export const checkParams = (
+  component: string,
+  params: unknown,
+  usage = `zzfx={${ZZFX_EXAMPLE}}`,
+  name = 'zzfx',
+): (number | undefined)[] => {
+  if (params === undefined) {
+    throw new Error(`${component}: pass the ZzFX parameters as \`${usage}\` (got no \`${name}\`)`);
+  }
   if (!Array.isArray(params)) {
-    throw new Error(`${component}: the ZzFX parameters must be an array of numbers, got ${JSON.stringify(params)}`);
+    throw new Error(
+      `${component}: \`${name}\` must be an array of numbers (the ZzFX parameters), e.g. \`${usage}\`, got ${describe(params)}`,
+    );
   }
   if (params.length > MAX_PARAMS) {
     throw new Error(`${component}: ZzFX takes at most ${MAX_PARAMS} parameters, got ${params.length}`);
@@ -52,7 +69,7 @@ export const checkSampleRate = (component: string, sampleRate: unknown): number 
  *   const samples = renderZzfx([, , 925, 0.04, 0.3, 0.6, 1, 0.3, , 6.27, -184, 0.09, 0.17]);
  */
 export const renderZzfx = (params: ZzfxParams, sampleRate = 44100, seed = 0): Float32Array => {
-  const values = checkParams('renderZzfx', params);
+  const values = checkParams('renderZzfx', params, `renderZzfx(${ZZFX_EXAMPLE})`, 'params');
   checkSampleRate('renderZzfx', sampleRate);
   checkSeed('renderZzfx', seed);
   const samples = buildZzfxSamples(sampleRate, seededRandom(seed), values);
@@ -92,6 +109,51 @@ export const sfxAudio = (params: ReadonlyArray<number | undefined>, sampleRate: 
   };
 };
 
+// Names a scene may use for a prop of <Sfx> (lower case, without - and _).
+export const SFX_ALIASES: Readonly<Record<string, string>> = {
+  ...Object.fromEntries(
+    ['params', 'param', 'parameters', 'zzfxparams', 'zzfxparameters', 'sound', 'sfx', 'preset', 'effect', 'args', 'values', 'settings', 'config'].map(
+      (name) => [name, 'zzfx'],
+    ),
+  ),
+  ...Object.fromEntries(
+    ['start', 'startat', 'startframe', 'startfrom', 'from', 'frame', 'atframe', 'delay', 'offset', 'time', 'when'].map((name) => [name, 'at']),
+  ),
+  ...Object.fromEntries(['gain', 'vol', 'level', 'loudness'].map((name) => [name, 'volume'])),
+  ...Object.fromEntries(['mute', 'silent'].map((name) => [name, 'muted'])),
+  ...Object.fromEntries(['label', 'title', 'trackname'].map((name) => [name, 'name'])),
+  ...Object.fromEntries(['rate', 'hz'].map((name) => [name, 'sampleRate'])),
+  ...Object.fromEntries(['randomseed', 'rngseed'].map((name) => [name, 'seed'])),
+};
+
+const SFX_NOTES: Readonly<Record<string, string>> = {
+  ...Object.fromEntries(
+    ['duration', 'durationinframes', 'length', 'lengthinframes', 'frames'].map((name) => [
+      name,
+      'a ZzFX sound is as long as its parameters make it: attack, sustain and release, zzfx[3], zzfx[4] and zzfx[5], in seconds',
+    ]),
+  ),
+  ...Object.fromEntries(
+    ['render', 'code', 'fn', 'synth'].map((name) => [
+      name,
+      "Tone.js code is <ToneAudio durationInFrames={30} render={(Tone) => { ... }} />, also from 'motionforge/audio'",
+    ]),
+  ),
+  ...Object.fromEntries(['src', 'url', 'file'].map((name) => [name, `a sound file is <Audio src="..." /> from 'motionforge'`])),
+  children: '<Sfx> renders nothing and takes no children',
+};
+
+/** The props of <Sfx>, for the error on one it does not take. */
+export const SFX_PROPS: KnownProps = {
+  component: '<Sfx>',
+  noun: 'prop',
+  accepted: ['zzfx', 'at', 'seed', 'sampleRate', 'volume', 'muted', 'name'],
+  required: ['zzfx'],
+  aliases: SFX_ALIASES,
+  notes: SFX_NOTES,
+  example: `<Sfx at={12} zzfx={${ZZFX_EXAMPLE}} />`,
+};
+
 export interface SfxProps {
   /** ZzFX parameters (see ZzfxParams). */
   zzfx: ZzfxParams;
@@ -114,11 +176,13 @@ export interface SfxProps {
  * computed when the component mounts (no gate needed) and handed to the
  * host as an AudioBuffer (`track.generated`); renders nothing.
  */
-export const Sfx: React.FC<SfxProps> = ({ zzfx, at = 0, seed = 0, sampleRate = 44100, volume, muted = false, name }) => {
+export const Sfx: React.FC<SfxProps> = (props) => {
+  const { zzfx, at = 0, seed = 0, sampleRate = 44100, volume, muted = false, name } = props;
   const host = useContext(HostContext);
   const timeline = useContext(TimelineContext);
   const collecting = useIsCollectingAudio();
   const { fps } = useVideoConfig();
+  checkKnownProps(SFX_PROPS, props);
   const params = checkParams('<Sfx>', zzfx);
   checkSampleRate('<Sfx>', sampleRate);
   checkSeed('<Sfx>', seed);

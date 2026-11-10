@@ -391,10 +391,13 @@ describe('usePrepareAudio()', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const audio = createAudioCollector();
     // @ts-expect-error not a sound
-    expect(() => renderAt(0, <PrepareWith sounds={[{ type: 'beep' }]} />, audio)).toThrow(/sounds\[0\] must be \{ type: 'sfx', zzfx, \.\.\. \}/);
+    expect(() => renderAt(0, <PrepareWith sounds={[{ type: 'beep' }]} />, audio)).toThrow(
+      /sounds\[0\] must be \{ type: 'sfx', zzfx: \[1, 0, 900, 0, 0\.02, 0\.04\] \} \(a ZzFX sound\) or .*, got `type: "beep"`/,
+    );
     // @ts-expect-error where it plays is the component's
     expect(() => renderAt(0, <PrepareWith sounds={[{ type: 'sfx', zzfx: pop, volume: 0.5 }]} />, audio)).toThrow(
-      /sounds\[0\]: a sfx sound takes type, zzfx, seed, sampleRate, not "volume"/,
+      'usePrepareAudio: sounds[0]: unknown key `volume` (where and how a sound plays (`volume`) goes on the <Sfx> that plays it, not in the prepared sound). ' +
+        'A sfx sound takes type (required), zzfx (required), seed, sampleRate',
     );
     expect(() => renderAt(0, <PrepareWith sounds={[{ type: 'tone', durationInFrames: 0, render: noisyRender }]} />, audio)).toThrow(
       /usePrepareAudio: sounds\[0\]: durationInFrames must be a positive integer/,
@@ -406,3 +409,103 @@ const PrepareWith = ({ sounds }: { sounds: Parameters<typeof usePrepareAudio>[0]
   usePrepareAudio(sounds);
   return null;
 };
+
+// Scenes are often written by a model, which reads the error and tries again:
+// the errors name the prop to write, with an example.
+describe('errors of the generated sounds', () => {
+  const blip = [1, 0, 900, 0, 0.02, 0.04];
+  const SFX_TAKES = '<Sfx> takes zzfx (required), at, seed, sampleRate, volume, muted, name, e.g. <Sfx at={12} zzfx={[1, 0, 900, 0, 0.02, 0.04]} />';
+  const throws = (node: React.ReactNode) => {
+    try {
+      renderAt(0, node, createAudioCollector());
+    } catch (error) {
+      return (error as Error).message;
+    }
+    throw new Error('did not throw');
+  };
+  beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  it('<Sfx> names the missing or wrong zzfx with an example', () => {
+    expect(throws(<Sfx {...({} as any)} />)).toBe('<Sfx>: pass the ZzFX parameters as `zzfx={[1, 0, 900, 0, 0.02, 0.04]}` (got no `zzfx`)');
+    expect(throws(<Sfx zzfx={'coin' as any} />)).toBe(
+      '<Sfx>: `zzfx` must be an array of numbers (the ZzFX parameters), e.g. `zzfx={[1, 0, 900, 0, 0.02, 0.04]}`, got "coin"',
+    );
+    expect(() => renderZzfx(undefined as any)).toThrow(
+      'renderZzfx: pass the ZzFX parameters as `renderZzfx([1, 0, 900, 0, 0.02, 0.04])` (got no `params`)',
+    );
+  });
+
+  it('<Sfx> rejects an unknown prop, naming the one it most likely means', () => {
+    expect(throws(<Sfx {...({ params: blip } as any)} />)).toBe(`<Sfx>: unknown prop \`params\` (did you mean \`zzfx\`?). ${SFX_TAKES}`);
+    for (const name of ['sound', 'preset', 'parameters', 'zzfxParams', 'zfx', 'ZzFX']) {
+      expect(throws(<Sfx {...({ [name]: blip } as any)} />)).toContain(`unknown prop \`${name}\` (did you mean \`zzfx\`?)`);
+    }
+    for (const name of ['start', 'from', 'frame', 'delay', 'startFrame']) {
+      expect(throws(<Sfx zzfx={blip} {...({ [name]: 5 } as any)} />)).toContain(`unknown prop \`${name}\` (did you mean \`at\`?)`);
+    }
+    // Several at once, case and typos.
+    expect(throws(<Sfx zzfx={blip} {...({ start: 5, Volume: 0.5, sample_rate: 22050, seeed: 1 } as any)} />)).toBe(
+      '<Sfx>: unknown props `start` (did you mean `at`?), `Volume` (did you mean `volume`?), `sample_rate` (did you mean `sampleRate`?), ' +
+        `\`seeed\` (did you mean \`seed\`?). ${SFX_TAKES}`,
+    );
+    // Nothing close: the list of props.
+    expect(throws(<Sfx zzfx={blip} {...({ pitch: 2 } as any)} />)).toBe(`<Sfx>: unknown prop \`pitch\`. ${SFX_TAKES}`);
+    // Props of other components: what to use instead.
+    expect(throws(<Sfx zzfx={blip} {...({ durationInFrames: 30 } as any)} />)).toContain(
+      'unknown prop `durationInFrames` (a ZzFX sound is as long as its parameters make it: attack, sustain and release, zzfx[3], zzfx[4] and zzfx[5], in seconds)',
+    );
+    expect(throws(<Sfx zzfx={blip} {...({ render: () => {} } as any)} />)).toContain(
+      "unknown prop `render` (Tone.js code is <ToneAudio durationInFrames={30} render={(Tone) => { ... }} />, also from 'motionforge/audio')",
+    );
+    expect(throws(<Sfx zzfx={blip} {...({ src: 'a.mp3' } as any)} />)).toContain(`unknown prop \`src\` (a sound file is <Audio src="..." /> from 'motionforge')`);
+    expect(throws(<Sfx zzfx={blip} {...({ children: 'x' } as any)} />)).toContain('unknown prop `children` (<Sfx> renders nothing and takes no children)');
+    // The props it takes, all at once, are fine.
+    expect(() => renderAt(0, <Sfx zzfx={blip} at={3} seed={1} sampleRate={22050} volume={0.5} muted={false} name="blip" />, createAudioCollector())).not.toThrow();
+  });
+
+  it('<ToneAudio> names the missing props and rejects unknown ones', () => {
+    const TONE_EXAMPLE = "(Tone) => { new Tone.Synth().toDestination().triggerAttackRelease('C5', '8n', 0); }";
+    expect(throws(<ToneAudio {...({ render: noisyRender } as any)} />)).toBe(
+      '<ToneAudio>: pass the length of the sound in frames as `durationInFrames={30}` (got no `durationInFrames`)',
+    );
+    expect(throws(<ToneAudio {...({ durationInFrames: 30 } as any)} />)).toBe(
+      `<ToneAudio>: pass the Tone.js code as \`render={${TONE_EXAMPLE}}\` (got no \`render\`)`,
+    );
+    expect(throws(<ToneAudio durationInFrames={30} render={'C4' as any} />)).toBe(
+      `<ToneAudio>: \`render\` must be a function of Tone with the Tone.js code, e.g. \`render={${TONE_EXAMPLE}}\`, got "C4"`,
+    );
+    expect(throws(<ToneAudio render={noisyRender} {...({ duration: 30 } as any)} />)).toBe(
+      '<ToneAudio>: unknown prop `duration` (did you mean `durationInFrames`?). ' +
+        `<ToneAudio> takes durationInFrames (required), render (required), deps, seed, sampleRate, channels, volume, muted, name, e.g. <ToneAudio durationInFrames={30} render={${TONE_EXAMPLE}} />`,
+    );
+    for (const name of ['code', 'fn', 'synth']) {
+      expect(throws(<ToneAudio durationInFrames={30} {...({ [name]: noisyRender } as any)} />)).toContain(`unknown prop \`${name}\` (did you mean \`render\`?)`);
+    }
+    expect(throws(<ToneAudio durationInFrames={30} render={noisyRender} {...({ at: 12 } as any)} />)).toContain(
+      'unknown prop `at` (<ToneAudio> starts at the start of its sequence: put it in <Sequence from={12}>, or schedule notes later inside render)',
+    );
+    expect(throws(<ToneAudio durationInFrames={30} render={noisyRender} {...({ zzfx: blip } as any)} />)).toContain(
+      "unknown prop `zzfx` (a ZzFX sound is <Sfx zzfx={[1, 0, 900, 0, 0.02, 0.04]} />, also from 'motionforge/audio')",
+    );
+  });
+
+  it('usePrepareAudio() names the keys of a sound the same way', () => {
+    const prepare = (sound: unknown) => throws(<PrepareWith sounds={[sound as any]} />);
+    expect(prepare({ type: 'sfx', params: blip })).toBe(
+      'usePrepareAudio: sounds[0]: unknown key `params` (did you mean `zzfx`?). ' +
+        "A sfx sound takes type (required), zzfx (required), seed, sampleRate, e.g. { type: 'sfx', zzfx: [1, 0, 900, 0, 0.02, 0.04] }",
+    );
+    expect(prepare({ type: 'sfx' })).toBe('usePrepareAudio: sounds[0]: pass the ZzFX parameters as `zzfx: [1, 0, 900, 0, 0.02, 0.04]` (got no `zzfx`)');
+    // An alias of where it plays: explained, not suggested.
+    expect(prepare({ type: 'sfx', zzfx: blip, start: 4 })).toContain(
+      'unknown key `start` (where and how a sound plays (`at`) goes on the <Sfx> that plays it, not in the prepared sound)',
+    );
+    expect(prepare({ zzfx: blip })).toMatch(/^usePrepareAudio: sounds\[0\] must be .* \(with `zzfx` it is `type: 'sfx'`\), got no `type`: /);
+    expect(prepare({ type: 'tone', duration: 30, render: noisyRender })).toContain('unknown key `duration` (did you mean `durationInFrames`?). A tone sound takes type (required), durationInFrames (required), render (required)');
+    expect(prepare({ type: 'tone', durationInFrames: 30 })).toBe(
+      "usePrepareAudio: sounds[0]: pass the Tone.js code as `render: (Tone) => { new Tone.Synth().toDestination().triggerAttackRelease('C5', '8n', 0); }` (got no `render`)",
+    );
+  });
+});
