@@ -1,7 +1,7 @@
 {
   "name": "motionforge",
-  "version": "1.4.0",
-  "description": "A React-based framework for creating videos programmatically. Build stunning videos with React components, spring animations, and frame-perfect control.",
+  "version": "4.0.1",
+  "description": "Headless React SDK for frame-based motion graphics: scenes are pure functions of the frame, the host app renders them and owns playback.",
   "author": "MotionForge Team",
   "license": "MIT",
   "type": "module",
@@ -10,38 +10,207 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
-    "./icons": {
-      "types": "./dist/icons/index.d.ts",
-      "import": "./dist/icons/index.js",
-      "require": "./dist/icons/index.cjs"
+    "./three": {
+      "import": {
+        "types": "./dist/three/index.d.ts",
+        "default": "./dist/three/index.js"
+      },
+      "require": {
+        "types": "./dist/three/index.d.cts",
+        "default": "./dist/three/index.cjs"
+      }
     },
-    "./player": {
-      "types": "./dist/player/Player.d.ts",
-      "import": "./dist/player/Player.js"
+    "./lottie": {
+      "import": {
+        "types": "./dist/lottie/index.d.ts",
+        "default": "./dist/lottie/index.js"
+      },
+      "require": {
+        "types": "./dist/lottie/index.d.cts",
+        "default": "./dist/lottie/index.cjs"
+      }
     },
-    "./renderer": {
-      "types": "./dist/renderer/index.d.ts",
-      "import": "./dist/renderer/index.js"
+    "./motion-blur": {
+      "import": {
+        "types": "./dist/motion-blur/index.d.ts",
+        "default": "./dist/motion-blur/index.js"
+      },
+      "require": {
+        "types": "./dist/motion-blur/index.d.cts",
+        "default": "./dist/motion-blur/index.cjs"
+      }
     },
-    "./styles.css": "./dist/styles.css"
+    "./layout-utils": {
+      "import": {
+        "types": "./dist/layout-utils/index.d.ts",
+        "default": "./dist/layout-utils/index.js"
+      },
+      "require": {
+        "types": "./dist/layout-utils/index.d.cts",
+        "default": "./dist/layout-utils/index.cjs"
+      }
+    },
+    "./gif": {
+      "import": {
+        "types": "./dist/gif/index.d.ts",
+        "default": "./dist/gif/index.js"
+      },
+      "require": {
+        "types": "./dist/gif/index.d.cts",
+        "default": "./dist/gif/index.cjs"
+      }
+    },
+    "./media-utils": {
+      "import": {
+        "types": "./dist/media-utils/index.d.ts",
+        "default": "./dist/media-utils/index.js"
+      },
+      "require": {
+        "types": "./dist/media-utils/index.d.cts",
+        "default": "./dist/media-utils/index.cjs"
+      }
+    },
+    "./transitions": {
+      "import": {
+        "types": "./dist/transitions/index.d.ts",
+        "default": "./dist/transitions/index.js"
+      },
+      "require": {
+        "types": "./dist/transitions/index.d.cts",
+        "default": "./dist/transitions/index.cjs"
+      }
+    },
+    "./transitions/fade": {
+      "import": {
+        "types": "./dist/transitions/fade.d.ts",
+        "default": "./dist/transitions/fade.js"
+      },
+      "require": {
+        "types": "./dist/transitions/fade.d.cts",
+        "default": "./dist/transitions/fade.cjs"
+      }
+    },
+    "./transitions/slide": {
+      "import": {
+        "types": "./dist/transitions/slide.d.ts",
+        "default": "./dist/transitions/slide.js"
+      },
+      "require": {
+        "types": "./dist/transitions/slide.d.cts",
+        "default": "./dist/transitions/slide.cjs"
+      }
+    },
+    "./transitions/wipe": {
+      "import": {
+        "types": "./dist/transitions/wipe.d.ts",
+        "default": "./dist/transitions/wipe.js"
+      },
+      "require": {
+        "types": "./dist/transitions/wipe.d.cts",
+        "default": "./dist/transitions/wipe.cjs"
+      }
+    },
+    "./transitions/flip": {
+      "import": {
+        "types": "./dist/transitions/flip.d.ts",
+        "default": "./dist/transitions/flip.js"
+      },
+      "require": {
+        "types": "./dist/transitions/flip.d.cts",
+        "default": "./dist/transitions/flip.cjs"
+      }
+    },
+    "./transitions/clock-wipe": {
+      "import": {
+        "types": "./dist/transitions/clock-wipe.d.ts",
+        "default": "./dist/transitions/clock-wipe.js"
+      },
+      "require": {
+        "types": "./dist/transitions/clock-wipe.d.cts",
+        "default": "./dist/transitions/clock-wipe.cjs"
+      }
+    },
+    "./transitions/iris": {
+      "import": {
+        "types": "./dist/transitions/iris.d.ts",
+        "default": "./dist/transitions/iris.js"
+      },
+      "require": {
+        "types": "./dist/transitions/iris.d.cts",
+        "default": "./dist/transitions/iris.cjs"
+      }
+    },
+    "./transitions/cube": {
+      "import": {
+        "types": "./dist/transitions/cube.d.ts",
+        "default": "./dist/transitions/cube.js"
+      },
+      "require": {
+        "types": "./dist/transitions/cube.d.cts",
+        "default": "./dist/transitions/cube.cjs"
+      }
+    },
+    "./transitions/none": {
+      "import": {
+        "types": "./dist/transitions/none.d.ts",
+        "default": "./dist/transitions/none.js"
+      },
+      "require": {
+        "types": "./dist/transitions/none.d.cts",
+        "default": "./dist/transitions/none.cjs"
+      }
+    },
+    "./transitions/push-cut": {
+      "import": {
+        "types": "./dist/transitions/push-cut.d.ts",
+        "default": "./dist/transitions/push-cut.js"
+      },
+      "require": {
+        "types": "./dist/transitions/push-cut.d.cts",
+        "default": "./dist/transitions/push-cut.cjs"
+      }
+    },
+    "./shapes": {
+      "import": {
+        "types": "./dist/shapes/index.d.ts",
+        "default": "./dist/shapes/index.js"
+      },
+      "require": {
+        "types": "./dist/shapes/index.d.cts",
+        "default": "./dist/shapes/index.cjs"
+      }
+    },
+    "./audio": {
+      "import": {
+        "types": "./dist/audio/index.d.ts",
+        "default": "./dist/audio/index.js"
+      },
+      "require": {
+        "types": "./dist/audio/index.d.cts",
+        "default": "./dist/audio/index.cjs"
+      }
+    }
   },
   "files": [
     "dist",
     "README.md",
     "LICENSE"
   ],
-  "sideEffects": [
-    "**/*.css"
-  ],
+  "sideEffects": false,
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "lint": "eslint src --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "vitest run",
     "prepublishOnly": "bun run build"
   },
   "keywords": [
@@ -72,26 +241,33 @@
   "peerDependencies": {
     "@react-three/drei": ">=10.0.0",
     "@react-three/fiber": ">=9.0.0",
-    "framer-motion": ">=12.0.0",
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0",
-    "three": ">=0.170.0"
+    "three": ">=0.170.0",
+    "tone": ">=15.0.0"
   },
   "dependencies": {
-    "lottie-web": "^5.13.0"
+    "lottie-web": "^5.13.0",
+    "simplex-noise": "4.0.1",
+    "omggif": "1.0.10"
   },
   "devDependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
+    "@types/node": "26.6.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/omggif": "1.0.5",
     "@types/three": "^0.184.1",
-    "framer-motion": "^12.40.0",
-    "three": "^0.184.0",
+    "happy-dom": "^21.0.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "three": "^0.184.0",
+    "tone": "15.1.22",
     "tsup": "^8.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "3.2.4",
+    "zzfx": "1.4.0"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -99,5 +275,19 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"
+  },
+  "peerDependenciesMeta": {
+    "three": {
+      "optional": true
+    },
+    "@react-three/fiber": {
+      "optional": true
+    },
+    "@react-three/drei": {
+      "optional": true
+    },
+    "tone": {
+      "optional": true
+    }
   }
 }

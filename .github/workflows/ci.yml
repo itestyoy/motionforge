@@ -15,27 +15,22 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.3.14
 
       - name: Cache dependencies
         uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('packages/motionforge/bun.lock') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
-      - name: Install Root Dependencies
-        run: bun install
-
-      - name: Build Framework
+      - name: Typecheck, build, test
         working-directory: packages/motionforge
         run: |
-          bun install
-          bun x tsup
-
-      - name: Build CLI
-        working-directory: packages/create-motionforge
-        run: |
-          bun install
-          ls bin/index.js
+          bun install --frozen-lockfile
+          bun run typecheck
+          bun run build
+          # dist/ is committed: it must be what the sources build to.
+          git diff --exit-code -- dist
+          bun run test

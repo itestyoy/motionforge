@@ -3,25 +3,20 @@
 
 import { useMemo, useCallback } from 'react';
 import { useCurrentFrame, useVideoConfig } from '../core/context';
-import { MemoCache } from '../renderer/cache';
 import { spring, interpolate } from '../utils/animation';
+import { InterpolateOptions } from '../core/types';
 
 /**
- * Memoized frame value hook
- * Caches computed values based on frame and dependencies
+ * Memoized frame value hook: `compute()` runs again when the frame or one of
+ * `deps` changes. The value belongs to the calling component.
  */
 export function useMemoizedFrame<T>(
   compute: () => T,
   deps: unknown[] = []
 ): T {
   const frame = useCurrentFrame();
-  const memoCache = useMemo(() => MemoCache.getInstance(), []);
-  
-  const key = useMemo(() => `frame:${frame}:${JSON.stringify(deps)}`, [frame, deps]);
-  
-  return useMemo(() => {
-    return memoCache.getOrCompute(key, compute, [frame, ...deps]);
-  }, [key, compute, memoCache, frame, deps]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(() => compute(), [frame, ...deps]);
 }
 
 /**
@@ -51,26 +46,6 @@ export function useCachedFrame<T>(
   return useMemo(() => {
     return renderer(frame);
   }, [compositionId, frame, width, height, renderer]);
-}
-
-/**
- * Throttled frame update hook - returns frame directly
- * Throttling is handled by the player
- */
-export function useThrottledFrame(_throttleMs?: number): number {
-  return useCurrentFrame();
-}
-
-/**
- * Batch frame processing hook - simplified
- */
-export function useBatchFrameProcessor<T, R>(
-  processor: (items: T[]) => R[],
-  _batchSize?: number
-): (items: T[]) => R[] {
-  return useCallback((items: T[]) => {
-    return processor(items);
-  }, [processor]);
 }
 
 /**
@@ -130,36 +105,11 @@ export function useOptimizedSpring(
 export function useOptimizedInterpolate(
   inputRange: number[],
   outputRange: number[],
-  options?: { easing?: (t: number) => number; extrapolateLeft?: 'clamp' | 'extend' | 'identity'; extrapolateRight?: 'clamp' | 'extend' | 'identity' }
+  options?: InterpolateOptions
 ): (frame: number) => number {
   return useCallback((frame: number) => {
     return interpolate(frame, inputRange, outputRange, options);
   }, [inputRange, outputRange, options]);
-}
-
-/**
- * Performance monitoring hook
- * Returns static metrics - actual monitoring should use external tools
- */
-export function usePerformanceMonitor(): {
-  fps: number;
-  frameTime: number;
-  renderTime: number;
-} {
-  // Return default values - real monitoring requires external setup
-  return useMemo(() => ({
-    fps: 60,
-    frameTime: 16.67,
-    renderTime: 0,
-  }), []);
-}
-
-/**
- * Render priority hook
- * Returns render priority based on configuration
- */
-export function useRenderPriority(): 'high' | 'medium' | 'low' {
-  return useMemo(() => 'high', []);
 }
 
 // Default export for module
@@ -167,14 +117,10 @@ const performanceHooks = {
   useMemoizedFrame,
   useAnimationValue,
   useCachedFrame,
-  useThrottledFrame,
-  useBatchFrameProcessor,
   useFrameRange,
   usePrecomputeFrames,
   useOptimizedSpring,
   useOptimizedInterpolate,
-  usePerformanceMonitor,
-  useRenderPriority,
 };
 
 export default performanceHooks;

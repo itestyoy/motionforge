@@ -1,62 +1,11 @@
-// Core types for Remotion-like video framework
+// Core types shared by the SDK. The props types of components are exported
+// from the components themselves (CompositionProps, SequenceProps, ...).
 
 export interface VideoConfig {
   width: number;
   height: number;
   fps: number;
   durationInFrames: number;
-}
-
-export interface CompositionProps {
-  id: string;
-  component: React.ComponentType<Record<string, unknown>>;
-  width: number;
-  height: number;
-  fps: number;
-  durationInFrames: number;
-  defaultProps?: Record<string, unknown>;
-}
-
-export interface SequenceProps {
-  from: number;
-  durationInFrames?: number;
-  offset?: number;
-  name?: string;
-  children: React.ReactNode;
-}
-
-export interface LayerProps {
-  index?: number;
-  children: React.ReactNode;
-}
-
-export interface VideoProps {
-  src: string;
-  startFrom?: number;
-  endAt?: number;
-  volume?: number | ((frame: number) => number);
-  playbackRate?: number;
-  muted?: boolean;
-  style?: React.CSSProperties;
-}
-
-export interface AudioProps {
-  src: string;
-  startFrom?: number;
-  endAt?: number;
-  volume?: number | ((frame: number) => number);
-  playbackRate?: number;
-  muted?: boolean;
-}
-
-export interface ImageProps {
-  src: string;
-  style?: React.CSSProperties;
-}
-
-export interface TextProps {
-  style?: React.CSSProperties;
-  children: React.ReactNode;
 }
 
 export interface SpringConfig {
@@ -72,12 +21,23 @@ export interface SpringConfig {
   to?: number;
   durationInFrames?: number;
   durationRestThreshold?: number;
+  /** Frames to wait before the spring is released. */
+  delay?: number;
+  /** Play the motion backwards in time: from `to` back to `from`. */
+  reverse?: boolean;
 }
 
+export type ExtrapolateType = 'clamp' | 'extend' | 'identity' | 'wrap';
+
 export interface InterpolateOptions {
-  extrapolateLeft?: 'clamp' | 'extend' | 'identity';
-  extrapolateRight?: 'clamp' | 'extend' | 'identity';
-  easing?: (t: number) => number;
+  /** Left of the input range (default 'extend', as in Remotion). */
+  extrapolateLeft?: ExtrapolateType;
+  /** Right of the input range (default 'extend', as in Remotion). */
+  extrapolateRight?: ExtrapolateType;
+  /** One easing for every segment, or one per segment (length inputRange.length - 1). */
+  easing?: EasingFunction | readonly EasingFunction[];
+  /** Steps the input: it is rounded down to a multiple of this positive number first. */
+  posterize?: number;
 }
 
 export type EasingFunction = (t: number) => number;
@@ -93,49 +53,10 @@ export interface AnimationTrack {
   keyframes: Keyframe[];
 }
 
-export interface TimelineState {
-  frame: number;
-  playing: boolean;
-  playbackRate: number;
-}
-
-export interface RenderJob {
-  id: string;
-  compositionId: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  progress: number;
-  outputUrl?: string;
-  error?: string;
-  createdAt: Date;
-}
-
 export interface FrameContextValue {
   frame: number;
   fps: number;
   durationInFrames: number;
   width: number;
   height: number;
-  playing: boolean;
-  playbackRate: number;
-  setFrame: (frame: number) => void;
-  setPlaying: (playing: boolean) => void;
-  setPlaybackRate: (rate: number) => void;
-}
-
-export interface VideoRendererConfig {
-  quality: 'low' | 'medium' | 'high';
-  format: 'mp4' | 'webm' | 'gif';
-  codec?: 'h264' | 'h265' | 'vp8' | 'vp9';
-  crf?: number;
-  pixelFormat?: string;
-  bitrate?: number;
-}
-
-export interface CompositionManager {
-  compositions: Map<string, CompositionProps>;
-  currentComposition: string | null;
-  registerComposition: (composition: CompositionProps) => void;
-  unregisterComposition: (id: string) => void;
-  setCurrentComposition: (id: string) => void;
-  getComposition: (id: string) => CompositionProps | undefined;
 }

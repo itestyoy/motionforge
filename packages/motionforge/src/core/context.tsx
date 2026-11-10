@@ -1,15 +1,22 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
-import { FrameContextValue, CompositionProps, TimelineState } from './types';
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { FrameContextValue } from './types';
+import { GateScope, RenderGate, createRenderGate, getGateInternals, isRenderGate } from './render-gate';
+import { AudioCollector, getAudioCollectorInternals, isAudioCollector } from './audio-collector';
+import { StaticFiles, makeStaticFileResolver } from './static-files';
+import { InputEvent, InputEventInit, checkInputLog } from './input-log';
 
-// Frame Context - provides current frame information to all children
+// Layout effects do not run on the server.
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+
+// Frame Context - provides the frame being rendered to all children
 const FrameContext = createContext<FrameContextValue | null>(null);
 
 export const useCurrentFrame = (): number => {
   const context = useContext(FrameContext);
   if (!context) {
-    throw new Error('useCurrentFrame must be used within a FrameContext.Provider');
+    throw new Error('useCurrentFrame must be used within a FrameProvider');
   }
   return context.frame;
 };
@@ -17,7 +24,7 @@ export const useCurrentFrame = (): number => {
 export const useVideoConfig = () => {
   const context = useContext(FrameContext);
   if (!context) {
-    throw new Error('useVideoConfig must be used within a FrameContext.Provider');
+    throw new Error('useVideoConfig must be used within a FrameProvider');
   }
   return {
     fps: context.fps,
@@ -27,267 +34,247 @@ export const useVideoConfig = () => {
   };
 };
 
-export const useTimelineState = () => {
-  const context = useContext(FrameContext);
-  if (!context) {
-    throw new Error('useTimelineState must be used within a FrameContext.Provider');
-  }
-  return {
-    frame: context.frame,
-    playing: context.playing,
-    playbackRate: context.playbackRate,
-    setFrame: context.setFrame,
-    setPlaying: context.setPlaying,
-    setPlaybackRate: context.setPlaybackRate,
-  };
-};
-
-// Composition Manager Context
-interface CompositionManagerContextValue {
-  compositions: Map<string, CompositionProps>;
-  currentComposition: CompositionProps | null;
-  registerComposition: (composition: CompositionProps) => void;
-  unregisterComposition: (id: string) => void;
-  setCurrentComposition: (id: string) => void;
+/**
+ * The render gate the components below register their delayRender() handles
+ * with, and the premount scope they are in (see Sequence premountFor).
+ */
+export interface GateContextValue {
+  gate: RenderGate;
+  scope: GateScope | null;
 }
 
-const CompositionManagerContext = createContext<CompositionManagerContextValue | null>(null);
+export const GateContext = createContext<GateContextValue | null>(null);
 
-export const useCompositionManager = () => {
-  const context = useContext(CompositionManagerContext);
-  if (!context) {
-    throw new Error('useCompositionManager must be used within CompositionManagerProvider');
-  }
-  return context;
-};
-
-// Player Context for timeline playback control
-interface PlayerContextValue extends TimelineState {
-  durationInFrames: number;
-  fps: number;
-  seek: (frame: number) => void;
-  play: () => void;
-  pause: () => void;
-  toggle: () => void;
-  restart: () => void;
-  frameRef: React.MutableRefObject<number>;
+/**
+ * One window of the composition the content plays in: where its local frame
+ * 0 is and the frames it is shown, in composition frames.
+ */
+export interface TimelinePlacement {
+  offset: number;
+  start: number;
+  end: number;
 }
 
-const PlayerContext = createContext<PlayerContextValue | null>(null);
+/**
+ * Where the content below sits on the composition's timeline: the enclosing
+ * Sequences shift the frame, and audio tracks and input events are mapped
+ * with it.
+ */
+export interface TimelineContextValue {
+  /** The composition frame at which local frame 0 (useCurrentFrame() === 0) is. */
+  offset: number;
+  /** The first composition frame the content is shown (the latest start of the enclosing sequences). */
+  start: number;
+  /** The composition frame (exclusive) at which it stops being shown. */
+  end: number;
+  /**
+   * Why sound cannot be here, or null: a component between the FrameProvider
+   * and here remaps time (Freeze, Retiming, Reverse), or renders in a root
+   * the audio dry pass does not render (ThreeCanvas).
+   */
+  noAudio: { inside: string; why: string } | null;
+  /**
+   * Every window the content plays in, the current one (offset, start, end)
+   * included: one per iteration of the enclosing Loops (all of them, also
+   * the ones not rendered now), so audio tracks register every iteration
+   * when the content mounts. Empty windows are left out.
+   */
+  placements: readonly TimelinePlacement[];
+}
 
-export const usePlayer = () => {
-  const context = useContext(PlayerContext);
-  if (!context) {
-    throw new Error('usePlayer must be used within a PlayerProvider');
-  }
-  return context;
-};
+export const TimelineContext = createContext<TimelineContextValue | null>(null);
 
-// Frame Provider Component
-interface FrameProviderProps {
+/** What the host passed to the FrameProvider, for the components below. */
+export interface HostContextValue {
+  /** The collector audio tracks register with, or null (the host does not want audio). */
+  audio: AudioCollector | null;
+  /** Resolves a static file path to its URL (useStaticFile()), or null when the host set none. */
+  staticFiles: ((path: string) => string) | null;
+  /** The input log (checked; empty without one), in composition frames. */
+  input: readonly InputEvent[];
+  /** Hands a scene's event, stamped with the frame shown, to the host's onInput (dropped without one). */
+  emit: (event: InputEventInit) => void;
+}
+
+export const HostContext = createContext<HostContextValue | null>(null);
+
+export interface FrameProviderProps {
+  /** The frame to render. The host app owns time: it sets this for playback, seeking or export. */
+  frame: number;
+  /**
+   * Render gate from createRenderGate(): the host awaits
+   * `gate.waitUntilReady()` before it captures or shows the frame. Without one,
+   * a FrameProvider inside another uses the outer gate; an outermost one uses
+   * a private gate nobody waits on, and a cancelRender() error is thrown
+   * during render, to the nearest error boundary.
+   */
+  gate?: RenderGate;
+  /**
+   * Collector from createAudioCollector(): `<Audio>`, `<Video>` and the
+   * generated sounds of 'motionforge/audio' register their tracks with it
+   * (see AudioCollector). Without one nothing is collected. A FrameProvider
+   * inside another one does not use the outer collector: its frames are its own.
+   */
+  audio?: AudioCollector;
+  /**
+   * Where the static files of useStaticFile() come from: a base URL
+   * ("https://cdn.example.com/creative-42/", "/static/") or a function
+   * (path) => url (signed URLs, blob: URLs). A FrameProvider without it
+   * inside another one uses the outer one's.
+   */
+  staticFiles?: StaticFiles;
+  /**
+   * The input log of a playable: events `{ frame, type, ... }` in frame
+   * order, owned by the host and only appended to (live taps it recorded, or
+   * a scripted log for a video of the playable). useInputEvents(),
+   * useReducedState() and useLastEvent() read it; the scene sees the events
+   * up to the frame it renders, so a frame is a function of the frame and
+   * the log. A FrameProvider inside another one does not use the outer log.
+   */
+  input?: readonly InputEvent[];
+  /**
+   * Receives the events scenes emit with useEmitInput(), with `frame` set to
+   * the frame shown. The host decides whether to append them to `input`
+   * (live play) or not (a video). Without it they are dropped.
+   */
+  onInput?: (event: InputEvent) => void;
   fps?: number;
   durationInFrames: number;
   width: number;
   height: number;
   children: React.ReactNode;
-  initialFrame?: number;
 }
 
+const NO_EVENTS: readonly InputEvent[] = Object.freeze([]);
+
+const isPositive = (value: number) => typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+// The host passes these in; a wrong value would otherwise render NaN or a
+// frame the composition does not have.
+const validateFrameProps = ({
+  frame,
+  fps,
+  durationInFrames,
+  width,
+  height,
+}: Pick<FrameProviderProps, 'frame' | 'durationInFrames' | 'width' | 'height'> & { fps: number }) => {
+  if (!isPositive(fps)) {
+    throw new Error(`FrameProvider: fps must be a positive number, got ${fps}`);
+  }
+  if (!isPositive(width) || !isPositive(height)) {
+    throw new Error(`FrameProvider: width and height must be positive numbers, got ${width}x${height}`);
+  }
+  if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
+    throw new Error(
+      `FrameProvider: durationInFrames must be a positive integer, got ${durationInFrames}`,
+    );
+  }
+  if (!Number.isInteger(frame) || frame < 0 || frame > durationInFrames - 1) {
+    throw new Error(
+      `FrameProvider: frame must be an integer from 0 to ${durationInFrames - 1} (durationInFrames - 1), got ${frame}`,
+    );
+  }
+};
+
+/**
+ * Renders its children at `frame`. MotionForge has no clock of its own; the
+ * same `frame` always renders the same picture, whatever frame came before.
+ */
 export const FrameProvider: React.FC<FrameProviderProps> = ({
+  frame,
   fps = 30,
   durationInFrames,
   width,
   height,
-  children,
-  initialFrame = 0,
-}) => {
-  const [frame, setFrameState] = useState(initialFrame);
-  const [playing, setPlaying] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
-  const animationRef = useRef<number | null>(null);
-  const lastTimeRef = useRef<number>(0);
-  const frameRef = useRef<number>(initialFrame);
-
-  const setFrame = useCallback((newFrame: number) => {
-    const clampedFrame = Math.max(0, Math.min(newFrame, durationInFrames - 1));
-    setFrameState(clampedFrame);
-    frameRef.current = clampedFrame;
-  }, [durationInFrames]);
-
-  useEffect(() => {
-    if (playing) {
-      const frameDuration = 1000 / (fps * playbackRate);
-      
-      const animate = (currentTime: number) => {
-        if (currentTime - lastTimeRef.current >= frameDuration) {
-          frameRef.current += 1;
-          
-          if (frameRef.current >= durationInFrames) {
-            frameRef.current = 0;
-            setFrameState(0);
-            lastTimeRef.current = currentTime;
-          } else {
-            setFrameState(frameRef.current);
-            lastTimeRef.current = currentTime;
-          }
-        }
-        
-        animationRef.current = requestAnimationFrame(animate);
-      };
-      
-      animationRef.current = requestAnimationFrame(animate);
-      
-      return () => {
-        if (animationRef.current) {
-          cancelAnimationFrame(animationRef.current);
-        }
-      };
-    }
-  }, [playing, fps, playbackRate, durationInFrames]);
-
-  const value: FrameContextValue = {
-    frame,
-    fps,
-    durationInFrames,
-    width,
-    height,
-    playing,
-    playbackRate,
-    setFrame,
-    setPlaying,
-    setPlaybackRate,
-  };
-
-  return (
-    <FrameContext.Provider value={value}>
-      {children}
-    </FrameContext.Provider>
-  );
-};
-
-// Composition Manager Provider
-interface CompositionManagerProviderProps {
-  children: React.ReactNode;
-}
-
-export const CompositionManagerProvider: React.FC<CompositionManagerProviderProps> = ({ children }) => {
-  const [compositions] = useState(() => new Map<string, CompositionProps>());
-  const [currentCompositionId, setCurrentCompositionId] = useState<string | null>(null);
-
-  const registerComposition = useCallback((composition: CompositionProps) => {
-    compositions.set(composition.id, composition);
-  }, [compositions]);
-
-  const unregisterComposition = useCallback((id: string) => {
-    compositions.delete(id);
-  }, [compositions]);
-
-  const setCurrentComposition = useCallback((id: string) => {
-    if (compositions.has(id)) {
-      setCurrentCompositionId(id);
-    }
-  }, [compositions]);
-
-  const currentComposition = currentCompositionId ? compositions.get(currentCompositionId) || null : null;
-
-  return (
-    <CompositionManagerContext.Provider
-      value={{
-        compositions,
-        currentComposition,
-        registerComposition,
-        unregisterComposition,
-        setCurrentComposition,
-      }}
-    >
-      {children}
-    </CompositionManagerContext.Provider>
-  );
-};
-
-// Player Provider
-interface PlayerProviderProps {
-  durationInFrames: number;
-  fps?: number;
-  children: React.ReactNode;
-}
-
-export const PlayerProvider: React.FC<PlayerProviderProps> = ({
-  durationInFrames,
-  fps = 30,
+  gate,
+  audio,
+  staticFiles,
+  input,
+  onInput,
   children,
 }) => {
-  const [frame, setFrameState] = useState(0);
-  const [playing, setPlayingState] = useState(false);
-  const [playbackRate, setPlaybackRateState] = useState(1);
-  const animationRef = useRef<number | null>(null);
-  const lastTimeRef = useRef<number>(0);
-  const frameRef = useRef<number>(0);
+  validateFrameProps({ frame, fps, durationInFrames, width, height });
+  if (gate !== undefined && !isRenderGate(gate)) {
+    throw new Error('FrameProvider: gate must be created with createRenderGate()');
+  }
+  if (audio !== undefined && !isAudioCollector(audio)) {
+    throw new Error('FrameProvider: audio must be created with createAudioCollector()');
+  }
+  const value = useMemo<FrameContextValue>(
+    () => ({ frame, fps, durationInFrames, width, height }),
+    [frame, fps, durationInFrames, width, height],
+  );
 
-  const seek = useCallback((targetFrame: number) => {
-    const clampedFrame = Math.max(0, Math.min(targetFrame, durationInFrames - 1));
-    frameRef.current = clampedFrame;
-    setFrameState(clampedFrame);
-  }, [durationInFrames]);
+  const outer = useContext(GateContext);
+  const [privateGate] = useState(createRenderGate);
+  // The gate this provider owns: it reports its commits to it.
+  const owned = gate ?? (outer ? null : privateGate);
+  const gateValue = useMemo<GateContextValue>(
+    () => (owned ? { gate: owned, scope: null } : (outer as GateContextValue)),
+    [owned, outer],
+  );
 
-  const play = useCallback(() => setPlayingState(true), []);
-  const pause = useCallback(() => setPlayingState(false), []);
-  const toggle = useCallback(() => setPlayingState(p => !p), []);
-  const restart = useCallback(() => {
-    frameRef.current = 0;
-    setFrameState(0);
+  const timeline = useMemo<TimelineContextValue>(
+    () => ({ offset: 0, start: 0, end: durationInFrames, noAudio: null, placements: [{ offset: 0, start: 0, end: durationInFrames }] }),
+    [durationInFrames],
+  );
+  const outerHost = useContext(HostContext);
+  const resolveStaticFile = useMemo(
+    () => (staticFiles === undefined ? outerHost?.staticFiles ?? null : makeStaticFileResolver(staticFiles)),
+    [staticFiles, outerHost],
+  );
+  if (onInput !== undefined && typeof onInput !== 'function') {
+    throw new Error(`FrameProvider: onInput must be a function (event) => void, got ${JSON.stringify(onInput)}`);
+  }
+  // Checking an appended log costs only the new events.
+  const lastLog = useRef<readonly InputEvent[] | null>(null);
+  const log = input === undefined ? NO_EVENTS : checkInputLog(input, lastLog.current);
+  lastLog.current = log;
+  const emitState = useRef({ frame, onInput });
+  useIsomorphicLayoutEffect(() => {
+    emitState.current = { frame, onInput };
+  });
+  const emit = useCallback((event: InputEventInit) => {
+    if (typeof event !== 'object' || event === null || typeof event.type !== 'string' || event.type === '') {
+      throw new Error(`emitInput: the event must be { type, ... } with a non-empty type, got ${JSON.stringify(event)}`);
+    }
+    if ('frame' in event) {
+      throw new Error('emitInput: leave out frame: the event happens at the frame shown, which MotionForge sets');
+    }
+    const { frame: shown, onInput: handler } = emitState.current;
+    handler?.({ ...event, frame: shown });
   }, []);
+  const host = useMemo<HostContextValue>(
+    () => ({ audio: audio ?? null, staticFiles: resolveStaticFile, input: log, emit }),
+    [audio, resolveStaticFile, log, emit],
+  );
 
+  useEffect(() => (owned ? getGateInternals(owned).attach() : undefined), [owned]);
+  useEffect(() => (audio ? getAudioCollectorInternals(audio).attach() : undefined), [audio]);
+  // Effects run children first, so when this one runs every component below
+  // has registered its delayRender() handles for this frame and this log.
+  const committedLog = input === undefined ? null : log;
   useEffect(() => {
-    if (playing) {
-      const frameDuration = 1000 / (fps * playbackRate);
-      
-      const animate = (currentTime: number) => {
-        if (currentTime - lastTimeRef.current >= frameDuration) {
-          frameRef.current += 1;
-          
-          if (frameRef.current >= durationInFrames) {
-            frameRef.current = 0;
-            setFrameState(0);
-          } else {
-            setFrameState(frameRef.current);
-          }
-          lastTimeRef.current = currentTime;
-        }
-        
-        animationRef.current = requestAnimationFrame(animate);
-      };
-      
-      lastTimeRef.current = performance.now();
-      animationRef.current = requestAnimationFrame(animate);
-      
-      return () => {
-        if (animationRef.current) {
-          cancelAnimationFrame(animationRef.current);
-        }
-      };
-    }
-  }, [playing, fps, playbackRate, durationInFrames]);
+    if (owned) getGateInternals(owned).commit(frame, committedLog);
+  }, [owned, frame, committedLog]);
+
+  // Nobody waits on the private gate: its errors are thrown here instead.
+  const [cancelled, setCancelled] = useState<Error | null>(null);
+  useEffect(
+    () => (owned === privateGate ? getGateInternals(privateGate).onError((error) => setCancelled(() => error)) : undefined),
+    [owned, privateGate],
+  );
+  if (cancelled && owned === privateGate) throw cancelled;
 
   return (
-    <PlayerContext.Provider
-      value={{
-        frame,
-        playing,
-        playbackRate,
-        durationInFrames,
-        fps,
-        seek,
-        play,
-        pause,
-        toggle,
-        restart,
-        frameRef,
-      }}
-    >
-      {children}
-    </PlayerContext.Provider>
+    <GateContext.Provider value={gateValue}>
+      <HostContext.Provider value={host}>
+        <TimelineContext.Provider value={timeline}>
+          <FrameContext.Provider value={value}>{children}</FrameContext.Provider>
+        </TimelineContext.Provider>
+      </HostContext.Provider>
+    </GateContext.Provider>
   );
 };
 
-export { FrameContext, CompositionManagerContext, PlayerContext };
+export { FrameContext };

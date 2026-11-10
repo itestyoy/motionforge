@@ -1,716 +1,428 @@
-import React3, { createContext, useContext, useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
+'use client';import { getEndPosition, serializeInstructions, reduceInstructions, parsePath, quadToCubic } from './chunk-ADMJBRUM.js';
+export { centerPath, cutPath, evolvePath, extendViewBox, getBoundingBox, getInstructionIndexAtLength, getLength, getPointAtLength, getSubpaths, getTangentAtLength, normalizePath, parsePath, reduceInstructions, resetPath, reversePath, scalePath, serializeInstructions, translatePath, warpPath } from './chunk-ADMJBRUM.js';
+import { checkImageProps, mediaTimeInSeconds, calculateImageFit } from './chunk-ZVSY5ZVR.js';
+import { random, interpolate, Easing, spring, checkInterpolateArgs, interpolateColors, COLOR_FUNCTIONS, parseColor, isNamedColor } from './chunk-ZPHXLDRN.js';
+export { Easing, Easing as easing, getFramesFromSeconds, getSecondsFromFrames, interpolate, interpolateColors, measureSpring, random, range, spring, useKeyframes } from './chunk-ZPHXLDRN.js';
+export { AbsoluteFill, Audio, AbsoluteFill as Div, G, Img, Path, SVG, Text, Video, prefetch } from './chunk-26M65GZW.js';
+export { Freeze, Loop, Retiming, Reverse, Sequence, Series, useRelativeCurrentFrame, useSequence } from './chunk-SJDKZF4M.js';
+export { useIsCollectingAudio } from './chunk-ZIJRMQAM.js';
+import { rejectProps, CROP_AND_EFFECT_PROPS, SEQUENCE_PROPS, checkSrc, resolveSrc, serializeRequestInit, fetchAsset } from './chunk-WVAVUOFE.js';
+import { useCurrentFrame, useVideoConfig, useDelayRender, createCollectingCollector, FrameProvider, holdAllGates, HostContext, isAppendOf, noStaticFiles, TimelineContext, FrameContext, firstAtOrAfter, firstAfter } from './chunk-3P73E4TK.js';
+export { FrameProvider, createAudioCollector, createRenderGate, useCurrentFrame, useDelayRender, useVideoConfig } from './chunk-3P73E4TK.js';
+import { jsx, jsxs } from 'react/jsx-runtime';
+import React5, { createContext, forwardRef, useRef, useImperativeHandle, useCallback, useState, useEffect, useMemo, useContext } from 'react';
+import { createNoise2D, createNoise3D, createNoise4D } from 'simplex-noise';
 
-var __defProp = Object.defineProperty;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __esm = (fn, res) => function __init() {
-  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
-};
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-
-// src/renderer/export.ts
-var export_exports = {};
-__export(export_exports, {
-  CanvasRenderer: () => CanvasRenderer,
-  FrameSequenceEncoder: () => FrameSequenceEncoder,
-  VideoExportManager: () => VideoExportManager,
-  WebCodecsEncoder: () => WebCodecsEncoder,
-  WebMEncoder: () => WebMEncoder,
-  calculateProgress: () => calculateProgress,
-  checkEncodingSupport: () => checkEncodingSupport,
-  default: () => export_default,
-  estimateFileSize: () => estimateFileSize,
-  videoExportManager: () => videoExportManager
-});
-function calculateProgress(frame, totalFrames, startTime) {
-  const elapsedMs = Date.now() - startTime;
-  const percentage = frame / totalFrames * 100;
-  const framesPerSecond = frame > 0 ? frame / elapsedMs * 1e3 : 0;
-  const estimatedRemainingMs = framesPerSecond > 0 ? (totalFrames - frame) / framesPerSecond * 1e3 : 0;
-  return {
-    frame,
-    totalFrames,
-    percentage,
-    elapsedMs,
-    estimatedRemainingMs,
-    framesPerSecond
-  };
-}
-function estimateFileSize(config, bitrate = 5e6) {
-  const durationSeconds = config.durationInFrames / config.fps;
-  return Math.ceil(bitrate * durationSeconds / 8);
-}
-function checkEncodingSupport() {
-  const webm = MediaRecorder.isTypeSupported("video/webm");
-  const mp4 = MediaRecorder.isTypeSupported("video/mp4");
-  const codecs = [];
-  const testCodecs = [
-    "video/webm;codecs=vp9",
-    "video/webm;codecs=vp8",
-    "video/mp4;codecs=h264",
-    "video/mp4;codecs=avc1"
-  ];
-  for (const codec of testCodecs) {
-    if (MediaRecorder.isTypeSupported(codec)) {
-      codecs.push(codec);
+var OPTIONS = ["fps", "durationInFrames", "width", "height", "input", "staticFiles"];
+var isPositive = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+var now = () => typeof performance !== "undefined" ? performance.now() : Date.now();
+var collectAudioTracks = async (scene, options) => {
+  if (typeof options !== "object" || options === null) {
+    throw new TypeError(
+      `collectAudioTracks: expects the options { fps, durationInFrames, width, height, input?, staticFiles? }, got ${JSON.stringify(options)}`
+    );
+  }
+  for (const key of Object.keys(options)) {
+    if (!OPTIONS.includes(key)) {
+      throw new TypeError(`collectAudioTracks: unknown option ${JSON.stringify(key)} (it takes ${OPTIONS.join(", ")})`);
     }
   }
-  return { webm, mp4, codecs };
-}
-var CanvasRenderer, WebCodecsEncoder, WebMEncoder, FrameSequenceEncoder, VideoExportManager, videoExportManager, export_default;
-var init_export = __esm({
-  "src/renderer/export.ts"() {
-    CanvasRenderer = class {
-      constructor(config) {
-        this.config = config;
-        this.canvas = document.createElement("canvas");
-        this.canvas.width = config.width;
-        this.canvas.height = config.height;
-        const ctx = this.canvas.getContext("2d", {
-          alpha: false,
-          willReadFrequently: true
-        });
-        if (!ctx) {
-          throw new Error("Failed to get 2D context");
-        }
-        this.ctx = ctx;
-      }
-      /**
-       * Capture a single frame from a DOM element
-       */
-      async captureFrame(element) {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        if (element instanceof HTMLCanvasElement) {
-          this.ctx.drawImage(element, 0, 0, this.canvas.width, this.canvas.height);
-        } else if (element instanceof HTMLImageElement) {
-          this.ctx.drawImage(element, 0, 0, this.canvas.width, this.canvas.height);
-        } else {
-          try {
-            const data = await this.domToDataUrl(element);
-            const img = await this.loadImage(data);
-            this.ctx.drawImage(img, 0, 0, this.canvas.width, this.canvas.height);
-          } catch (e) {
-            console.error("Failed to capture frame:", e);
-            this.ctx.fillStyle = "#0a0a0a";
-            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-          }
-        }
-        return this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
-      }
-      async domToDataUrl(element) {
-        const width = this.config.width;
-        const height = this.config.height;
-        const clone = element.cloneNode(true);
-        this.inlineStyles(element, clone);
-        const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-        <foreignObject width="100%" height="100%">
-          <div xmlns="http://www.w3.org/1999/xhtml">
-            ${new XMLSerializer().serializeToString(clone)}
-          </div>
-        </foreignObject>
-      </svg>
-    `;
-        return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-      }
-      inlineStyles(source, target) {
-        const computed = window.getComputedStyle(source);
-        for (const key of Array.from(computed)) {
-          target.style.setProperty(key, computed.getPropertyValue(key), computed.getPropertyPriority(key));
-        }
-        for (let i = 0; i < source.children.length; i++) {
-          this.inlineStyles(source.children[i], target.children[i]);
-        }
-      }
-      loadImage(src) {
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = reject;
-          img.src = src;
-        });
-      }
-      /**
-       * Convert ImageData to Blob
-       */
-      async imageDataToBlob(imageData, format = "image/png") {
-        this.canvas.width = imageData.width;
-        this.canvas.height = imageData.height;
-        this.ctx.putImageData(imageData, 0, 0);
-        return new Promise((resolve, reject) => {
-          this.canvas.toBlob((blob) => {
-            if (blob) {
-              resolve(blob);
-            } else {
-              reject(new Error("Failed to convert to blob"));
-            }
-          }, format);
-        });
-      }
-      /**
-       * Convert ImageData to data URL
-       */
-      imageDataToDataURL(imageData, format = "image/png") {
-        this.canvas.width = imageData.width;
-        this.canvas.height = imageData.height;
-        this.ctx.putImageData(imageData, 0, 0);
-        return this.canvas.toDataURL(format);
-      }
-      /**
-       * Get canvas element
-       */
-      getCanvas() {
-        return this.canvas;
-      }
-      /**
-       * Get context
-       */
-      getContext() {
-        return this.ctx;
-      }
-      /**
-       * Dispose renderer
-       */
-      dispose() {
-        this.canvas.remove();
-      }
-    };
-    WebCodecsEncoder = class {
-      constructor(config) {
-        this.encoder = null;
-        this.chunks = [];
-        this.frameCount = 0;
-        this.config = config;
-      }
-      async start(fps, bitrate = 5e6) {
-        if (typeof VideoEncoder === "undefined") {
-          throw new Error("WebCodecs is not supported in this browser");
-        }
-        this.chunks = [];
-        this.frameCount = 0;
-        const init = {
-          output: (chunk) => {
-            const data = new Uint8Array(chunk.byteLength);
-            chunk.copyTo(data);
-            this.chunks.push(new Blob([data], { type: "video/webm" }));
-          },
-          error: (e) => console.error(e)
-        };
-        this.encoder = new VideoEncoder(init);
-        const config = {
-          codec: "vp09.00.10.08",
-          width: this.config.width,
-          height: this.config.height,
-          bitrate,
-          framerate: fps
-        };
-        this.encoder.configure(config);
-      }
-      async addFrame(canvas) {
-        if (!this.encoder) return;
-        const frame = new VideoFrame(canvas, {
-          timestamp: this.frameCount * 1e6 / this.config.fps
-        });
-        this.encoder.encode(frame, { keyFrame: this.frameCount % 60 === 0 });
-        frame.close();
-        this.frameCount++;
-      }
-      async stop() {
-        if (!this.encoder) return new Blob();
-        await this.encoder.flush();
-        this.encoder.close();
-        this.encoder = null;
-        return new Blob(this.chunks, { type: "video/webm" });
-      }
-    };
-    WebMEncoder = class {
-      constructor(canvas) {
-        this.mediaRecorder = null;
-        this.chunks = [];
-        this.stream = null;
-        this.canvas = canvas;
-      }
-      /**
-       * Start recording
-       */
-      async start(fps, bitrate = 5e6) {
-        this.chunks = [];
-        this.stream = this.canvas.captureStream(fps);
-        const mimeTypes = [
-          "video/webm;codecs=vp9",
-          "video/webm;codecs=vp8",
-          "video/webm"
-        ];
-        let mimeType = "";
-        for (const type of mimeTypes) {
-          if (MediaRecorder.isTypeSupported(type)) {
-            mimeType = type;
-            break;
-          }
-        }
-        if (!mimeType) {
-          throw new Error("No supported WebM codec found");
-        }
-        this.mediaRecorder = new MediaRecorder(this.stream, {
-          mimeType,
-          videoBitsPerSecond: bitrate
-        });
-        return new Promise((resolve, reject) => {
-          if (!this.mediaRecorder) {
-            reject(new Error("Failed to create MediaRecorder"));
-            return;
-          }
-          this.mediaRecorder.ondataavailable = (e) => {
-            if (e.data.size > 0) {
-              this.chunks.push(e.data);
-            }
-          };
-          this.mediaRecorder.onstart = () => resolve();
-          this.mediaRecorder.onerror = (e) => reject(e);
-          this.mediaRecorder.start();
-        });
-      }
-      /**
-       * Stop recording and get result
-       */
-      async stop() {
-        return new Promise((resolve, reject) => {
-          if (!this.mediaRecorder) {
-            reject(new Error("MediaRecorder not started"));
-            return;
-          }
-          this.mediaRecorder.onstop = () => {
-            const blob = new Blob(this.chunks, { type: "video/webm" });
-            resolve(blob);
-          };
-          this.mediaRecorder.stop();
-          if (this.stream) {
-            this.stream.getTracks().forEach((track) => track.stop());
-          }
-        });
-      }
-      /**
-       * Check if recording
-       */
-      isRecording() {
-        return this.mediaRecorder?.state === "recording";
-      }
-    };
-    FrameSequenceEncoder = class {
-      constructor() {
-        this.frames = [];
-        this.delays = [];
-      }
-      /**
-       * Add a frame
-       */
-      addFrame(imageData, delay) {
-        this.frames.push(imageData);
-        this.delays.push(delay);
-      }
-      /**
-       * Get all frames
-       */
-      getFrames() {
-        return this.frames;
-      }
-      /**
-       * Clear frames
-       */
-      clear() {
-        this.frames = [];
-        this.delays = [];
-      }
-      /**
-       * Get frame count
-       */
-      getFrameCount() {
-        return this.frames.length;
-      }
-    };
-    VideoExportManager = class {
-      constructor() {
-        this.renderer = null;
-        this.encoder = null;
-        this.isRendering = false;
-        this.abortController = null;
-      }
-      /**
-       * Export video by driving frames manually (frame-by-frame)
-       * This is much more robust than real-time recording
-       */
-      async exportVideo(setFrame, element, options) {
-        const startTime = Date.now();
-        const { config, onProgress, signal } = options;
-        const useWebCodecs = typeof VideoEncoder !== "undefined";
-        try {
-          this.isRendering = true;
-          this.abortController = new AbortController();
-          const mergedSignal = this.mergeSignals(signal, this.abortController.signal);
-          this.renderer = new CanvasRenderer(config);
-          const canvas = this.renderer.getCanvas();
-          const bitrate = options.rendererConfig?.bitrate ?? 5e6;
-          let webCodecsEncoder = null;
-          if (useWebCodecs) {
-            webCodecsEncoder = new WebCodecsEncoder(config);
-            await webCodecsEncoder.start(config.fps, bitrate);
-          } else {
-            this.encoder = new WebMEncoder(canvas);
-            await this.encoder.start(config.fps, bitrate);
-          }
-          for (let frame = 0; frame < config.durationInFrames; frame++) {
-            if (mergedSignal.aborted) throw new Error("Render aborted");
-            setFrame(frame);
-            await new Promise((resolve) => requestAnimationFrame(resolve));
-            await new Promise((resolve) => setTimeout(resolve, 20));
-            await this.renderer.captureFrame(element);
-            if (useWebCodecs && webCodecsEncoder) {
-              await webCodecsEncoder.addFrame(canvas);
-            } else {
-              await new Promise((resolve) => setTimeout(resolve, 1e3 / config.fps));
-            }
-            if (onProgress) {
-              onProgress(calculateProgress(frame, config.durationInFrames, startTime));
-            }
-          }
-          const blob = useWebCodecs && webCodecsEncoder ? await webCodecsEncoder.stop() : await this.encoder.stop();
-          const url = URL.createObjectURL(blob);
-          return {
-            success: true,
-            blob,
-            url,
-            frameCount: config.durationInFrames,
-            duration: Date.now() - startTime
-          };
-        } catch (error) {
-          return {
-            success: false,
-            frameCount: 0,
-            duration: Date.now() - startTime,
-            error: error instanceof Error ? error.message : "Unknown error"
-          };
-        } finally {
-          this.isRendering = false;
-          this.encoder = null;
-          if (this.renderer) {
-            this.renderer.dispose();
-            this.renderer = null;
-          }
-        }
-      }
-      /**
-       * Export video from frames (LEGACY/REAL-TIME)
-       */
-      async exportFromCanvas(canvas, options) {
-        const startTime = Date.now();
-        const { config, signal } = options;
-        try {
-          this.isRendering = true;
-          this.abortController = new AbortController();
-          const mergedSignal = this.mergeSignals(signal, this.abortController.signal);
-          this.encoder = new WebMEncoder(canvas);
-          const bitrate = options.rendererConfig?.bitrate ?? 5e6;
-          await this.encoder.start(config.fps, bitrate);
-          const durationMs = config.durationInFrames / config.fps * 1e3;
-          await new Promise((resolve, reject) => {
-            const timeout = setTimeout(resolve, durationMs + 500);
-            const checkAbort = () => {
-              if (mergedSignal.aborted) {
-                clearTimeout(timeout);
-                reject(new Error("Render aborted"));
-              } else if (this.isRendering) {
-                requestAnimationFrame(checkAbort);
-              }
-            };
-            checkAbort();
-          });
-          const blob = await this.encoder.stop();
-          const url = URL.createObjectURL(blob);
-          return {
-            success: true,
-            blob,
-            url,
-            frameCount: config.durationInFrames,
-            duration: Date.now() - startTime
-          };
-        } catch (error) {
-          return {
-            success: false,
-            frameCount: 0,
-            duration: Date.now() - startTime,
-            error: error instanceof Error ? error.message : "Unknown error"
-          };
-        } finally {
-          this.isRendering = false;
-          this.encoder = null;
-        }
-      }
-      /**
-       * Export frame sequence as images
-       */
-      async exportFrames(frames, format = "png") {
-        const canvasRenderer = new CanvasRenderer({
-          width: frames[0]?.width ?? 1920,
-          height: frames[0]?.height ?? 1080,
-          fps: 30,
-          durationInFrames: frames.length
-        });
-        const blobs = [];
-        const mimeType = `image/${format === "jpeg" ? "jpeg" : format}`;
-        for (let i = 0; i < frames.length; i++) {
-          const blob = await canvasRenderer.imageDataToBlob(frames[i], mimeType);
-          blobs.push(blob);
-        }
-        canvasRenderer.dispose();
-        return blobs;
-      }
-      /**
-       * Create downloadable zip of frames
-       */
-      async createFrameZip(frames, compositionId) {
-        if (frames.length === 0) {
-          throw new Error("No frames to zip");
-        }
-        const canvasRenderer = new CanvasRenderer({
-          width: frames[0].width,
-          height: frames[0].height,
-          fps: 30,
-          durationInFrames: frames.length
-        });
-        const blobs = await this.exportFrames(frames, "png");
-        canvasRenderer.dispose();
-        return blobs[0];
-      }
-      /**
-       * Abort current render
-       */
-      abort() {
-        if (this.abortController) {
-          this.abortController.abort();
-        }
-        this.isRendering = false;
-        this.encoder = null;
-      }
-      /**
-       * Check if currently rendering
-       */
-      getIsRendering() {
-        return this.isRendering;
-      }
-      /**
-       * Merge multiple abort signals
-       */
-      mergeSignals(...signals) {
-        const controller = new AbortController();
-        for (const signal of signals) {
-          if (signal) {
-            if (signal.aborted) {
-              controller.abort();
-              break;
-            }
-            signal.addEventListener("abort", () => controller.abort());
-          }
-        }
-        return controller.signal;
-      }
-    };
-    videoExportManager = new VideoExportManager();
-    export_default = VideoExportManager;
+  const { fps = 30, durationInFrames, width, height, input, staticFiles } = options;
+  if (!Number.isInteger(durationInFrames) || durationInFrames <= 0) {
+    throw new TypeError(`collectAudioTracks: durationInFrames must be a positive integer, got ${JSON.stringify(durationInFrames)}`);
   }
+  if (!isPositive(fps)) throw new TypeError(`collectAudioTracks: fps must be a positive number, got ${JSON.stringify(fps)}`);
+  if (!isPositive(width) || !isPositive(height)) {
+    throw new TypeError(`collectAudioTracks: width and height must be positive numbers, got ${JSON.stringify(width)}x${JSON.stringify(height)}`);
+  }
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { collector, beginFrame, endFrame } = createCollectingCollector();
+  let lastYield = now();
+  for (let frame = 0; frame < durationInFrames; frame++) {
+    beginFrame();
+    try {
+      renderToStaticMarkup(
+        /* @__PURE__ */ jsx(
+          FrameProvider,
+          {
+            frame,
+            fps,
+            durationInFrames,
+            width,
+            height,
+            audio: collector,
+            input,
+            staticFiles,
+            children: scene
+          }
+        )
+      );
+    } catch (cause) {
+      const error = new Error(
+        `collectAudioTracks: rendering frame ${frame} failed: ${cause instanceof Error ? cause.message : String(cause)}`
+      );
+      error.cause = cause;
+      throw error;
+    }
+    endFrame();
+    if (now() - lastYield > 50) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      lastYield = now();
+    }
+  }
+  return collector.getTracks();
+};
+var requireDom = () => {
+  if (typeof document === "undefined") {
+    throw new Error("usePreloadAssets needs a browser DOM (document is not defined)");
+  }
+};
+var checkSrc2 = (src, index) => {
+  if (typeof src !== "string" || src === "") {
+    throw new Error(`usePreloadAssets: assets[${index}].src must be a non-empty string, got ${JSON.stringify(src)}`);
+  }
+};
+var loadImage = (src) => {
+  const image = new Image();
+  image.src = src;
+  return image.decode().then(
+    () => void 0,
+    () => {
+      throw new Error(`usePreloadAssets: could not load or decode ${src}`);
+    }
+  );
+};
+var loadMedia = (element, src) => new Promise((resolve, reject) => {
+  const cleanup = () => {
+    element.removeEventListener("loadeddata", onLoaded);
+    element.removeEventListener("error", onError);
+  };
+  const onLoaded = () => {
+    cleanup();
+    resolve();
+  };
+  const onError = () => {
+    cleanup();
+    const detail = element.error ? `: ${element.error.message || `media error code ${element.error.code}`}` : "";
+    reject(new Error(`usePreloadAssets: could not load ${src}${detail}`));
+  };
+  element.addEventListener("loadeddata", onLoaded);
+  element.addEventListener("error", onError);
+  element.preload = "auto";
+  element.src = src;
+  element.load();
 });
-var FrameContext = createContext(null);
-var useCurrentFrame = () => {
-  const context = useContext(FrameContext);
-  if (!context) {
-    throw new Error("useCurrentFrame must be used within a FrameContext.Provider");
-  }
-  return context.frame;
+var loadVideo = (src) => {
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  return loadMedia(video, src);
 };
-var useVideoConfig = () => {
-  const context = useContext(FrameContext);
-  if (!context) {
-    throw new Error("useVideoConfig must be used within a FrameContext.Provider");
-  }
-  return {
-    fps: context.fps,
-    durationInFrames: context.durationInFrames,
-    width: context.width,
-    height: context.height
-  };
+var WEIGHTS = { normal: 400, bold: 700 };
+var toWeight = (weight) => {
+  const value = typeof weight === "number" ? weight : WEIGHTS[weight.trim().toLowerCase()] ?? Number(weight);
+  if (!Number.isFinite(value)) throw new Error(`usePreloadAssets: font weight must be a number, 'normal' or 'bold', got ${JSON.stringify(weight)}`);
+  return value;
 };
-var useTimelineState = () => {
-  const context = useContext(FrameContext);
-  if (!context) {
-    throw new Error("useTimelineState must be used within a FrameContext.Provider");
-  }
-  return {
-    frame: context.frame,
-    playing: context.playing,
-    playbackRate: context.playbackRate,
-    setFrame: context.setFrame,
-    setPlaying: context.setPlaying,
-    setPlaybackRate: context.setPlaybackRate
-  };
+var coversWeight = (descriptor, weight) => {
+  const [low, high = low] = descriptor.trim().split(/\s+/).map(toWeight);
+  return weight >= low && weight <= high;
 };
-var CompositionManagerContext = createContext(null);
-var PlayerContext = createContext(null);
-var FrameProvider = ({
-  fps = 30,
-  durationInFrames,
-  width,
-  height,
-  children,
-  initialFrame = 0
-}) => {
-  const [frame, setFrameState] = useState(initialFrame);
-  const [playing, setPlaying] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
-  const animationRef = useRef(null);
-  const lastTimeRef = useRef(0);
-  const frameRef = useRef(initialFrame);
-  const setFrame = useCallback((newFrame) => {
-    const clampedFrame = Math.max(0, Math.min(newFrame, durationInFrames - 1));
-    setFrameState(clampedFrame);
-    frameRef.current = clampedFrame;
-  }, [durationInFrames]);
+var unquote = (family) => family.trim().replace(/^(['"])(.*)\1$/, "$2").toLowerCase();
+var loadFontFaces = (family, weight, style) => {
+  if (!document.fonts || typeof document.fonts.forEach !== "function") {
+    throw new Error("usePreloadAssets: fonts need the CSS Font Loading API (document.fonts)");
+  }
+  const wanted = unquote(family);
+  const wantedWeight = weight === void 0 ? void 0 : toWeight(weight);
+  const wantedStyle = style?.trim().toLowerCase();
+  const faces = [];
+  document.fonts.forEach((face) => {
+    if (unquote(face.family) !== wanted) return;
+    if (wantedWeight !== void 0 && !coversWeight(face.weight, wantedWeight)) return;
+    if (wantedStyle !== void 0 && face.style.trim().toLowerCase().split(/\s+/)[0] !== wantedStyle) return;
+    faces.push(face);
+  });
+  const describe3 = [family, weight, style].filter((part) => part !== void 0).join(" ");
+  if (faces.length === 0) {
+    return Promise.reject(
+      new Error(`usePreloadAssets: no font face matches ${describe3}; declare it with @font-face or load it with loadFont()`)
+    );
+  }
+  return Promise.all(faces.map((face) => face.load())).then(
+    () => void 0,
+    () => {
+      throw new Error(`usePreloadAssets: could not load the font ${describe3}`);
+    }
+  );
+};
+var loadAsset = (asset) => {
+  requireDom();
+  switch (asset.type) {
+    case "image":
+      return loadImage(asset.src);
+    case "video":
+      return loadVideo(asset.src);
+    case "audio":
+      return loadMedia(document.createElement("audio"), asset.src);
+    case "font":
+      return loadFontFaces(asset.family, asset.weight, asset.style);
+  }
+};
+var ASSET_TYPES = ["image", "video", "audio", "font"];
+var checkAssets = (assets) => {
+  if (!Array.isArray(assets)) {
+    throw new Error("usePreloadAssets: assets must be an array");
+  }
+  assets.forEach((asset, i) => {
+    if (typeof asset !== "object" || asset === null || !ASSET_TYPES.includes(asset.type)) {
+      throw new Error(
+        `usePreloadAssets: assets[${i}] must be { type: 'image' | 'video' | 'audio' | 'font', ... }, got ${JSON.stringify(asset)}`
+      );
+    }
+    if (asset.type === "font") {
+      if (typeof asset.family !== "string" || asset.family.trim() === "") {
+        throw new Error(`usePreloadAssets: assets[${i}].family must be a non-empty string, got ${JSON.stringify(asset.family)}`);
+      }
+    } else {
+      checkSrc2(asset.src, i);
+    }
+  });
+};
+var usePreloadAssets = (assets) => {
+  checkAssets(assets);
+  const key = JSON.stringify(assets);
+  const { delayRender, continueRender, cancelRender } = useDelayRender();
+  const [loadedKey, setLoadedKey] = useState(null);
+  const handle = useRef(null);
   useEffect(() => {
-    if (playing) {
-      const frameDuration = 1e3 / (fps * playbackRate);
-      const animate = (currentTime) => {
-        if (currentTime - lastTimeRef.current >= frameDuration) {
-          frameRef.current += 1;
-          if (frameRef.current >= durationInFrames) {
-            frameRef.current = 0;
-            setFrameState(0);
-            lastTimeRef.current = currentTime;
-          } else {
-            setFrameState(frameRef.current);
-            lastTimeRef.current = currentTime;
-          }
-        }
-        animationRef.current = requestAnimationFrame(animate);
-      };
-      animationRef.current = requestAnimationFrame(animate);
-      return () => {
-        if (animationRef.current) {
-          cancelAnimationFrame(animationRef.current);
-        }
-      };
+    const list = JSON.parse(key);
+    const current = delayRender(`usePreloadAssets ${list.map((a) => a.type === "font" ? a.family : a.src).join(", ")}`);
+    handle.current = current;
+    let active = true;
+    Promise.resolve().then(() => Promise.all(list.map(loadAsset))).then(
+      () => {
+        if (active) setLoadedKey(key);
+      },
+      (error) => {
+        if (!active) return;
+        cancelRender(error);
+        continueRender(current);
+      }
+    );
+    return () => {
+      active = false;
+      continueRender(current);
+      handle.current = null;
+    };
+  }, [key, delayRender, continueRender, cancelRender]);
+  useEffect(() => {
+    if (loadedKey === key && handle.current !== null) {
+      continueRender(handle.current);
+      handle.current = null;
     }
-  }, [playing, fps, playbackRate, durationInFrames]);
-  const value = {
-    frame,
-    fps,
-    durationInFrames,
+  }, [loadedKey, key, continueRender]);
+  return loadedKey === key;
+};
+
+// src/core/fonts.ts
+var FORMATS = ["woff2", "woff", "opentype", "truetype"];
+var DESCRIPTORS = [
+  "ascentOverride",
+  "descentOverride",
+  "display",
+  "featureSettings",
+  "lineGapOverride",
+  "stretch",
+  "style",
+  "unicodeRange",
+  "variant",
+  "weight"
+];
+var loads = /* @__PURE__ */ new Map();
+var handled = (promise) => {
+  promise.catch(() => void 0);
+  return promise;
+};
+var loadFont = (options) => {
+  if (typeof options !== "object" || options === null) {
+    throw new TypeError(`loadFont: expects an options object { family, url, ... }, got ${JSON.stringify(options)}`);
+  }
+  const { family, url, format: format2 } = options;
+  if (typeof family !== "string" || family.trim() === "") {
+    throw new TypeError(`loadFont: family must be a non-empty string, got ${JSON.stringify(family)}`);
+  }
+  if (typeof url !== "string" || url === "") {
+    throw new TypeError(`loadFont: url must be a non-empty string, got ${JSON.stringify(url)}`);
+  }
+  if (format2 !== void 0 && !FORMATS.includes(format2)) {
+    throw new TypeError(`loadFont: format must be one of ${FORMATS.join(", ")}, got ${JSON.stringify(format2)}`);
+  }
+  for (const key2 of DESCRIPTORS) {
+    if (options[key2] !== void 0 && typeof options[key2] !== "string") {
+      throw new TypeError(`loadFont: ${key2} must be a string (a CSS @font-face value), got ${JSON.stringify(options[key2])}`);
+    }
+  }
+  if (typeof document === "undefined" || !document.fonts || typeof FontFace === "undefined") {
+    return handled(Promise.reject(new Error("loadFont needs a browser DOM with the CSS Font Loading API (document.fonts)")));
+  }
+  const key = JSON.stringify([family, url, format2, ...DESCRIPTORS.map((d) => options[d])]);
+  const existing = loads.get(key);
+  if (existing) return existing;
+  const descriptors = {};
+  for (const name of DESCRIPTORS) {
+    if (options[name] !== void 0) descriptors[name] = options[name];
+  }
+  const source = `url(${JSON.stringify(url)})${format2 ? ` format(${JSON.stringify(format2)})` : ""}`;
+  const hold = holdAllGates(`loadFont() ${family} from ${url}`);
+  const failure = (cause) => new Error(`loadFont: could not load ${family} from ${url}${cause instanceof Error && cause.message ? `: ${cause.message}` : ""}`);
+  let load;
+  try {
+    const face = new FontFace(family, source, descriptors);
+    document.fonts.add(face);
+    load = face.load().then(
+      () => hold.release(),
+      (cause) => {
+        document.fonts.delete(face);
+        const error = failure(cause);
+        hold.fail(error);
+        throw error;
+      }
+    );
+  } catch (cause) {
+    const error = failure(cause);
+    hold.fail(error);
+    load = Promise.reject(error);
+  }
+  loads.set(key, load);
+  return handled(load);
+};
+var useInputWindow = (hook) => {
+  const host = useContext(HostContext);
+  const timeline = useContext(TimelineContext);
+  const frameContext = useContext(FrameContext);
+  if (!host || !timeline || !frameContext) {
+    throw new Error(`${hook} must be used within a FrameProvider`);
+  }
+  const log = host.input;
+  const { offset } = timeline;
+  const { frame } = frameContext;
+  const first = firstAtOrAfter(log, offset);
+  const end = Math.max(first, firstAfter(log, offset + frame));
+  return { log, offset, first, end, frame };
+};
+var toLocal = (event, offset) => offset === 0 ? event : { ...event, frame: event.frame - offset };
+var useInputEvents = () => {
+  const { log, offset, first, end } = useInputWindow("useInputEvents");
+  return useMemo(
+    () => Object.freeze(log.slice(first, end).map((event) => toLocal(event, offset))),
+    [log, offset, first, end]
+  );
+};
+var useEmitInput = () => {
+  const host = useContext(HostContext);
+  if (!host) {
+    throw new Error("useEmitInput must be used within a FrameProvider");
+  }
+  return host.emit;
+};
+var useReducedState = (reducer, initialState) => {
+  if (typeof reducer !== "function") {
+    throw new Error(`useReducedState: reducer must be a function (state, event) => state, got ${JSON.stringify(reducer)}`);
+  }
+  const { log, offset, first, end } = useInputWindow("useReducedState");
+  const cache = useRef(null);
+  let current = cache.current;
+  const folded = current ? current.states.length - 1 : 0;
+  const valid = current !== null && current.offset === offset && current.first === first && (current.log === log || isAppendOf(current.log, log) && (folded === 0 || log[first + folded - 1] === current.log[first + folded - 1]));
+  if (!valid || current === null) {
+    current = { log, offset, first, states: [initialState] };
+    cache.current = current;
+  }
+  current.log = log;
+  const { states } = current;
+  while (states.length - 1 < end - first) {
+    const index = first + states.length - 1;
+    states.push(reducer(states[states.length - 1], toLocal(log[index], offset)));
+  }
+  return states[end - first];
+};
+var useLastEvent = (predicate) => {
+  if (predicate !== void 0 && typeof predicate !== "function") {
+    throw new Error(`useLastEvent: predicate must be a function (event) => boolean, got ${JSON.stringify(predicate)}`);
+  }
+  const { log, offset, first, end, frame } = useInputWindow("useLastEvent");
+  for (let i = end - 1; i >= first; i--) {
+    const event = toLocal(log[i], offset);
+    if (!predicate || predicate(event)) return { event, framesSince: frame - event.frame };
+  }
+  return null;
+};
+var useStaticFile = () => {
+  const host = useContext(HostContext);
+  if (!host) {
+    throw new Error("useStaticFile must be used within a FrameProvider");
+  }
+  return host.staticFiles ?? noStaticFiles;
+};
+
+// src/utils/fit-rect.ts
+var FITS = ["contain", "cover", "fill", "none", "scale-down"];
+var describe = (value) => {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
+};
+var checkSize = (name, size) => {
+  const { width, height } = size ?? {};
+  for (const [key, value] of [["width", width], ["height", height]]) {
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+      throw new Error(`fitRect: ${name}.${key} must be a positive number, got ${describe(value)}`);
+    }
+  }
+};
+var checkFinite = (name, value) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`fitRect: ${name} must be a finite number, got ${describe(value)}`);
+  }
+};
+var fitRect = (container, content, fit, anchor = { x: 0.5, y: 0.5 }) => {
+  checkSize("container", container);
+  checkSize("content", content);
+  if (!FITS.includes(fit)) {
+    throw new Error(`fitRect: fit must be one of ${FITS.map((f) => `'${f}'`).join(", ")}, got ${describe(fit)}`);
+  }
+  const { x: left = 0, y: top = 0 } = container;
+  checkFinite("container.x", left);
+  checkFinite("container.y", top);
+  if (typeof anchor !== "object" || anchor === null) {
+    throw new Error(`fitRect: anchor must be { x, y } (0 left/top, 0.5 centre, 1 right/bottom), got ${describe(anchor)}`);
+  }
+  checkFinite("anchor.x", anchor.x);
+  checkFinite("anchor.y", anchor.y);
+  let scaleX2;
+  let scaleY2;
+  if (fit === "fill") {
+    scaleX2 = container.width / content.width;
+    scaleY2 = container.height / content.height;
+  } else {
+    const contain = Math.min(container.width / content.width, container.height / content.height);
+    const scale2 = fit === "contain" ? contain : fit === "cover" ? Math.max(container.width / content.width, container.height / content.height) : fit === "none" ? 1 : Math.min(1, contain);
+    scaleX2 = scale2;
+    scaleY2 = scale2;
+  }
+  const width = scaleX2 === container.width / content.width ? container.width : content.width * scaleX2;
+  const height = scaleY2 === container.height / content.height ? container.height : content.height * scaleY2;
+  return {
+    x: left + (container.width - width) * anchor.x,
+    y: top + (container.height - height) * anchor.y,
     width,
     height,
-    playing,
-    playbackRate,
-    setFrame,
-    setPlaying,
-    setPlaybackRate
+    scaleX: scaleX2,
+    scaleY: scaleY2
   };
-  return /* @__PURE__ */ jsx(FrameContext.Provider, { value, children });
-};
-var CompositionManagerProvider = ({ children }) => {
-  const [compositions] = useState(() => /* @__PURE__ */ new Map());
-  const [currentCompositionId, setCurrentCompositionId] = useState(null);
-  const registerComposition = useCallback((composition) => {
-    compositions.set(composition.id, composition);
-  }, [compositions]);
-  const unregisterComposition = useCallback((id) => {
-    compositions.delete(id);
-  }, [compositions]);
-  const setCurrentComposition = useCallback((id) => {
-    if (compositions.has(id)) {
-      setCurrentCompositionId(id);
-    }
-  }, [compositions]);
-  const currentComposition = currentCompositionId ? compositions.get(currentCompositionId) || null : null;
-  return /* @__PURE__ */ jsx(
-    CompositionManagerContext.Provider,
-    {
-      value: {
-        compositions,
-        currentComposition,
-        registerComposition,
-        unregisterComposition,
-        setCurrentComposition
-      },
-      children
-    }
-  );
-};
-var PlayerProvider = ({
-  durationInFrames,
-  fps = 30,
-  children
-}) => {
-  const [frame, setFrameState] = useState(0);
-  const [playing, setPlayingState] = useState(false);
-  const [playbackRate, setPlaybackRateState] = useState(1);
-  const animationRef = useRef(null);
-  const lastTimeRef = useRef(0);
-  const frameRef = useRef(0);
-  const seek = useCallback((targetFrame) => {
-    const clampedFrame = Math.max(0, Math.min(targetFrame, durationInFrames - 1));
-    frameRef.current = clampedFrame;
-    setFrameState(clampedFrame);
-  }, [durationInFrames]);
-  const play = useCallback(() => setPlayingState(true), []);
-  const pause = useCallback(() => setPlayingState(false), []);
-  const toggle = useCallback(() => setPlayingState((p) => !p), []);
-  const restart = useCallback(() => {
-    frameRef.current = 0;
-    setFrameState(0);
-  }, []);
-  useEffect(() => {
-    if (playing) {
-      const frameDuration = 1e3 / (fps * playbackRate);
-      const animate = (currentTime) => {
-        if (currentTime - lastTimeRef.current >= frameDuration) {
-          frameRef.current += 1;
-          if (frameRef.current >= durationInFrames) {
-            frameRef.current = 0;
-            setFrameState(0);
-          } else {
-            setFrameState(frameRef.current);
-          }
-          lastTimeRef.current = currentTime;
-        }
-        animationRef.current = requestAnimationFrame(animate);
-      };
-      lastTimeRef.current = performance.now();
-      animationRef.current = requestAnimationFrame(animate);
-      return () => {
-        if (animationRef.current) {
-          cancelAnimationFrame(animationRef.current);
-        }
-      };
-    }
-  }, [playing, fps, playbackRate, durationInFrames]);
-  return /* @__PURE__ */ jsx(
-    PlayerContext.Provider,
-    {
-      value: {
-        frame,
-        playing,
-        playbackRate,
-        durationInFrames,
-        fps,
-        seek,
-        play,
-        pause,
-        toggle,
-        restart,
-        frameRef
-      },
-      children
-    }
-  );
 };
 var CompositionContext = createContext(null);
 var useComposition = () => {
@@ -720,15 +432,20 @@ var useComposition = () => {
   }
   return context;
 };
-var useVideoConfig2 = () => useVideoConfig();
 var Composition = ({
   id,
   component: Component,
+  frame,
   width = 1920,
   height = 1080,
   fps = 30,
   durationInFrames,
-  defaultProps = {}
+  defaultProps = {},
+  gate,
+  audio,
+  staticFiles,
+  input,
+  onInput
 }) => {
   return /* @__PURE__ */ jsx(
     CompositionContext.Provider,
@@ -740,811 +457,493 @@ var Composition = ({
       children: /* @__PURE__ */ jsx(
         FrameProvider,
         {
-          fps,
-          durationInFrames,
-          width,
-          height,
-          children: /* @__PURE__ */ jsx(Component, { ...defaultProps })
-        }
-      )
-    }
-  );
-};
-var PlayerComposition = ({
-  id,
-  component: Component,
-  width = 1920,
-  height = 1080,
-  fps = 30,
-  durationInFrames,
-  defaultProps = {},
-  frame,
-  playing = false,
-  playbackRate = 1
-}) => {
-  return /* @__PURE__ */ jsx(
-    CompositionContext.Provider,
-    {
-      value: {
-        id,
-        config: { width, height, fps, durationInFrames }
-      },
-      children: /* @__PURE__ */ jsx(
-        StaticFrameProvider,
-        {
-          fps,
-          durationInFrames,
-          width,
-          height,
           frame,
-          playing,
-          playbackRate,
+          fps,
+          durationInFrames,
+          width,
+          height,
+          gate,
+          audio,
+          staticFiles,
+          input,
+          onInput,
           children: /* @__PURE__ */ jsx(Component, { ...defaultProps })
         }
       )
     }
   );
-};
-var StaticFrameProvider = ({
-  fps,
-  durationInFrames,
-  width,
-  height,
-  frame,
-  playing,
-  playbackRate,
-  children
-}) => {
-  const value = {
-    frame,
-    fps,
-    durationInFrames,
-    width,
-    height,
-    playing,
-    playbackRate,
-    setFrame: () => {
-    },
-    setPlaying: () => {
-    },
-    setPlaybackRate: () => {
-    }
-  };
-  return /* @__PURE__ */ jsx(FrameContext.Provider, { value, children });
-};
-var SequenceContext = createContext({
-  relativeFrom: 0,
-  isActive: true,
-  startFrame: 0,
-  endFrame: Infinity
-});
-var useSequence = () => useContext(SequenceContext);
-var Sequence = ({
-  from,
-  durationInFrames,
-  offset = 0,
-  name,
-  children,
-  layout = "absolute-fill"
-}) => {
-  const currentFrame = useCurrentFrame();
-  const startFrame = from + offset;
-  const endFrame = durationInFrames !== void 0 ? startFrame + durationInFrames : Infinity;
-  const relativeFrame = currentFrame - startFrame;
-  const isActive = currentFrame >= startFrame && currentFrame < endFrame;
-  const contextValue = {
-    relativeFrom: startFrame,
-    durationInFrames,
-    isActive,
-    startFrame,
-    endFrame
-  };
-  if (!isActive) {
-    return null;
-  }
-  return /* @__PURE__ */ jsx(SequenceContext.Provider, { value: contextValue, children: /* @__PURE__ */ jsx(
-    "div",
-    {
-      "data-sequence-name": name,
-      "data-sequence-from": startFrame,
-      "data-sequence-duration": durationInFrames,
-      style: {
-        position: layout === "absolute-fill" ? "absolute" : "relative",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        display: "flex",
-        flexDirection: "column"
-      },
-      children: /* @__PURE__ */ jsx(SequenceFrameProvider, { relativeFrame, children })
-    }
-  ) });
-};
-var SequenceFrameProvider = ({
-  relativeFrame,
-  children
-}) => {
-  return /* @__PURE__ */ jsx(RelativeFrameContext.Provider, { value: relativeFrame, children });
-};
-var RelativeFrameContext = createContext(0);
-var useRelativeCurrentFrame = () => useContext(RelativeFrameContext);
-var Loop = ({
-  durationInFrames,
-  times = Infinity,
-  children,
-  name
-}) => {
-  const currentFrame = useCurrentFrame();
-  const totalFrames = times === Infinity ? durationInFrames : durationInFrames * times;
-  const loopedFrame = currentFrame % durationInFrames;
-  const currentLoop = Math.floor(currentFrame / durationInFrames);
-  if (times !== Infinity && currentFrame >= totalFrames) {
-    return null;
-  }
-  return /* @__PURE__ */ jsx(LoopContext.Provider, { value: { loopedFrame, currentLoop, durationInFrames }, children: /* @__PURE__ */ jsx(SequenceFrameProvider, { relativeFrame: loopedFrame, children }) });
-};
-var LoopContext = createContext({
-  loopedFrame: 0,
-  currentLoop: 0,
-  durationInFrames: 0
-});
-var Freeze = ({
-  frame: freezeFrame,
-  durationInFrames,
-  children
-}) => {
-  const currentFrame = useCurrentFrame();
-  const displayFrame = currentFrame < durationInFrames ? freezeFrame : currentFrame - durationInFrames + freezeFrame;
-  return /* @__PURE__ */ jsx(SequenceFrameProvider, { relativeFrame: displayFrame, children });
-};
-var Retiming = ({
-  children,
-  playbackRate,
-  name
-}) => {
-  const currentFrame = useCurrentFrame();
-  const rate = typeof playbackRate === "function" ? playbackRate(currentFrame) : playbackRate;
-  const retimedFrame = Math.floor(currentFrame * rate);
-  return /* @__PURE__ */ jsx(SequenceFrameProvider, { relativeFrame: retimedFrame, children });
-};
-var Reverse = ({
-  children,
-  durationInFrames
-}) => {
-  const currentFrame = useCurrentFrame();
-  const reversedFrame = durationInFrames - 1 - currentFrame % durationInFrames;
-  return /* @__PURE__ */ jsx(SequenceFrameProvider, { relativeFrame: reversedFrame, children });
-};
-var Series = ({ children }) => {
-  const currentFrame = useCurrentFrame();
-  let accumulatedFrames = 0;
-  let activeChildIndex = -1;
-  let relativeFrame = currentFrame;
-  const childArray = React3.Children.toArray(children);
-  for (let i = 0; i < childArray.length; i++) {
-    const child = childArray[i];
-    if (React3.isValidElement(child) && child.props.durationInFrames) {
-      const childDuration = child.props.durationInFrames;
-      if (currentFrame >= accumulatedFrames && currentFrame < accumulatedFrames + childDuration) {
-        activeChildIndex = i;
-        relativeFrame = currentFrame - accumulatedFrames;
-        break;
-      }
-      accumulatedFrames += childDuration;
-    }
-  }
-  if (activeChildIndex === -1) {
-    return null;
-  }
-  const activeChild = childArray[activeChildIndex];
-  return /* @__PURE__ */ jsx(SequenceFrameProvider, { relativeFrame, children: activeChild });
-};
-var AbsoluteFill = ({
-  children,
-  style,
-  className
-}) => {
-  return /* @__PURE__ */ jsx(
-    "div",
-    {
-      className,
-      style: {
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        ...style
-      },
-      children
-    }
-  );
-};
-var Video = ({
-  src,
-  startFrom = 0,
-  endAt,
-  volume = 1,
-  playbackRate = 1,
-  muted = true,
-  style,
-  pauseOnFrame = true,
-  ...props
-}) => {
-  const videoRef = useRef(null);
-  const currentFrame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => {
-    if (videoRef.current && loaded) {
-      const time = (startFrom + currentFrame) / fps;
-      if (Math.abs(videoRef.current.currentTime - time) > 0.05) {
-        videoRef.current.currentTime = time;
-      }
-    }
-  }, [currentFrame, fps, startFrom, loaded]);
-  useEffect(() => {
-    if (videoRef.current) {
-      const vol = typeof volume === "function" ? volume(currentFrame) : volume;
-      videoRef.current.volume = Math.max(0, Math.min(1, vol));
-    }
-  }, [currentFrame, volume]);
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.playbackRate = playbackRate;
-    }
-  }, [playbackRate]);
-  const handleLoadedData = () => {
-    setLoaded(true);
-    if (props.onLoadedData) {
-      props.onLoadedData({});
-    }
-  };
-  return /* @__PURE__ */ jsx(
-    "video",
-    {
-      ref: videoRef,
-      src,
-      muted,
-      playsInline: true,
-      style: {
-        width: "100%",
-        height: "100%",
-        objectFit: "cover",
-        ...style
-      },
-      onLoadedData: handleLoadedData,
-      ...props
-    }
-  );
-};
-var Audio = ({
-  src,
-  startFrom = 0,
-  endAt,
-  volume = 1,
-  playbackRate = 1,
-  muted = false,
-  ...props
-}) => {
-  const audioRef = useRef(null);
-  const currentFrame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => {
-    if (audioRef.current && loaded) {
-      const time = (startFrom + currentFrame) / fps;
-      if (Math.abs(audioRef.current.currentTime - time) > 0.05) {
-        audioRef.current.currentTime = time;
-      }
-    }
-  }, [currentFrame, fps, startFrom, loaded]);
-  useEffect(() => {
-    if (audioRef.current) {
-      const vol = typeof volume === "function" ? volume(currentFrame) : volume;
-      audioRef.current.volume = Math.max(0, Math.min(1, vol));
-    }
-  }, [currentFrame, volume]);
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.playbackRate = playbackRate;
-    }
-  }, [playbackRate]);
-  const handleLoadedData = () => {
-    setLoaded(true);
-    if (props.onLoadedData) {
-      props.onLoadedData({});
-    }
-  };
-  return /* @__PURE__ */ jsx(
-    "audio",
-    {
-      ref: audioRef,
-      src,
-      muted,
-      onLoadedData: handleLoadedData,
-      ...props
-    }
-  );
-};
-var Img = ({
-  src,
-  style,
-  startFrom,
-  endAt,
-  ...props
-}) => {
-  const currentFrame = useCurrentFrame();
-  if (startFrom !== void 0 && currentFrame < startFrom) {
-    return null;
-  }
-  if (endAt !== void 0 && currentFrame > endAt) {
-    return null;
-  }
-  return /* @__PURE__ */ jsx(
-    "img",
-    {
-      src,
-      alt: "",
-      style: {
-        width: "100%",
-        height: "100%",
-        objectFit: "cover",
-        ...style
-      },
-      ...props
-    }
-  );
-};
-var staticFile = (path) => {
-  return `/static/${path}`;
-};
-var Text = ({
-  children,
-  style,
-  className
-}) => {
-  return /* @__PURE__ */ jsx(
-    "div",
-    {
-      className,
-      style: {
-        display: "inline-block",
-        ...style
-      },
-      children
-    }
-  );
-};
-var SVG = ({
-  width = "100%",
-  height = "100%",
-  viewBox = "0 0 100 100",
-  children,
-  style
-}) => {
-  return /* @__PURE__ */ jsx(
-    "svg",
-    {
-      width,
-      height,
-      viewBox,
-      style: {
-        overflow: "visible",
-        ...style
-      },
-      children
-    }
-  );
-};
-var Rect = ({
-  width,
-  height,
-  x = 0,
-  y = 0,
-  rx = 0,
-  ry = 0,
-  fill = "black",
-  stroke,
-  strokeWidth,
-  style
-}) => {
-  return /* @__PURE__ */ jsx(
-    "rect",
-    {
-      x,
-      y,
-      width,
-      height,
-      rx,
-      ry,
-      fill,
-      stroke,
-      strokeWidth,
-      style
-    }
-  );
-};
-var Circle = ({
-  r,
-  cx = 0,
-  cy = 0,
-  fill = "black",
-  stroke,
-  strokeWidth,
-  style
-}) => {
-  return /* @__PURE__ */ jsx(
-    "circle",
-    {
-      cx,
-      cy,
-      r,
-      fill,
-      stroke,
-      strokeWidth,
-      style
-    }
-  );
-};
-var Path = ({
-  d,
-  fill = "black",
-  stroke,
-  strokeWidth,
-  style
-}) => {
-  return /* @__PURE__ */ jsx(
-    "path",
-    {
-      d,
-      fill,
-      stroke,
-      strokeWidth,
-      style
-    }
-  );
-};
-var G = ({
-  children,
-  transform,
-  style
-}) => {
-  return /* @__PURE__ */ jsx("g", { transform, style, children });
 };
 
-// src/utils/animation.ts
-var Easing = {
-  linear: (t) => t,
-  easeInQuad: (t) => t * t,
-  easeOutQuad: (t) => t * (2 - t),
-  easeInOutQuad: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
-  easeInCubic: (t) => t * t * t,
-  easeOutCubic: (t) => --t * t * t + 1,
-  easeInOutCubic: (t) => t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1,
-  easeInQuart: (t) => t * t * t * t,
-  easeOutQuart: (t) => 1 - --t * t * t * t,
-  easeInOutQuart: (t) => t < 0.5 ? 8 * t * t * t * t : 1 - 8 * --t * t * t * t,
-  easeInQuint: (t) => t * t * t * t * t,
-  easeOutQuint: (t) => 1 + --t * t * t * t * t,
-  easeInOutQuint: (t) => t < 0.5 ? 16 * t * t * t * t * t : 1 + 16 * --t * t * t * t * t,
-  easeInSine: (t) => 1 - Math.cos(t * Math.PI / 2),
-  easeOutSine: (t) => Math.sin(t * Math.PI / 2),
-  easeInOutSine: (t) => -(Math.cos(Math.PI * t) - 1) / 2,
-  easeInExpo: (t) => t === 0 ? 0 : Math.pow(2, 10 * (t - 1)),
-  easeOutExpo: (t) => t === 1 ? 1 : 1 - Math.pow(2, -10 * t),
-  easeInOutExpo: (t) => {
-    if (t === 0) return 0;
-    if (t === 1) return 1;
-    if (t < 0.5) return Math.pow(2, 20 * t - 10) / 2;
-    return (2 - Math.pow(2, -20 * t + 10)) / 2;
-  },
-  easeInCirc: (t) => 1 - Math.sqrt(1 - t * t),
-  easeOutCirc: (t) => Math.sqrt(1 - --t * t),
-  easeInOutCirc: (t) => t < 0.5 ? (1 - Math.sqrt(1 - 4 * t * t)) / 2 : (Math.sqrt(1 - Math.pow(-2 * t + 2, 2)) + 1) / 2,
-  easeInBack: (t) => {
-    const c1 = 1.70158;
-    const c3 = c1 + 1;
-    return c3 * t * t * t - c1 * t * t;
-  },
-  easeOutBack: (t) => {
-    const c1 = 1.70158;
-    const c3 = c1 + 1;
-    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-  },
-  easeInOutBack: (t) => {
-    const c1 = 1.70158;
-    const c2 = c1 * 1.525;
-    return t < 0.5 ? Math.pow(2 * t, 2) * ((c2 + 1) * 2 * t - c2) / 2 : (Math.pow(2 * t - 2, 2) * ((c2 + 1) * (t * 2 - 2) + c2) + 2) / 2;
-  },
-  easeInElastic: (t) => {
-    const c4 = 2 * Math.PI / 3;
-    return t === 0 ? 0 : t === 1 ? 1 : -Math.pow(2, 10 * t - 10) * Math.sin((t * 10 - 10.75) * c4);
-  },
-  easeOutElastic: (t) => {
-    const c4 = 2 * Math.PI / 3;
-    return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
-  },
-  easeInOutElastic: (t) => {
-    const c5 = 2 * Math.PI / 4.5;
-    if (t === 0) return 0;
-    if (t === 1) return 1;
-    if (t < 0.5) return -(Math.pow(2, 20 * t - 10) * Math.sin((20 * t - 11.125) * c5)) / 2;
-    return Math.pow(2, -20 * t + 10) * Math.sin((20 * t - 11.125) * c5) / 2 + 1;
-  },
-  easeInBounce: (t) => 1 - Easing.easeOutBounce(1 - t),
-  easeOutBounce: (t) => {
-    const n1 = 7.5625;
-    const d1 = 2.75;
-    if (t < 1 / d1) {
-      return n1 * t * t;
-    } else if (t < 2 / d1) {
-      return n1 * (t -= 1.5 / d1) * t + 0.75;
-    } else if (t < 2.5 / d1) {
-      return n1 * (t -= 2.25 / d1) * t + 0.9375;
-    } else {
-      return n1 * (t -= 2.625 / d1) * t + 0.984375;
+// src/components/animated-image/decoder.ts
+var COMPONENT = "<AnimatedImage>";
+var openAnimatedImage = async (src, requestInit, signal) => {
+  if (typeof ImageDecoder === "undefined") {
+    throw new Error(
+      `${COMPONENT} needs the WebCodecs ImageDecoder API, which this browser does not have (Chromium-based browsers and Firefox have it, Safari does not). For a GIF, use <Gif> from 'motionforge/gif', which decodes in JavaScript.`
+    );
+  }
+  const response = await fetchAsset(COMPONENT, src, requestInit, signal);
+  const type = response.headers.get("Content-Type")?.split(";")[0].trim() || "image/gif";
+  if (!await ImageDecoder.isTypeSupported(type)) {
+    throw new Error(`${COMPONENT} cannot decode ${src}: this browser's ImageDecoder does not support "${type}"`);
+  }
+  const decoder = new ImageDecoder({ data: response.body ?? await response.arrayBuffer(), type });
+  try {
+    await Promise.all([decoder.completed, decoder.tracks.ready]);
+    const track = decoder.tracks.selectedTrack;
+    if (!track || track.frameCount < 1) {
+      throw new Error(`${COMPONENT} found no image frames in ${src}`);
     }
-  },
-  easeInOutBounce: (t) => t < 0.5 ? (1 - Easing.easeOutBounce(1 - 2 * t)) / 2 : (1 + Easing.easeOutBounce(2 * t - 1)) / 2,
-  // Bezier curve easing
-  bezier: (x1, y1, x2, y2) => {
-    const epsilon = 1e-6;
-    const sampleCurveX = (t) => 3 * x1 * t * (1 - t) * (1 - t) + 3 * x2 * t * t * (1 - t) + t * t * t;
-    const sampleCurveY = (t) => 3 * y1 * t * (1 - t) * (1 - t) + 3 * y2 * t * t * (1 - t) + t * t * t;
-    const solveCurveX = (x) => {
-      let t = x;
-      for (let i = 0; i < 8; i++) {
-        const xEst = sampleCurveX(t) - x;
-        if (Math.abs(xEst) < epsilon) return t;
-        const d = 3 * x1 * (1 - t) * (1 - t) + 6 * x2 * t * (1 - t) + 3 * t * t;
-        if (Math.abs(d) < epsilon) break;
-        t -= xEst / d;
-      }
-      return t;
+    const starts = [];
+    let durationUs = 0;
+    for (let frameIndex = 0; frameIndex < track.frameCount; frameIndex++) {
+      const { image } = await decoder.decode({ frameIndex, completeFramesOnly: true });
+      starts.push(image.timestamp);
+      if (!image.duration) durationUs = null;
+      else if (durationUs !== null) durationUs = image.timestamp + image.duration;
+      image.close();
+    }
+    return {
+      frameCount: track.frameCount,
+      starts,
+      durationUs: track.frameCount > 1 ? durationUs : null,
+      decode: (frameIndex) => decoder.decode({ frameIndex, completeFramesOnly: true }).then((result) => result.image),
+      close: () => decoder.close()
     };
-    return (t) => sampleCurveY(solveCurveX(t));
+  } catch (error) {
+    decoder.close();
+    if (error instanceof Error && (error.name === "AbortError" || error.message.startsWith(COMPONENT))) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${COMPONENT} could not decode ${src}: ${message}`);
   }
 };
-var spring = ({
-  frame,
-  fps,
-  config = {},
-  from = 0,
-  to = 1,
-  durationInFrames,
-  durationRestThreshold = 5e-3
+var getAnimatedImageFrameIndex = (track, timeInSeconds, loopBehavior) => {
+  const { starts, durationUs } = track;
+  if (durationUs === null || starts.length === 1) return 0;
+  let time = timeInSeconds * 1e6;
+  if (loopBehavior === "loop") {
+    time = (time % durationUs + durationUs) % durationUs;
+  } else if (time >= durationUs) {
+    return loopBehavior === "pause-after-finish" ? starts.length - 1 : null;
+  }
+  let low = 0;
+  let high = starts.length - 1;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (starts[mid] <= time) low = mid;
+    else high = mid - 1;
+  }
+  return low;
+};
+var LOOP_BEHAVIORS = ["loop", "pause-after-finish", "clear-after-finish"];
+var AnimatedImage = forwardRef((props, ref) => {
+  rejectProps("<AnimatedImage>", props, { ...SEQUENCE_PROPS, ...CROP_AND_EFFECT_PROPS });
+  const {
+    src,
+    width,
+    height,
+    onError,
+    fit = "fill",
+    playbackRate = 1,
+    loopBehavior = "loop",
+    requestInit,
+    ...canvasProps
+  } = props;
+  checkSrc("<AnimatedImage>", src);
+  checkImageProps("<AnimatedImage>", { fit, width, height, playbackRate });
+  if (!LOOP_BEHAVIORS.includes(loopBehavior)) {
+    throw new Error(
+      `<AnimatedImage>: loopBehavior must be 'loop', 'pause-after-finish' or 'clear-after-finish', got ${JSON.stringify(loopBehavior)}`
+    );
+  }
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const time = mediaTimeInSeconds(frame, fps, playbackRate);
+  const { delayRender, continueRender, cancelRender } = useDelayRender();
+  const canvasRef = useRef(null);
+  useImperativeHandle(ref, () => canvasRef.current, []);
+  const requestInitRef = useRef(requestInit);
+  requestInitRef.current = requestInit;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+  const fail = useCallback(
+    (error) => {
+      const asError = error instanceof Error ? error : new Error(String(error));
+      if (onErrorRef.current) onErrorRef.current(asError);
+      else cancelRender(asError);
+    },
+    [cancelRender]
+  );
+  const resolvedSrc = resolveSrc(src);
+  const key = `${resolvedSrc} ${serializeRequestInit(requestInit)}`;
+  const [loaded, setLoaded] = useState(null);
+  const current = loaded !== null && loaded.key === key ? loaded : null;
+  useEffect(() => {
+    const handle = delayRender(`<AnimatedImage> loading ${src}`);
+    const controller = new AbortController();
+    let active = true;
+    let track = null;
+    openAnimatedImage(resolvedSrc, requestInitRef.current, controller.signal).then(
+      (opened) => {
+        if (!active) {
+          opened.close();
+          return;
+        }
+        track = opened;
+        setLoaded({ key, track: opened, handle });
+      },
+      (error) => {
+        if (!active) return;
+        fail(error);
+        continueRender(handle);
+      }
+    );
+    return () => {
+      active = false;
+      controller.abort();
+      track?.close();
+      continueRender(handle);
+    };
+  }, [key, delayRender, continueRender, fail]);
+  useEffect(() => {
+    if (!current) return;
+    const handle = delayRender(`<AnimatedImage> ${src} at ${time}s`);
+    continueRender(current.handle);
+    let active = true;
+    const canvas = canvasRef.current;
+    const index = getAnimatedImageFrameIndex(current.track, time, loopBehavior);
+    if (index === null || !canvas) {
+      canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+      continueRender(handle);
+      return;
+    }
+    current.track.decode(index).then(
+      (image) => {
+        try {
+          if (!active) return;
+          const context = canvas.getContext("2d");
+          if (!context) throw new Error("<AnimatedImage> could not get a 2D context for its canvas");
+          const canvasWidth = width ?? image.displayWidth;
+          const canvasHeight = height ?? image.displayHeight;
+          if (canvas.width !== canvasWidth) canvas.width = canvasWidth;
+          if (canvas.height !== canvasHeight) canvas.height = canvasHeight;
+          context.clearRect(0, 0, canvasWidth, canvasHeight);
+          context.drawImage(
+            image,
+            ...calculateImageFit(
+              fit,
+              { width: image.displayWidth, height: image.displayHeight },
+              { width: canvasWidth, height: canvasHeight }
+            )
+          );
+          continueRender(handle);
+        } catch (error) {
+          fail(error);
+          continueRender(handle);
+        } finally {
+          image.close();
+        }
+      },
+      (error) => {
+        if (!active) return;
+        fail(new Error(`<AnimatedImage> could not decode frame ${index} of ${src}: ${error instanceof Error ? error.message : error}`));
+        continueRender(handle);
+      }
+    );
+    return () => {
+      active = false;
+      continueRender(handle);
+    };
+  }, [current, time, loopBehavior, fit, width, height, src, delayRender, continueRender, fail]);
+  return /* @__PURE__ */ jsx("canvas", { ref: canvasRef, width, height, ...canvasProps });
+});
+AnimatedImage.displayName = "AnimatedImage";
+var HyperFrame = ({
+  html,
+  css,
+  js,
+  frameVariableName = "frame",
+  className,
+  style
 }) => {
-  const {
-    damping = 10,
-    mass = 1,
-    stiffness = 100,
-    overshootClamping = false
-  } = config;
-  const omega = Math.sqrt(stiffness / mass);
-  const zeta = damping / (2 * Math.sqrt(stiffness * mass));
-  const actualDuration = durationInFrames ?? Math.ceil(fps * 2);
-  const t = Math.min(frame / actualDuration, 1);
-  const time = t * actualDuration / fps;
-  let value;
-  if (zeta < 1) {
-    const omegaD = omega * Math.sqrt(1 - zeta * zeta);
-    value = 1 - Math.exp(-zeta * omega * time) * (Math.cos(omegaD * time) + zeta * omega / omegaD * Math.sin(omegaD * time));
-  } else if (zeta === 1) {
-    value = 1 - (1 + omega * time) * Math.exp(-omega * time);
-  } else {
-    const r1 = -omega * (zeta - Math.sqrt(zeta * zeta - 1));
-    const r2 = -omega * (zeta + Math.sqrt(zeta * zeta - 1));
-    const c2 = (1 - r1 / (r1 - r2)) / (r1 - r2);
-    const c1 = 1 / (r1 - r2) - c2;
-    value = 1 - c1 * Math.exp(r1 * time) - c2 * Math.exp(r2 * time);
-  }
-  if (overshootClamping) {
-    value = Math.max(0, Math.min(1, value));
-  }
-  return from + (to - from) * value;
+  const frame = useCurrentFrame();
+  const { width, height, fps } = useVideoConfig();
+  const iframeRef = useRef(null);
+  const isLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!iframeRef.current) return;
+    const doc = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body, html {
+              margin: 0;
+              padding: 0;
+              width: ${width}px;
+              height: ${height}px;
+              overflow: hidden;
+              background: transparent;
+            }
+            ${css || ""}
+          </style>
+        </head>
+        <body>
+          <div id="content">${html}</div>
+          <script>
+            window.onFrameUpdate = function(newFrame, config) {
+              const ${frameVariableName} = newFrame;
+              const fps = config.fps;
+              const width = config.width;
+              const height = config.height;
+
+              try {
+                ${js || ""}
+                if (typeof renderFrame === 'function') {
+                  renderFrame(newFrame, config);
+                }
+              } catch (e) {
+                console.error('Error in HyperFrame JS:', e);
+              }
+            };
+
+            // Signal that we are ready
+            window.parent.postMessage('hyperframe-ready', '*');
+          </script>
+        </body>
+      </html>
+    `;
+    iframeRef.current.srcdoc = doc;
+    isLoadedRef.current = false;
+  }, [html, css, js, width, height, frameVariableName]);
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.data === "hyperframe-ready") {
+        isLoadedRef.current = true;
+        updateIframeFrame(frame);
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [frame]);
+  const updateIframeFrame = (currentFrame) => {
+    if (iframeRef.current && iframeRef.current.contentWindow && isLoadedRef.current) {
+      try {
+        if (typeof iframeRef.current.contentWindow.onFrameUpdate === "function") {
+          iframeRef.current.contentWindow.onFrameUpdate(currentFrame, { fps, width, height });
+        }
+      } catch (e) {
+        iframeRef.current.contentWindow.postMessage({
+          type: "update-frame",
+          frame: currentFrame,
+          config: { fps, width, height }
+        }, "*");
+      }
+    }
+  };
+  useEffect(() => {
+    updateIframeFrame(frame);
+  }, [frame, fps, width, height]);
+  return /* @__PURE__ */ jsx(
+    "div",
+    {
+      className,
+      style: {
+        width: "100%",
+        height: "100%",
+        position: "relative",
+        ...style
+      },
+      children: /* @__PURE__ */ jsx(
+        "iframe",
+        {
+          ref: iframeRef,
+          title: "hyperframe-render",
+          style: {
+            width: "100%",
+            height: "100%",
+            border: "none",
+            pointerEvents: "none"
+          }
+        }
+      )
+    }
+  );
 };
-var interpolate = (input, inputRange, outputRange, options = {}) => {
+
+// src/utils/particles.ts
+var finite = (value) => typeof value === "number" && Number.isFinite(value);
+var checkRange = (name, range2, values) => {
+  const list = Array.isArray(range2) ? range2 : [range2];
+  const valid = (v) => finite(v) && (values === "positive" ? v > 0 : values === "non-negative" ? v >= 0 : true);
+  const ok = (typeof range2 === "number" || Array.isArray(range2) && range2.length === 2) && list.every(valid) && (list.length === 1 || list[0] <= list[1]);
+  if (!ok) {
+    throw new Error(
+      `getParticles: ${name} must be a ${values} number or [min, max] of them with min <= max, got ${JSON.stringify(range2)}`
+    );
+  }
+};
+var pick = (range2, key) => typeof range2 === "number" ? range2 : range2[0] + random(key) * (range2[1] - range2[0]);
+var checkOptions = (options) => {
+  const { seed, origin, area, startFrame = 0, count, emitDuration = 0, lifetime, speed, angle: angle2 = -90, spread = 360 } = options;
+  const { gravity = 0, drag = 0, size, colors = ["#ffffff"], rotation = 0, spin = 0, fadeOut = true, frame, fps } = options;
+  if (!finite(frame)) throw new Error(`getParticles: frame must be a finite number, got ${frame}`);
+  if (!finite(fps) || fps <= 0) throw new Error(`getParticles: fps must be a positive number, got ${fps}`);
+  if (typeof seed !== "string" && !finite(seed)) {
+    throw new Error(`getParticles: seed must be a string or a finite number, got ${JSON.stringify(seed)}`);
+  }
+  if (typeof origin !== "function" && (typeof origin !== "object" || origin === null || !finite(origin.x) || !finite(origin.y))) {
+    throw new Error(`getParticles: origin must be { x, y } or a function of the frame, got ${JSON.stringify(origin)}`);
+  }
+  if (area !== void 0 && (typeof area !== "object" || !finite(area.width) || !finite(area.height) || area.width < 0 || area.height < 0)) {
+    throw new Error(`getParticles: area must be { width, height } with numbers >= 0, got ${JSON.stringify(area)}`);
+  }
+  if (!finite(startFrame)) throw new Error(`getParticles: startFrame must be a finite number, got ${startFrame}`);
+  if (!Number.isInteger(count) || count < 0) {
+    throw new Error(`getParticles: count must be a non-negative integer, got ${count}`);
+  }
+  if (!finite(emitDuration) || emitDuration < 0) {
+    throw new Error(`getParticles: emitDuration must be a number of seconds >= 0, got ${emitDuration}`);
+  }
+  checkRange("lifetime", lifetime, "positive");
+  checkRange("speed", speed, "non-negative");
+  checkRange("size", size, "non-negative");
+  checkRange("rotation", rotation, "finite");
+  checkRange("spin", spin, "finite");
+  if (!finite(angle2)) throw new Error(`getParticles: angle must be a finite number of degrees, got ${angle2}`);
+  if (!finite(spread) || spread < 0 || spread > 360) {
+    throw new Error(`getParticles: spread must be between 0 and 360 degrees, got ${spread}`);
+  }
+  if (!finite(gravity)) throw new Error(`getParticles: gravity must be a finite number, got ${gravity}`);
+  if (!finite(drag) || drag < 0) throw new Error(`getParticles: drag must be a number >= 0, got ${drag}`);
+  if (!Array.isArray(colors) || colors.length === 0 || colors.some((c) => typeof c !== "string")) {
+    throw new Error(`getParticles: colors must be a non-empty array of strings, got ${JSON.stringify(colors)}`);
+  }
+  if (typeof fadeOut !== "boolean") throw new Error(`getParticles: fadeOut must be a boolean, got ${fadeOut}`);
+};
+var getParticles = (options) => {
+  checkOptions(options);
   const {
-    extrapolateLeft = "clamp",
-    extrapolateRight = "clamp",
-    easing
+    seed,
+    origin,
+    area = { width: 0, height: 0 },
+    startFrame = 0,
+    count,
+    emitDuration = 0,
+    lifetime,
+    speed,
+    angle: angle2 = -90,
+    spread = 360,
+    gravity = 0,
+    drag = 0,
+    size,
+    colors = ["#ffffff"],
+    rotation = 0,
+    spin = 0,
+    fadeOut = true,
+    frame,
+    fps
   } = options;
-  if (inputRange.length !== outputRange.length) {
-    throw new Error("inputRange and outputRange must have the same length");
-  }
-  if (inputRange.length < 2) {
-    throw new Error("inputRange must have at least 2 elements");
-  }
-  if (input < inputRange[0]) {
-    if (extrapolateLeft === "clamp") {
-      return outputRange[0];
-    } else if (extrapolateLeft === "identity") {
-      return input;
+  const now2 = (frame - startFrame) / fps;
+  const particles = [];
+  for (let i = 0; i < count; i++) {
+    const key = (name) => `${seed}:${i}:${name}`;
+    const birth = emitDuration * i / count;
+    const age = now2 - birth;
+    if (age < 0) continue;
+    const life = pick(lifetime, key("lifetime"));
+    if (age >= life) continue;
+    const birthOrigin = typeof origin === "function" ? origin(startFrame + birth * fps) : origin;
+    if (typeof birthOrigin !== "object" || birthOrigin === null || !finite(birthOrigin.x) || !finite(birthOrigin.y)) {
+      throw new Error(`getParticles: origin(${startFrame + birth * fps}) must return { x, y } with finite numbers, got ${JSON.stringify(birthOrigin)}`);
     }
-  }
-  if (input > inputRange[inputRange.length - 1]) {
-    if (extrapolateRight === "clamp") {
-      return outputRange[outputRange.length - 1];
-    } else if (extrapolateRight === "identity") {
-      return input;
-    }
-  }
-  let segmentIndex = 0;
-  for (let i = 1; i < inputRange.length; i++) {
-    if (input <= inputRange[i]) {
-      segmentIndex = i - 1;
-      break;
-    }
-  }
-  const inputStart = inputRange[segmentIndex];
-  const inputEnd = inputRange[segmentIndex + 1];
-  const outputStart = outputRange[segmentIndex];
-  const outputEnd = outputRange[segmentIndex + 1];
-  let progress = (input - inputStart) / (inputEnd - inputStart);
-  if (easing) {
-    progress = easing(progress);
-  }
-  return outputStart + progress * (outputEnd - outputStart);
-};
-var interpolateColors = (input, inputRange, outputRange) => {
-  const parseColor = (color) => {
-    if (color.startsWith("#")) {
-      const hex = color.slice(1);
-      if (hex.length === 3) {
-        return [
-          parseInt(hex[0] + hex[0], 16),
-          parseInt(hex[1] + hex[1], 16),
-          parseInt(hex[2] + hex[2], 16),
-          255
-        ];
-      }
-      return [
-        parseInt(hex.slice(0, 2), 16),
-        parseInt(hex.slice(2, 4), 16),
-        parseInt(hex.slice(4, 6), 16),
-        hex.length === 8 ? parseInt(hex.slice(6, 8), 16) : 255
-      ];
-    }
-    if (color.startsWith("rgb")) {
-      const match = color.match(/\d+/g);
-      if (match) {
-        return [
-          parseInt(match[0]),
-          parseInt(match[1]),
-          parseInt(match[2]),
-          match[3] ? parseInt(match[3]) : 255
-        ];
-      }
-    }
-    return [0, 0, 0, 255];
-  };
-  const rgbToHex = (r2, g2, b2) => {
-    return "#" + [r2, g2, b2].map((x) => {
-      const hex = Math.round(x).toString(16);
-      return hex.length === 1 ? "0" + hex : hex;
-    }).join("");
-  };
-  let segmentIndex = 0;
-  for (let i = 1; i < inputRange.length; i++) {
-    if (input <= inputRange[i]) {
-      segmentIndex = i - 1;
-      break;
-    }
-  }
-  const inputStart = inputRange[segmentIndex];
-  const inputEnd = inputRange[segmentIndex + 1];
-  const colorStart = parseColor(outputRange[segmentIndex]);
-  const colorEnd = parseColor(outputRange[segmentIndex + 1]);
-  const progress = (input - inputStart) / (inputEnd - inputStart);
-  const r = colorStart[0] + progress * (colorEnd[0] - colorStart[0]);
-  const g = colorStart[1] + progress * (colorEnd[1] - colorStart[1]);
-  const b = colorStart[2] + progress * (colorEnd[2] - colorStart[2]);
-  return rgbToHex(r, g, b);
-};
-var useKeyframes = (keyframes, frame) => {
-  if (keyframes.length === 0) return 0;
-  if (keyframes.length === 1) return keyframes[0].value;
-  const sorted = [...keyframes].sort((a, b) => a.frame - b.frame);
-  let prev = sorted[0];
-  let next = sorted[sorted.length - 1];
-  for (let i = 0; i < sorted.length - 1; i++) {
-    if (frame >= sorted[i].frame && frame <= sorted[i + 1].frame) {
-      prev = sorted[i];
-      next = sorted[i + 1];
-      break;
-    }
-  }
-  if (frame <= prev.frame) return prev.value;
-  if (frame >= next.frame) return next.value;
-  let progress = (frame - prev.frame) / (next.frame - prev.frame);
-  if (next.easing) {
-    progress = next.easing(progress);
-  } else if (prev.easing) {
-    progress = prev.easing(progress);
-  }
-  if (typeof prev.value === "number" && typeof next.value === "number") {
-    return prev.value + progress * (next.value - prev.value);
-  }
-  return progress < 0.5 ? prev.value : next.value;
-};
-var measureSpring = ({
-  fps,
-  config = {},
-  threshold = 5e-3
-}) => {
-  const { damping = 10, mass = 1, stiffness = 100 } = config;
-  const omega = Math.sqrt(stiffness / mass);
-  const zeta = damping / (2 * Math.sqrt(stiffness * mass));
-  let time = 0;
-  const dt = 1 / fps;
-  const maxTime = 10;
-  while (time < maxTime) {
-    let value;
-    if (zeta < 1) {
-      const omegaD = omega * Math.sqrt(1 - zeta * zeta);
-      value = 1 - Math.exp(-zeta * omega * time) * (Math.cos(omegaD * time) + zeta * omega / omegaD * Math.sin(omegaD * time));
-    } else if (zeta === 1) {
-      value = 1 - (1 + omega * time) * Math.exp(-omega * time);
+    const x0 = birthOrigin.x + (random(key("x")) - 0.5) * area.width;
+    const y0 = birthOrigin.y + (random(key("y")) - 0.5) * area.height;
+    const direction = (angle2 + (random(key("angle")) - 0.5) * spread) * Math.PI / 180;
+    const v0 = pick(speed, key("speed"));
+    const vx0 = Math.cos(direction) * v0;
+    const vy0 = Math.sin(direction) * v0;
+    let x;
+    let y;
+    let vx;
+    let vy;
+    if (drag === 0) {
+      x = x0 + vx0 * age;
+      y = y0 + vy0 * age + gravity * age * age / 2;
+      vx = vx0;
+      vy = vy0 + gravity * age;
     } else {
-      const r1 = -omega * (zeta - Math.sqrt(zeta * zeta - 1));
-      const r2 = -omega * (zeta + Math.sqrt(zeta * zeta - 1));
-      const c2 = (1 - r1 / (r1 - r2)) / (r1 - r2);
-      const c1 = 1 / (r1 - r2) - c2;
-      value = 1 - c1 * Math.exp(r1 * time) - c2 * Math.exp(r2 * time);
+      const decay = Math.exp(-drag * age);
+      const terminal = gravity / drag;
+      x = x0 + vx0 * (1 - decay) / drag;
+      y = y0 + terminal * age + (vy0 - terminal) * (1 - decay) / drag;
+      vx = vx0 * decay;
+      vy = terminal + (vy0 - terminal) * decay;
     }
-    if (Math.abs(value - 1) < threshold) {
-      return Math.ceil(time * fps);
-    }
-    time += dt;
+    const progress = age / life;
+    particles.push({
+      index: i,
+      x,
+      y,
+      vx,
+      vy,
+      size: pick(size, key("size")),
+      rotation: pick(rotation, key("rotation")) + pick(spin, key("spin")) * age,
+      color: colors[Math.min(colors.length - 1, Math.floor(random(key("color")) * colors.length))],
+      opacity: fadeOut ? 1 - progress : 1,
+      age,
+      lifetime: life,
+      progress
+    });
   }
-  return Math.ceil(maxTime * fps);
+  return particles;
 };
-var getFramesFromSeconds = (seconds, fps) => {
-  return Math.round(seconds * fps);
+var SHAPES = {
+  circle: void 0,
+  square: void 0,
+  triangle: "polygon(50% 0%, 100% 100%, 0% 100%)",
+  star: "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)"
 };
-var getSecondsFromFrames = (frames, fps) => {
-  return frames / fps;
-};
-var range = (start, end, step = 1) => {
-  const result = [];
-  for (let i = start; i < end; i += step) {
-    result.push(i);
+var Particles = ({ shape = "circle", render, style, className, ...options }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  if (!(shape in SHAPES)) {
+    throw new Error(`Particles: shape must be one of ${Object.keys(SHAPES).join(", ")}, got ${JSON.stringify(shape)}`);
   }
-  return result;
-};
-var random = (seed, min = 0, max = 1) => {
-  const str = typeof seed === "number" ? seed.toString() : seed;
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
+  if (render !== void 0 && typeof render !== "function") {
+    throw new Error("Particles: render must be a function of the particle");
   }
-  const normalized = Math.abs(hash) % 1e4 / 1e4;
-  return min + normalized * (max - min);
+  const particles = getParticles({ ...options, frame, fps });
+  return /* @__PURE__ */ jsx("div", { className, style: { position: "absolute", inset: 0, pointerEvents: "none", ...style }, children: particles.map(
+    (particle) => render ? /* @__PURE__ */ jsx(React5.Fragment, { children: render(particle) }, particle.index) : /* @__PURE__ */ jsx(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          left: particle.x,
+          top: particle.y,
+          width: particle.size,
+          height: particle.size,
+          backgroundColor: particle.color,
+          borderRadius: shape === "circle" ? "50%" : void 0,
+          clipPath: SHAPES[shape],
+          opacity: particle.opacity,
+          transform: `translate(-50%, -50%) rotate(${particle.rotation}deg)`
+        }
+      },
+      particle.index
+    )
+  ) });
 };
-var noise2D = (x, y) => {
-  const X = Math.floor(x) & 255;
-  const Y = Math.floor(y) & 255;
-  x -= Math.floor(x);
-  y -= Math.floor(y);
-  const u = x * x * (3 - 2 * x);
-  const v = y * y * (3 - 2 * y);
-  const A = (X + Y * 256) % 256;
-  const B = (X + 1 + Y * 256) % 256;
-  const C = (X + (Y + 1) * 256) % 256;
-  const D = (X + 1 + (Y + 1) * 256) % 256;
-  const a = Math.sin(A * 12.9898 + 78.233) * 43758.5453 % 1;
-  const b = Math.sin(B * 12.9898 + 78.233) * 43758.5453 % 1;
-  const c = Math.sin(C * 12.9898 + 78.233) * 43758.5453 % 1;
-  const d = Math.sin(D * 12.9898 + 78.233) * 43758.5453 % 1;
-  return a + u * (b - a + v * (d - b - (d - c))) + v * (c - a);
+
+// src/utils/text.ts
+var segmenter;
+var splitGraphemes = (text) => {
+  if (segmenter === void 0) {
+    const Segmenter = Intl.Segmenter;
+    segmenter = typeof Segmenter === "function" ? new Segmenter("en", { granularity: "grapheme" }) : null;
+  }
+  return segmenter ? Array.from(segmenter.segment(text), (part) => part.segment) : Array.from(text);
 };
 var Fade = ({
   children,
@@ -1640,13 +1039,14 @@ var Typewriter = ({
   cursorChar = "|"
 }) => {
   const frame = useCurrentFrame();
+  const characters = splitGraphemes(text);
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
-    [0, text.length],
+    [0, characters.length],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
-  const displayText = text.slice(0, Math.floor(progress));
+  const displayText = characters.slice(0, Math.floor(progress)).join("");
   const showCursor = cursor && frame % 30 < 15;
   return /* @__PURE__ */ jsxs("span", { style, children: [
     displayText,
@@ -1660,16 +1060,21 @@ var Counter = ({
   startFrame = 0,
   easing = Easing.easeOutCubic,
   style,
-  format = (v) => Math.round(v).toLocaleString()
+  locale = "en-US",
+  format: format2
 }) => {
   const frame = useCurrentFrame();
+  const numberFormat = React5.useMemo(
+    () => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }),
+    [locale]
+  );
   const value = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
     [from, to],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing }
   );
-  return /* @__PURE__ */ jsx("span", { style, children: format(value) });
+  return /* @__PURE__ */ jsx("span", { style, children: format2 ? format2(value) : numberFormat.format(Math.round(value) + 0) });
 };
 var ProgressBar = ({
   progress,
@@ -1697,8 +1102,7 @@ var ProgressBar = ({
           style: {
             width: `${progress * 100}%`,
             height: "100%",
-            backgroundColor: fillColor,
-            transition: "width 0.1s ease"
+            backgroundColor: fillColor
           }
         }
       )
@@ -1712,7 +1116,7 @@ var Glitch = ({
 }) => {
   const frame = useCurrentFrame();
   const shouldGlitch = frame % 10 < 3;
-  const offset = shouldGlitch ? Math.random() * intensity : 0;
+  const offset = shouldGlitch ? random(`glitch-${frame}-offset`) * intensity : 0;
   return /* @__PURE__ */ jsxs("div", { style: { position: "relative", ...style }, children: [
     /* @__PURE__ */ jsx(
       "div",
@@ -1742,35 +1146,6 @@ var Glitch = ({
         children
       }
     ),
-    /* @__PURE__ */ jsx("div", { style: { position: "relative" }, children })
-  ] });
-};
-var Trail = ({
-  children,
-  trailLength = 5,
-  opacityDecay = 0.2,
-  style
-}) => {
-  const frame = useCurrentFrame();
-  return /* @__PURE__ */ jsxs("div", { style: { position: "relative", ...style }, children: [
-    Array.from({ length: trailLength }, (_, i) => {
-      const trailFrame = frame - i * 2;
-      if (trailFrame < 0) return null;
-      return /* @__PURE__ */ jsx(
-        "div",
-        {
-          style: {
-            position: "absolute",
-            top: 0,
-            left: 0,
-            opacity: 1 - i * opacityDecay,
-            pointerEvents: "none"
-          },
-          children
-        },
-        i
-      );
-    }),
     /* @__PURE__ */ jsx("div", { style: { position: "relative" }, children })
   ] });
 };
@@ -1855,12 +1230,12 @@ var NeonGlow = ({
 };
 var Rotate3D = ({
   children,
-  rotateX = 0,
-  rotateY = 360,
-  rotateZ = 0,
+  rotateX: rotateX2 = 0,
+  rotateY: rotateY2 = 360,
+  rotateZ: rotateZ2 = 0,
   durationInFrames = 60,
   startFrame = 0,
-  perspective = 1e3,
+  perspective: perspective2 = 1e3,
   easing = Easing.easeInOutCubic,
   style
 }) => {
@@ -1871,10 +1246,10 @@ var Rotate3D = ({
     [0, 1],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing }
   );
-  const rx = rotateX * progress;
-  const ry = rotateY * progress;
-  const rz = rotateZ * progress;
-  return /* @__PURE__ */ jsx("div", { style: { perspective, ...style }, children: /* @__PURE__ */ jsx(
+  const rx = rotateX2 * progress;
+  const ry = rotateY2 * progress;
+  const rz = rotateZ2 * progress;
+  return /* @__PURE__ */ jsx("div", { style: { perspective: perspective2, ...style }, children: /* @__PURE__ */ jsx(
     "div",
     {
       style: {
@@ -1886,13 +1261,12 @@ var Rotate3D = ({
   ) });
 };
 var Flip3D = ({
-  children,
   front,
   back,
   durationInFrames = 60,
   startFrame = 0,
   direction = "horizontal",
-  perspective = 1e3,
+  perspective: perspective2 = 1e3,
   style
 }) => {
   const frame = useCurrentFrame();
@@ -1903,7 +1277,7 @@ var Flip3D = ({
     { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeInOutCubic }
   );
   const rotateAxis = direction === "horizontal" ? "rotateY" : "rotateX";
-  return /* @__PURE__ */ jsx("div", { style: { perspective, ...style }, children: /* @__PURE__ */ jsxs(
+  return /* @__PURE__ */ jsx("div", { style: { perspective: perspective2, ...style }, children: /* @__PURE__ */ jsxs(
     "div",
     {
       style: {
@@ -1945,9 +1319,9 @@ var Flip3D = ({
 };
 var Perspective3D = ({
   children,
-  rotateX = 20,
-  rotateY = 20,
-  perspective = 800,
+  rotateX: rotateX2 = 20,
+  rotateY: rotateY2 = 20,
+  perspective: perspective2 = 800,
   durationInFrames = 60,
   startFrame = 0,
   style
@@ -1959,11 +1333,11 @@ var Perspective3D = ({
     [0, 1],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeOutCubic }
   );
-  return /* @__PURE__ */ jsx("div", { style: { perspective, ...style }, children: /* @__PURE__ */ jsx(
+  return /* @__PURE__ */ jsx("div", { style: { perspective: perspective2, ...style }, children: /* @__PURE__ */ jsx(
     "div",
     {
       style: {
-        transform: `rotateX(${rotateX * progress}deg) rotateY(${rotateY * progress}deg)`,
+        transform: `rotateX(${rotateX2 * progress}deg) rotateY(${rotateY2 * progress}deg)`,
         transformStyle: "preserve-3d"
       },
       children
@@ -1984,10 +1358,10 @@ var Cube3D = ({
   style
 }) => {
   const frame = useCurrentFrame();
-  const rotateY = interpolate(frame, [0, durationInFrames], [0, 360], {
+  const rotateY2 = interpolate(frame, [0, durationInFrames], [0, 360], {
     extrapolateRight: "extend"
   });
-  const rotateX = interpolate(frame, [0, durationInFrames], [0, 360], {
+  const rotateX2 = interpolate(frame, [0, durationInFrames], [0, 360], {
     extrapolateRight: "extend"
   });
   const halfSize = size / 2;
@@ -2012,7 +1386,7 @@ var Cube3D = ({
         height: size,
         position: "relative",
         transformStyle: "preserve-3d",
-        transform: `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`
+        transform: `rotateX(${rotateX2}deg) rotateY(${rotateY2}deg)`
       },
       children: [
         /* @__PURE__ */ jsx("div", { style: { ...faceStyle, backgroundColor: colors.front, transform: `translateZ(${halfSize}px)` }, children: "Front" }),
@@ -2025,6 +1399,7 @@ var Cube3D = ({
     }
   ) });
 };
+var PARTICLE_DIRECTIONS = ["random", "up", "down", "left", "right"];
 var ParticleSystem = ({
   count = 50,
   colors = ["#10b981", "#34d399", "#6ee7b7", "#059669", "#047857"],
@@ -2038,7 +1413,12 @@ var ParticleSystem = ({
 }) => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
-  const particles = React3.useMemo(() => {
+  if (!PARTICLE_DIRECTIONS.includes(direction)) {
+    throw new Error(
+      `ParticleSystem: direction must be one of ${PARTICLE_DIRECTIONS.join(", ")}, got ${JSON.stringify(direction)} (for bursts use <Particles>)`
+    );
+  }
+  const particles = React5.useMemo(() => {
     const seed = (n) => {
       const x = Math.sin(n * 9999) * 1e4;
       return x - Math.floor(x);
@@ -2067,12 +1447,6 @@ var ParticleSystem = ({
         case "right":
           vx = rand2 * speed * 2 + speed;
           vy = (rand3 - 0.5) * speed;
-          break;
-        case "explode":
-          const angle = rand2 * Math.PI * 2;
-          const mag = rand3 * speed * 3 + speed;
-          vx = Math.cos(angle) * mag;
-          vy = Math.sin(angle) * mag;
           break;
         default:
           vx = (rand2 - 0.5) * speed * 2;
@@ -2131,11 +1505,12 @@ var LetterByLetter = ({
   letterStyle
 }) => {
   const frame = useCurrentFrame();
-  return /* @__PURE__ */ jsx("div", { style: { display: "flex", flexWrap: "wrap", ...style }, children: text.split("").map((char, index) => {
+  const letters = splitGraphemes(text);
+  return /* @__PURE__ */ jsx("div", { style: { display: "flex", flexWrap: "wrap", ...style }, children: letters.map((char, index) => {
     const letterStart = startFrame + index * delayPerLetter;
     const progress = interpolate(
       frame,
-      [letterStart, letterStart + durationInFrames / text.length],
+      [letterStart, letterStart + durationInFrames / letters.length],
       [0, 1],
       { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing }
     );
@@ -2152,8 +1527,8 @@ var LetterByLetter = ({
         transform = `rotate(${(1 - progress) * 90}deg)`;
         break;
       case "bounce":
-        const bounce2 = progress < 0.5 ? progress * 2 : 2 - progress * 2;
-        transform = `scale(${0.5 + bounce2 * 0.5})`;
+        const bounce = progress < 0.5 ? progress * 2 : 2 - progress * 2;
+        transform = `scale(${0.5 + bounce * 0.5})`;
         break;
     }
     return /* @__PURE__ */ jsx(
@@ -2186,7 +1561,7 @@ var WordByWord = ({
     const wordStart = startFrame + index * delayPerWord;
     const progress = interpolate(
       frame,
-      [wordStart, wordStart + 15],
+      [wordStart, wordStart + durationInFrames / words.length],
       [0, 1],
       { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeOutBack }
     );
@@ -2227,7 +1602,7 @@ var WaveText = ({
   letterStyle
 }) => {
   const frame = useCurrentFrame();
-  return /* @__PURE__ */ jsx("div", { style: { display: "flex", alignItems: "center", ...style }, children: text.split("").map((char, index) => {
+  return /* @__PURE__ */ jsx("div", { style: { display: "flex", alignItems: "center", ...style }, children: splitGraphemes(text).map((char, index) => {
     const offset = Math.sin(frame * speed + index * frequency) * amplitude;
     return /* @__PURE__ */ jsx(
       "span",
@@ -2252,7 +1627,7 @@ var RainbowText = ({
   letterStyle
 }) => {
   const frame = useCurrentFrame();
-  return /* @__PURE__ */ jsx("div", { style: { display: "flex", flexWrap: "wrap", ...style }, children: text.split("").map((char, index) => {
+  return /* @__PURE__ */ jsx("div", { style: { display: "flex", flexWrap: "wrap", ...style }, children: splitGraphemes(text).map((char, index) => {
     const hue = (frame * speed + index * 20) % 360;
     const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
     return /* @__PURE__ */ jsx(
@@ -2273,21 +1648,23 @@ var GradientText = ({
   text,
   colors = ["#10b981", "#34d399", "#6ee7b7", "#14b8a6", "#10b981"],
   speed = 2,
-  angle = 90,
+  angle: angle2 = 90,
   style
 }) => {
   const frame = useCurrentFrame();
-  const offset = frame * speed % 100;
-  const gradientStops = colors.map((color, i) => {
-    const position = (i * 100 / (colors.length - 1) + offset) % 100;
-    return `${color} ${position}%`;
-  }).join(", ");
+  if (colors.length === 0) {
+    throw new Error("GradientText: colors must contain at least one color");
+  }
+  const cycle = [...colors, ...colors, colors[0]];
+  const gradientStops = cycle.map((color, i) => `${color} ${i * 100 / (cycle.length - 1)}%`).join(", ");
+  const position = (frame * speed % 100 + 100) % 100;
   return /* @__PURE__ */ jsx(
     "span",
     {
       style: {
-        background: `linear-gradient(${angle}deg, ${gradientStops})`,
-        backgroundSize: "200% 200%",
+        background: `linear-gradient(${angle2}deg, ${gradientStops})`,
+        backgroundSize: "200% 100%",
+        backgroundPosition: `${position}% 50%`,
         WebkitBackgroundClip: "text",
         WebkitTextFillColor: "transparent",
         backgroundClip: "text",
@@ -2306,13 +1683,13 @@ var Blur = ({
   style
 }) => {
   const frame = useCurrentFrame();
-  const blur2 = interpolate(
+  const blur = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
     [from, to],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
-  return /* @__PURE__ */ jsx("div", { style: { filter: `blur(${blur2}px)`, ...style }, children });
+  return /* @__PURE__ */ jsx("div", { style: { filter: `blur(${blur}px)`, ...style }, children });
 };
 var Bounce = ({
   children,
@@ -2350,7 +1727,7 @@ var Pulse = ({
 };
 var Swing = ({
   children,
-  angle = 30,
+  angle: angle2 = 30,
   speed = 0.15,
   damping = 0.995,
   durationInFrames = 120,
@@ -2358,7 +1735,7 @@ var Swing = ({
 }) => {
   const frame = useCurrentFrame();
   const dampFactor = Math.pow(damping, frame);
-  const rotation = Math.sin(frame * speed) * angle * dampFactor;
+  const rotation = Math.sin(frame * speed) * angle2 * dampFactor;
   return /* @__PURE__ */ jsx(
     "div",
     {
@@ -2378,7 +1755,7 @@ var Confetti = ({
 }) => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
-  const confettiPieces = React3.useMemo(() => {
+  const confettiPieces = React5.useMemo(() => {
     const seed = (n) => {
       const x = Math.sin(n * 9999) * 1e4;
       return x - Math.floor(x);
@@ -2418,150 +1795,1122 @@ var Confetti = ({
     );
   }) });
 };
-
-// src/utils/transitions.ts
-var fade = (progress) => {
-  return progress;
-};
-var slide = (progress, direction = "right") => {
-  const eased = progress;
-  const offset = (1 - eased) * 100;
-  switch (direction) {
-    case "left":
-      return { x: -offset, y: 0 };
-    case "right":
-      return { x: offset, y: 0 };
-    case "up":
-      return { x: 0, y: -offset };
-    case "down":
-      return { x: 0, y: offset };
-  }
-};
-var scale = (progress, from = 0, to = 1) => {
-  return from + (to - from) * progress;
-};
-var rotate = (progress, degrees = 360) => {
-  return degrees * progress;
-};
-var zoom = (progress) => {
-  return {
-    scale: 0.5 + progress * 0.5,
-    opacity: progress
-  };
-};
-var wipe = (progress, direction = "right") => {
-  const pct = progress * 100;
-  switch (direction) {
-    case "left":
-      return { clipPath: `inset(0 ${100 - pct}% 0 0)` };
-    case "right":
-      return { clipPath: `inset(0 0 0 ${100 - pct}%)` };
-    case "up":
-      return { clipPath: `inset(0 0 ${100 - pct}% 0)` };
-    case "down":
-      return { clipPath: `inset(${100 - pct}% 0 0 0)` };
-  }
-};
-var blur = (progress, maxBlur = 20) => {
-  return {
-    filter: `blur(${maxBlur * (1 - progress)}px)`,
-    opacity: progress
-  };
-};
-var glitch = (frame, intensity = 10) => {
-  const offset = Math.sin(frame * 0.5) * intensity;
-  return {
-    transform: `translate(${offset}px, ${offset * 0.5}px)`
-  };
-};
-var shake = (frame, intensity = 5) => {
-  const x = Math.sin(frame * 0.8) * intensity;
-  const y = Math.cos(frame * 1.2) * intensity;
-  return {
-    transform: `translate(${x}px, ${y}px)`
-  };
-};
-var pulse = (frame, minScale = 0.95, maxScale = 1.05) => {
-  const scale2 = minScale + (Math.sin(frame * 0.1) + 1) / 2 * (maxScale - minScale);
-  return {
-    transform: `scale(${scale2})`
-  };
-};
-var bounce = (progress) => {
-  const c4 = 2 * Math.PI / 3;
-  return progress === 0 ? 0 : progress === 1 ? 1 : Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * c4) + 1;
-};
-var flash = (progress, flashAt = 0.5) => {
-  const flashProgress = progress < flashAt ? progress / flashAt : (1 - progress) / (1 - flashAt);
-  return {
-    opacity: progress < flashAt ? 1 - flashProgress * 0.5 : 1,
-    backgroundColor: progress < flashAt ? `rgba(255,255,255,${flashProgress * 0.3})` : "transparent"
-  };
-};
-var slideWithFade = (progress, direction = "right") => {
-  const { x, y } = slide(progress, direction);
-  return {
-    transform: `translate(${x}%, ${y}%)`,
-    opacity: progress
-  };
-};
-var flip = (progress, direction = "horizontal") => {
-  const rotateValue = (1 - progress) * 90;
-  const opacity = progress < 0.5 ? 1 - progress : progress;
-  return {
-    transform: direction === "horizontal" ? `rotateY(${rotateValue}deg)` : `rotateX(${rotateValue}deg)`,
-    opacity
-  };
-};
-var combine = (progress, ...transitions2) => {
-  return transitions2.reduce((acc, transition) => ({
-    ...acc,
-    ...transition(progress)
-  }), {});
-};
-var transitions = {
-  fade: {
-    enter: (p) => ({ opacity: fade(p) }),
-    exit: (p) => ({ opacity: fade(1 - p) })
-  },
-  slideRight: {
-    enter: (p) => ({ transform: `translateX(${100 - p * 100}%)` }),
-    exit: (p) => ({ transform: `translateX(${p * -100}%)` })
-  },
-  slideLeft: {
-    enter: (p) => ({ transform: `translateX(${ -100 + p * 100}%)` }),
-    exit: (p) => ({ transform: `translateX(${p * 100}%)` })
-  },
-  slideUp: {
-    enter: (p) => ({ transform: `translateY(${100 - p * 100}%)` }),
-    exit: (p) => ({ transform: `translateY(${p * -100}%)` })
-  },
-  slideDown: {
-    enter: (p) => ({ transform: `translateY(${ -100 + p * 100}%)` }),
-    exit: (p) => ({ transform: `translateY(${p * 100}%)` })
-  },
-  scale: {
-    enter: (p) => ({ transform: `scale(${scale(p, 0, 1)})` }),
-    exit: (p) => ({ transform: `scale(${scale(1 - p, 1, 0)})` })
-  },
-  zoom: {
-    enter: (p) => {
-      const { scale: s, opacity } = zoom(p);
-      return { transform: `scale(${s})`, opacity };
-    },
-    exit: (p) => {
-      const { scale: s, opacity } = zoom(1 - p);
-      return { transform: `scale(${s})`, opacity };
+var KineticTypography = ({
+  text,
+  durationInFrames = 60,
+  startFrame = 0,
+  stagger = 3,
+  fontSize = 80,
+  fontWeight = "bold",
+  fontFamily = "Inter, system-ui, sans-serif",
+  color = "white",
+  className = "",
+  type = "velocity",
+  style
+}) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const characters = splitGraphemes(text);
+  return /* @__PURE__ */ jsx(
+    "div",
+    {
+      className,
+      style: {
+        display: "flex",
+        flexWrap: "wrap",
+        fontSize,
+        fontWeight,
+        fontFamily,
+        color,
+        ...style
+      },
+      children: characters.map((char, i) => {
+        const relativeStart = startFrame + i * stagger;
+        const charFrame = frame - relativeStart;
+        const progress = interpolate(
+          charFrame,
+          [0, durationInFrames],
+          [0, 1],
+          { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeOutExpo }
+        );
+        let charStyle = {
+          display: "inline-block",
+          whiteSpace: "pre"
+        };
+        if (type === "velocity") {
+          const y = interpolate(charFrame, [0, 20], [100, 0], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+            easing: Easing.easeOutBack
+          });
+          const opacity = interpolate(charFrame, [0, 15], [0, 1], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp"
+          });
+          const blur = interpolate(charFrame, [0, 10], [20, 0], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp"
+          });
+          charStyle = {
+            ...charStyle,
+            transform: `translateY(${y}px)`,
+            opacity,
+            filter: `blur(${blur}px)`
+          };
+        } else if (type === "stretching") {
+          const scaleY2 = spring({
+            frame: charFrame,
+            fps,
+            config: { damping: 12, stiffness: 200 },
+            from: 0,
+            to: 1
+          });
+          const scaleX2 = spring({
+            frame: charFrame,
+            fps,
+            config: { damping: 15, stiffness: 150 },
+            from: 2,
+            to: 1
+          });
+          charStyle = {
+            ...charStyle,
+            transform: `scale(${scaleX2}, ${scaleY2})`,
+            transformOrigin: "bottom",
+            opacity: progress
+          };
+        } else if (type === "glitch") {
+          const seed = charFrame + i * 1e3;
+          const randomVal = Math.sin(seed) * 1e4 % 1;
+          const isGlitched = charFrame > 0 && charFrame < 15 && Math.abs(randomVal) > 0.8;
+          const xOffset = isGlitched ? Math.sin(seed + 1) * 1e4 % 1 * 20 : 0;
+          const colorShift = isGlitched ? "cyan" : color;
+          charStyle = {
+            ...charStyle,
+            transform: `translateX(${xOffset}px)`,
+            color: colorShift,
+            opacity: progress
+          };
+        } else if (type === "reveal") {
+          const clipWidth = interpolate(charFrame, [0, 20], [0, 100], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp"
+          });
+          charStyle = {
+            ...charStyle,
+            clipPath: `inset(0 ${100 - clipWidth}% 0 0)`,
+            opacity: progress > 0 ? 1 : 0
+          };
+        }
+        return /* @__PURE__ */ jsx("span", { style: charStyle, children: char === " " ? "\xA0" : char }, i);
+      })
     }
-  },
-  flipX: {
-    enter: (p) => flip(p, "vertical"),
-    exit: (p) => flip(1 - p, "vertical")
-  },
-  flipY: {
-    enter: (p) => flip(p, "horizontal"),
-    exit: (p) => flip(1 - p, "horizontal")
+  );
+};
+var LiquidText = ({
+  text,
+  width = 800,
+  height = 300,
+  fillColor = "#10b981",
+  strokeColor = "#059669",
+  strokeWidth = 2,
+  fontSize = 150,
+  fontFamily = "Inter, system-ui, sans-serif",
+  fontWeight = "bold",
+  speed = 0.05,
+  amplitude = 20,
+  className = "",
+  style
+}) => {
+  const frame = useCurrentFrame();
+  const id = React5.useId().replace(/:/g, "");
+  const wavePath = React5.useMemo(() => {
+    let path = `M 0 ${height}`;
+    for (let x = 0; x <= width; x += 10) {
+      const y = Math.sin(frame * speed + x * 0.02) * amplitude + amplitude;
+      path += ` L ${x} ${y}`;
+    }
+    path += ` L ${width} ${height} Z`;
+    return path;
+  }, [frame, width, height, speed, amplitude]);
+  return /* @__PURE__ */ jsx("div", { className, style: { width, height, position: "relative", ...style }, children: /* @__PURE__ */ jsxs(
+    "svg",
+    {
+      width,
+      height,
+      viewBox: `0 0 ${width} ${height}`,
+      style: { overflow: "visible" },
+      children: [
+        /* @__PURE__ */ jsx("defs", { children: /* @__PURE__ */ jsx("clipPath", { id: `text-clip-${id}`, children: /* @__PURE__ */ jsx(
+          "text",
+          {
+            x: "50%",
+            y: "50%",
+            dominantBaseline: "middle",
+            textAnchor: "middle",
+            fontSize,
+            fontFamily,
+            fontWeight,
+            children: text
+          }
+        ) }) }),
+        /* @__PURE__ */ jsx(
+          "text",
+          {
+            x: "50%",
+            y: "50%",
+            dominantBaseline: "middle",
+            textAnchor: "middle",
+            fontSize,
+            fontFamily,
+            fontWeight,
+            fill: "none",
+            stroke: strokeColor,
+            strokeWidth,
+            opacity: "0.3",
+            children: text
+          }
+        ),
+        /* @__PURE__ */ jsxs("g", { clipPath: `url(#text-clip-${id})`, children: [
+          /* @__PURE__ */ jsx("path", { d: wavePath, fill: fillColor }),
+          /* @__PURE__ */ jsx(
+            "text",
+            {
+              x: "50%",
+              y: "50%",
+              dominantBaseline: "middle",
+              textAnchor: "middle",
+              fontSize,
+              fontFamily,
+              fontWeight,
+              fill: "none",
+              stroke: fillColor,
+              strokeWidth,
+              children: text
+            }
+          )
+        ] })
+      ]
+    }
+  ) });
+};
+var TextStack3D = ({
+  text,
+  layers = 8,
+  depth = 5,
+  fontSize = 120,
+  fontWeight = "900",
+  fontFamily = "Inter, system-ui, sans-serif",
+  mainColor = "#ffffff",
+  layerColor = "#10b981",
+  durationInFrames = 60,
+  startFrame = 0,
+  className = "",
+  style
+}) => {
+  const frame = useCurrentFrame();
+  const progress = interpolate(
+    frame - startFrame,
+    [0, durationInFrames],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeInOutCubic }
+  );
+  const rotateX2 = interpolate(progress, [0, 1], [0, 25]);
+  const rotateY2 = interpolate(progress, [0, 1], [0, -25]);
+  return /* @__PURE__ */ jsx(
+    "div",
+    {
+      className,
+      style: {
+        perspective: "1000px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        ...style
+      },
+      children: /* @__PURE__ */ jsx(
+        "div",
+        {
+          style: {
+            position: "relative",
+            transformStyle: "preserve-3d",
+            transform: `rotateX(${rotateX2}deg) rotateY(${rotateY2}deg)`,
+            fontSize,
+            fontWeight,
+            fontFamily,
+            lineHeight: 1,
+            textAlign: "center"
+          },
+          children: Array.from({ length: layers }).map((_, i) => {
+            const layerDepth = (i + 1) * depth * progress;
+            const isTop = i === layers - 1;
+            return /* @__PURE__ */ jsx(
+              "span",
+              {
+                style: {
+                  position: isTop ? "relative" : "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: "100%",
+                  color: isTop ? mainColor : layerColor,
+                  transform: `translateZ(${layerDepth}px)`,
+                  WebkitTextStroke: isTop ? "none" : `1px ${layerColor}`,
+                  opacity: isTop ? 1 : 1 - i / layers,
+                  pointerEvents: "none"
+                },
+                children: text
+              },
+              i
+            );
+          })
+        }
+      )
+    }
+  );
+};
+var StickyGridScroll = ({
+  items,
+  columns = 3,
+  gap = 20,
+  padding = 40,
+  scrollDuration = 300,
+  startFrame = 0,
+  className = "",
+  style
+}) => {
+  const frame = useCurrentFrame();
+  const { height } = useVideoConfig();
+  const progress = interpolate(
+    frame - startFrame,
+    [0, scrollDuration],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.linear }
+  );
+  const totalHeight = Math.ceil(items.length / columns) * (height / 2) + padding * 2;
+  const scrollY = progress * (totalHeight - height);
+  return /* @__PURE__ */ jsx(
+    "div",
+    {
+      className,
+      style: {
+        width: "100%",
+        height: "100%",
+        overflow: "hidden",
+        position: "relative",
+        backgroundColor: "#050505",
+        ...style
+      },
+      children: /* @__PURE__ */ jsx(
+        "div",
+        {
+          style: {
+            display: "grid",
+            gridTemplateColumns: `repeat(${columns}, 1fr)`,
+            gap: `${gap}px`,
+            padding: `${padding}px`,
+            transform: `translateY(${-scrollY}px)`
+          },
+          children: items.map((item, i) => {
+            const itemRow = Math.floor(i / columns);
+            const itemY = itemRow * (height / 2) + padding;
+            const relativeY = itemY - scrollY;
+            const viewportProgress = interpolate(
+              relativeY,
+              [0, height * 0.2, height * 0.8, height],
+              [0, 1, 1, 0],
+              { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+            );
+            return /* @__PURE__ */ jsx(
+              "div",
+              {
+                style: {
+                  height: height / 2.5,
+                  opacity: viewportProgress,
+                  transform: `scale(${0.8 + 0.2 * viewportProgress}) translateY(${(1 - viewportProgress) * 50}px)`
+                },
+                children: item
+              },
+              i
+            );
+          })
+        }
+      )
+    }
+  );
+};
+var FlipImageReveal = ({
+  src,
+  thumbnailRect,
+  alt = "",
+  title,
+  description,
+  durationInFrames = 60,
+  startFrame = 0,
+  className = "",
+  style
+}) => {
+  const frame = useCurrentFrame();
+  const { width: videoWidth, height: videoHeight } = useVideoConfig();
+  const progress = interpolate(
+    frame - startFrame,
+    [0, durationInFrames],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeInOutQuart }
+  );
+  const x = interpolate(progress, [0, 1], [thumbnailRect.x, 0]);
+  const y = interpolate(progress, [0, 1], [thumbnailRect.y, 0]);
+  const width = interpolate(progress, [0, 1], [thumbnailRect.width, videoWidth]);
+  const height = interpolate(progress, [0, 1], [thumbnailRect.height, videoHeight]);
+  const borderRadius = interpolate(progress, [0, 1], [12, 0]);
+  const opacity = interpolate(progress, [0, 0.2], [0, 1]);
+  return /* @__PURE__ */ jsxs(
+    "div",
+    {
+      className,
+      style: {
+        position: "absolute",
+        left: x,
+        top: y,
+        width,
+        height,
+        borderRadius: `${borderRadius}px`,
+        overflow: "hidden",
+        boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
+        opacity,
+        ...style
+      },
+      children: [
+        /* @__PURE__ */ jsx(
+          "img",
+          {
+            src,
+            alt,
+            style: {
+              width: "100%",
+              height: "100%",
+              objectFit: "cover"
+            }
+          }
+        ),
+        (title || description) && /* @__PURE__ */ jsxs(
+          "div",
+          {
+            style: {
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              padding: "40px",
+              background: "linear-gradient(transparent, rgba(0,0,0,0.8))",
+              opacity: interpolate(progress, [0.8, 1], [0, 1]),
+              transform: `translateY(${interpolate(progress, [0.8, 1], [20, 0])}px)`
+            },
+            children: [
+              title && /* @__PURE__ */ jsx("h2", { style: { color: "white", fontSize: "48px", fontWeight: "bold" }, children: title }),
+              description && /* @__PURE__ */ jsx("p", { style: { color: "#ccc", fontSize: "18px" }, children: description })
+            ]
+          }
+        )
+      ]
+    }
+  );
+};
+var CardExpansionMask = ({
+  children,
+  durationInFrames = 60,
+  startFrame = 0,
+  centerX = 50,
+  // percentage
+  centerY = 50,
+  // percentage
+  className = "",
+  style
+}) => {
+  const frame = useCurrentFrame();
+  React5.useId().replace(/:/g, "");
+  const progress = interpolate(
+    frame - startFrame,
+    [0, durationInFrames],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.easeInOutCubic }
+  );
+  const radius = progress * 150;
+  return /* @__PURE__ */ jsx(
+    "div",
+    {
+      className,
+      style: {
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        clipPath: `circle(${radius}% at ${centerX}% ${centerY}%)`,
+        ...style
+      },
+      children
+    }
+  );
+};
+var streamOf = (seed, dimensions) => {
+  let i = 0;
+  return () => random(`noise${dimensions}D:${seed}:${i++}`);
+};
+var CACHE_SIZE = 64;
+var cached = (create, dimensions) => {
+  const cache = /* @__PURE__ */ new Map();
+  return (seed) => {
+    const key = String(seed);
+    let noise = cache.get(key);
+    if (noise === void 0) {
+      if (cache.size >= CACHE_SIZE) cache.delete(cache.keys().next().value);
+      noise = create(streamOf(key, dimensions));
+      cache.set(key, noise);
+    }
+    return noise;
+  };
+};
+var noise2DOf = cached(createNoise2D, 2);
+var noise3DOf = cached(createNoise3D, 3);
+var noise4DOf = cached(createNoise4D, 4);
+var check = (fn, seed, coordinates) => {
+  if (!(typeof seed === "string" || typeof seed === "number" && Number.isFinite(seed))) {
+    throw new Error(`${fn}: seed must be a string or a finite number, got ${JSON.stringify(seed)}`);
   }
+  for (const [name, value] of Object.entries(coordinates)) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new Error(`${fn}: ${name} must be a finite number, got ${value}`);
+    }
+  }
+};
+var noise2D = (seed, x, y) => {
+  check("noise2D", seed, { x, y });
+  return noise2DOf(seed)(x, y);
+};
+var noise3D = (seed, x, y, z) => {
+  check("noise3D", seed, { x, y, z });
+  return noise3DOf(seed)(x, y, z);
+};
+var noise4D = (seed, x, y, z, w) => {
+  check("noise4D", seed, { x, y, z, w });
+  return noise4DOf(seed)(x, y, z, w);
+};
+
+// src/utils/transform.ts
+var lengthUnits = [
+  "px",
+  "em",
+  "rem",
+  "pt",
+  "cap",
+  "ch",
+  "ex",
+  "ic",
+  "lh",
+  "rlh",
+  "vmax",
+  "vmin",
+  "vb",
+  "vi",
+  "cqw",
+  "vh",
+  "vw",
+  "cqh",
+  "cqi",
+  "cqb",
+  "cqmin",
+  "cqmax",
+  "cm",
+  "mm",
+  "Q",
+  "in",
+  "pc"
+];
+var angleUnits = ["rad", "deg", "grad", "turn"];
+var lengthPercentageUnits = ["%", ...lengthUnits];
+var NUMBER_WITH_UNIT = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)([a-zA-Z%]+)$/;
+var checkNumber = (api, param, value) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new TypeError(`${api}: ${param} must be a finite number, got ${JSON.stringify(value)}`);
+  }
+  return value;
+};
+var checkUnit = (api, param, unit, units) => {
+  if (typeof unit !== "string" || !units.includes(unit)) {
+    throw new TypeError(`${api}: ${param} unit must be one of ${units.join(", ")}, got ${JSON.stringify(unit)}`);
+  }
+  return unit;
+};
+var withUnit = (api, param, value, units, unit) => {
+  if (typeof value === "string") {
+    const match = value.match(NUMBER_WITH_UNIT);
+    if (!match || !units.includes(match[2])) {
+      throw new TypeError(
+        `${api}: ${param} ${JSON.stringify(value)} must be a number or a string ending in one of ${units.join(", ")}`
+      );
+    }
+    if (unit !== void 0) {
+      throw new TypeError(`${api}: ${param} ${JSON.stringify(value)} already has a unit; pass a number to give one`);
+    }
+    return value;
+  }
+  return `${checkNumber(api, param, value)}${checkUnit(api, param, unit, units)}`;
+};
+var length = (api, param, value, unit = "px") => withUnit(api, param, value, lengthPercentageUnits, typeof value === "string" ? void 0 : unit);
+var angle = (api, param, value, unit = "deg") => withUnit(api, param, value, angleUnits, typeof value === "string" ? void 0 : unit);
+var signatures = (api, list) => new TypeError([`${api}() supports only the following signatures:`, ...list.map((s) => `${api}(${s})`)].join("\n"));
+var makeTransform = (transforms) => {
+  if (!Array.isArray(transforms) || transforms.some((t) => typeof t !== "string")) {
+    throw new TypeError(`makeTransform: expects an array of transform strings, got ${JSON.stringify(transforms)}`);
+  }
+  return transforms.join(" ");
+};
+function matrix(a, b, c, d, tx, ty) {
+  const values = { a, b, c, d, tx, ty };
+  Object.entries(values).forEach(([name, value]) => checkNumber("matrix", name, value));
+  return `matrix(${a}, ${b}, ${c}, ${d}, ${tx}, ${ty})`;
+}
+function matrix3d(...values) {
+  if (values.length !== 16) throw new TypeError(`matrix3d: expects 16 numbers, got ${values.length}`);
+  values.forEach((value, i) => checkNumber("matrix3d", `argument ${i + 1}`, value));
+  return `matrix3d(${values.join(", ")})`;
+}
+function perspective(value, unit = "px") {
+  if (typeof value === "string") return `perspective(${withUnit("perspective", "length", value, lengthUnits)})`;
+  return `perspective(${withUnit("perspective", "length", value, lengthUnits, unit)})`;
+}
+function rotate(value, unit) {
+  return `rotate(${angle("rotate", "angle", value, unit)})`;
+}
+function rotate3d(x, y, z, value, unit) {
+  checkNumber("rotate3d", "x", x);
+  checkNumber("rotate3d", "y", y);
+  checkNumber("rotate3d", "z", z);
+  return `rotate3d(${x}, ${y}, ${z}, ${angle("rotate3d", "angle", value, unit)})`;
+}
+function rotateX(value, unit) {
+  return `rotateX(${angle("rotateX", "angle", value, unit)})`;
+}
+function rotateY(value, unit) {
+  return `rotateY(${angle("rotateY", "angle", value, unit)})`;
+}
+function rotateZ(value, unit) {
+  return `rotateZ(${angle("rotateZ", "angle", value, unit)})`;
+}
+function scale(x, y = x) {
+  checkNumber("scale", "x", x);
+  checkNumber("scale", "y", y);
+  return `scale(${x}, ${y})`;
+}
+function scale3d(x, y, z) {
+  checkNumber("scale3d", "x", x);
+  checkNumber("scale3d", "y", y);
+  checkNumber("scale3d", "z", z);
+  return `scale3d(${x}, ${y}, ${z})`;
+}
+function scaleX(x) {
+  return `scaleX(${checkNumber("scaleX", "x", x)})`;
+}
+function scaleY(y) {
+  return `scaleY(${checkNumber("scaleY", "y", y)})`;
+}
+function scaleZ(z) {
+  return `scaleZ(${checkNumber("scaleZ", "z", z)})`;
+}
+function skew(...args) {
+  const [a, b, c, d] = args;
+  if (args.length === 1) {
+    const value = angle("skew", "angle", a);
+    return `skew(${value}, ${value})`;
+  }
+  if (args.length === 2) {
+    if (typeof a === "string" && typeof b === "string") {
+      return `skew(${angle("skew", "angleX", a)}, ${angle("skew", "angleY", b)})`;
+    }
+    if (typeof a === "number" && typeof b === "number") {
+      return `skew(${angle("skew", "angleX", a)}, ${angle("skew", "angleY", b)})`;
+    }
+    if (typeof a === "number" && typeof b === "string") {
+      const value = angle("skew", "angle", a, b);
+      return `skew(${value}, ${value})`;
+    }
+  }
+  if (args.length === 4 && typeof a === "number" && typeof c === "number") {
+    return `skew(${angle("skew", "angleX", a, b)}, ${angle("skew", "angleY", c, d)})`;
+  }
+  throw signatures("skew", [
+    "angle: number | AngleUnitString",
+    "angle: AngleUnitString, angle2: AngleUnitString",
+    "angle: number, unit: AngleUnit",
+    "angleX: number, angleY: number",
+    "angleX: number, unitX: AngleUnit, angleY: number, unitY: AngleUnit"
+  ]);
+}
+function skewX(value, unit) {
+  return `skewX(${angle("skewX", "angle", value, unit)})`;
+}
+function skewY(value, unit) {
+  return `skewY(${angle("skewY", "angle", value, unit)})`;
+}
+function translate(...args) {
+  const [a, b, c, d] = args;
+  if (args.length === 1) return `translate(${length("translate", "x", a)})`;
+  if (args.length === 2) {
+    if (typeof a === "number" && typeof b === "number" || typeof a === "string" && typeof b === "string") {
+      return `translate(${length("translate", "x", a)}, ${length("translate", "y", b)})`;
+    }
+    if (typeof a === "number" && typeof b === "string") return `translate(${length("translate", "x", a, b)})`;
+  }
+  if (args.length === 4 && typeof a === "number" && typeof c === "number") {
+    return `translate(${length("translate", "x", a, b)}, ${length("translate", "y", c, d)})`;
+  }
+  throw signatures("translate", [
+    "x: number | LengthPercentageUnitString",
+    "x: number, y: number",
+    "x: LengthPercentageUnitString, y: LengthPercentageUnitString",
+    "translation: number, unit: LengthPercentageUnit",
+    "x: number, unitX: LengthPercentageUnit, y: number, unitY: LengthPercentageUnit"
+  ]);
+}
+function translate3d(...args) {
+  if (args.length === 3) {
+    const [x, y, z] = args;
+    const zValue = typeof z === "string" ? withUnit("translate3d", "z", z, lengthUnits) : withUnit("translate3d", "z", z, lengthUnits, "px");
+    return `translate3d(${length("translate3d", "x", x)}, ${length("translate3d", "y", y)}, ${zValue})`;
+  }
+  if (args.length === 6) {
+    const [x, unitX, y, unitY, z, unitZ] = args;
+    if (typeof x === "number" && typeof y === "number" && typeof z === "number") {
+      return `translate3d(${length("translate3d", "x", x, unitX)}, ${length("translate3d", "y", y, unitY)}, ${withUnit("translate3d", "z", z, lengthUnits, unitZ)})`;
+    }
+  }
+  throw signatures("translate3d", [
+    "x: number | LengthPercentageUnitString, y: number | LengthPercentageUnitString, z: number | LengthUnitString",
+    "x: number, unitX: LengthPercentageUnit, y: number, unitY: LengthPercentageUnit, z: number, unitZ: LengthUnit"
+  ]);
+}
+function translateX(value, unit) {
+  return `translateX(${length("translateX", "x", value, unit)})`;
+}
+function translateY(value, unit) {
+  return `translateY(${length("translateY", "y", value, unit)})`;
+}
+function translateZ(value, unit = "px") {
+  if (typeof value === "string") return `translateZ(${withUnit("translateZ", "z", value, lengthUnits)})`;
+  return `translateZ(${withUnit("translateZ", "z", value, lengthUnits, unit)})`;
+}
+
+// src/utils/interpolate-styles.ts
+var NUMBER = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)([a-zA-Z%]*)$/;
+var FUNCTION = /^([a-zA-Z-][a-zA-Z0-9-]*)\(([\s\S]*)\)$/;
+var split = (text, commas = false) => {
+  const tokens = [];
+  let depth = 0;
+  let current = "";
+  const flush = () => {
+    if (current.trim() !== "") tokens.push(current.trim());
+    current = "";
+  };
+  for (const ch of text) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (depth === 0 && ch === ",") {
+      flush();
+      if (!commas) tokens.push(",");
+    } else if (depth === 0 && !commas && /\s/.test(ch)) {
+      flush();
+    } else {
+      current += ch;
+    }
+  }
+  flush();
+  return tokens;
+};
+var parseToken = (token) => {
+  const call = token.match(FUNCTION);
+  if (call) {
+    if (COLOR_FUNCTIONS.includes(call[1].toLowerCase())) {
+      parseColor(token, "interpolateStyles");
+      return { kind: "color", text: token };
+    }
+    return { kind: "function", name: call[1], args: split(call[2], true).map(parseValue) };
+  }
+  if (token.startsWith("#") || isNamedColor(token)) {
+    parseColor(token, "interpolateStyles");
+    return { kind: "color", text: token };
+  }
+  const number = token.match(NUMBER);
+  if (number) return { kind: "number", value: parseFloat(number[1]), unit: number[2] };
+  return { kind: "word", text: token };
+};
+var parseValue = (value) => typeof value === "number" ? [{ kind: "number", value, unit: "" }] : split(value).map(parseToken);
+var serialize = (parts) => parts.reduce((out, part) => part === "," ? `${out},` : out === "" ? `${part}` : `${out} ${part}`, "");
+var describe2 = (value) => JSON.stringify(value);
+var interpolateParts = (property, start, end, segment, values) => {
+  const mismatch2 = () => new TypeError(
+    `interpolateStyles: ${property} cannot be interpolated from ${describe2(values[0])} to ${describe2(values[1])}: the values must have the same structure`
+  );
+  if (start.length !== end.length) throw mismatch2();
+  return start.map((a, i) => {
+    const b = end[i];
+    if (a.kind === "number" && b.kind === "number") {
+      if (a.unit !== b.unit && a.value !== 0 && b.value !== 0) {
+        throw new TypeError(
+          `interpolateStyles: ${property} cannot be interpolated from ${describe2(values[0])} to ${describe2(values[1])}: the units must match`
+        );
+      }
+      const n = interpolate(segment.input, segment.range, [a.value, b.value], segment.options);
+      const unit = a.unit || b.unit;
+      return unit ? `${n}${unit}` : n;
+    }
+    if (a.kind === "color" && b.kind === "color") {
+      return interpolateColors(segment.input, segment.range, [a.text, b.text], { easing: segment.options.easing });
+    }
+    if (a.kind === "function" && b.kind === "function") {
+      if (a.name !== b.name || a.args.length !== b.args.length) throw mismatch2();
+      const args = a.args.map((arg, j) => serialize(interpolateParts(property, arg, b.args[j], segment, values)));
+      return `${a.name}(${args.join(", ")})`;
+    }
+    if (a.kind === "word" && b.kind === "word" && a.text === b.text) return a.text;
+    throw mismatch2();
+  });
+};
+var checkStyles = (outputStylesRange, length2) => {
+  if (!Array.isArray(outputStylesRange)) {
+    throw new Error("interpolateStyles: outputStylesRange must be an array of style objects");
+  }
+  if (outputStylesRange.length !== length2) {
+    throw new Error(
+      `interpolateStyles: inputRange (${length2}) and outputStylesRange (${outputStylesRange.length}) must have the same length`
+    );
+  }
+  outputStylesRange.forEach((style, i) => {
+    if (typeof style !== "object" || style === null || Array.isArray(style)) {
+      throw new Error(`interpolateStyles: outputStylesRange[${i}] must be a style object, got ${describe2(style)}`);
+    }
+  });
+};
+var interpolateStyles = (input, inputRange, outputStylesRange, options = {}) => {
+  checkStyles(outputStylesRange, inputRange.length);
+  checkInterpolateArgs("interpolateStyles", input, inputRange, outputStylesRange.length, options);
+  if (inputRange.length < 2) {
+    throw new Error("interpolateStyles: inputRange must have at least 2 elements");
+  }
+  for (let i = 1; i < inputRange.length; i++) {
+    if (!(inputRange[i] > inputRange[i - 1])) {
+      throw new Error(`interpolateStyles: inputRange must be strictly increasing, got [${inputRange.join(", ")}]`);
+    }
+  }
+  const { posterize, easing, extrapolateLeft = "extend", extrapolateRight = "extend" } = options;
+  const x = posterize === void 0 ? input : Math.floor(input / posterize) * posterize;
+  let index = inputRange.findIndex((step) => x < step) - 1;
+  if (index === -1) index = 0;
+  if (index === -2) index = inputRange.length - 2;
+  const segment = {
+    input: x,
+    range: [inputRange[index], inputRange[index + 1]],
+    options: {
+      easing: Array.isArray(easing) ? easing[index] : easing,
+      extrapolateLeft,
+      extrapolateRight
+    }
+  };
+  const startStyle = outputStylesRange[index];
+  const endStyle = outputStylesRange[index + 1];
+  const result = {};
+  for (const property of Object.keys(startStyle)) {
+    const from = startStyle[property];
+    const to = endStyle[property];
+    if (to === void 0 || to === null) {
+      result[property] = from;
+      continue;
+    }
+    if (typeof from !== "string" && typeof from !== "number" || typeof to !== "string" && typeof to !== "number") {
+      throw new TypeError(
+        `interpolateStyles: ${property} must be a number or a string in both styles, got ${describe2(from)} and ${describe2(to)}`
+      );
+    }
+    const value = serialize(interpolateParts(property, parseValue(from), parseValue(to), segment, [from, to]));
+    result[property] = value !== "" && !Number.isNaN(Number(value)) ? Number(value) : value;
+  }
+  return result;
+};
+
+// src/utils/path/interpolate.ts
+var decasteljau = (points, t) => {
+  const left = [];
+  const right = [];
+  const recurse = (level) => {
+    if (level.length === 1) {
+      left.push(level[0]);
+      right.push(level[0]);
+      return;
+    }
+    const next = [];
+    for (let i = 0; i < level.length - 1; i++) {
+      if (i === 0) left.push(level[0]);
+      if (i === level.length - 2) right.push(level[i + 1]);
+      next.push([(1 - t) * level[i][0] + t * level[i + 1][0], (1 - t) * level[i][1] + t * level[i + 1][1]]);
+    }
+    recurse(next);
+  };
+  if (points.length) recurse(points);
+  return { left, right: right.reverse() };
+};
+var splitCurveAsPoints = (points, count) => {
+  const pieces = [];
+  let remaining = points;
+  const increment = 1 / count;
+  for (let i = 0; i < count - 1; i++) {
+    const { left, right } = decasteljau(remaining, increment / (1 - increment * i));
+    pieces.push(left);
+    remaining = right;
+  }
+  pieces.push(remaining);
+  return pieces;
+};
+var pointsToInstruction = (points) => {
+  const [x, y] = points[points.length - 1];
+  if (points.length === 4) {
+    return { type: "C", cp1x: points[1][0], cp1y: points[1][1], cp2x: points[2][0], cp2y: points[2][1], x, y };
+  }
+  if (points.length === 3) {
+    return quadToCubic({ x: points[0][0], y: points[0][1] }, points[1][0], points[1][1], x, y);
+  }
+  return { type: "L", x, y };
+};
+var splitSegment = (start, end, count) => {
+  if (end.type === "L" || end.type === "C") {
+    if (start.type === "Z") return [];
+    const points = [[start.x, start.y]];
+    if (end.type === "C") points.push([end.cp1x, end.cp1y], [end.cp2x, end.cp2y]);
+    points.push([end.x, end.y]);
+    return splitCurveAsPoints(points, count).map(pointsToInstruction);
+  }
+  const copy = start.type === "M" ? { type: "L", x: start.x, y: start.y } : start;
+  return [...new Array(count - 1).fill(copy), end];
+};
+var extendInstructions = (commands, reference) => {
+  const segments = commands.length - 1;
+  const referenceSegments = reference.length - 1;
+  const ratio = segments / referenceSegments;
+  const counts = [];
+  for (let i = 0; i < referenceSegments; i++) {
+    const index = Math.floor(ratio * i);
+    counts[index] = (counts[index] ?? 0) + 1;
+  }
+  const extended = [commands[0]];
+  counts.forEach((count, i) => {
+    if (count === void 0) return;
+    if (i === commands.length - 1) {
+      const last = commands[commands.length - 1];
+      const copy = last.type === "M" ? { type: "L", x: last.x, y: last.y } : { ...last };
+      for (let k = 0; k < count; k++) extended.push(copy);
+      return;
+    }
+    extended.push(...splitSegment(commands[i], commands[i + 1], count));
+  });
+  return extended;
+};
+var toSameType = (command, target, current) => {
+  if (command.type === "M" || target.type === "M" || command.type === target.type) return { ...command };
+  if (target.type === "C" && command.type === "L") {
+    return { type: "C", cp1x: current.x, cp1y: current.y, cp2x: command.x, cp2y: command.y, x: command.x, y: command.y };
+  }
+  if (target.type === "L" && command.type === "C") return { type: "L", x: command.x, y: command.y };
+  if (target.type === "Z") return { type: "Z" };
+  throw new Error(`interpolatePath: cannot turn a ${command.type} instruction into a ${target.type} instruction`);
+};
+var mismatch = (fn) => {
+  throw new Error(`${fn}: the paths have different subpath structures (a move or a close where the other path draws)`);
+};
+var mix = (t, a, b) => {
+  if (a.type !== b.type) mismatch("interpolatePath");
+  const lerp = (p, q) => (1 - t) * p + t * q;
+  switch (a.type) {
+    case "Z":
+      return a;
+    case "C": {
+      const c = b;
+      return {
+        type: "C",
+        cp1x: lerp(a.cp1x, c.cp1x),
+        cp2x: lerp(a.cp2x, c.cp2x),
+        cp1y: lerp(a.cp1y, c.cp1y),
+        cp2y: lerp(a.cp2y, c.cp2y),
+        x: lerp(a.x, c.x),
+        y: lerp(a.y, c.y)
+      };
+    }
+    default: {
+      const p = b;
+      return { type: a.type, x: lerp(a.x, p.x), y: lerp(a.y, p.y) };
+    }
+  }
+};
+var reducedOf = (fn, path) => {
+  if (typeof path !== "string") {
+    throw new Error(`${fn}: paths must be strings, got ${JSON.stringify(path)}`);
+  }
+  return reduceInstructions(parsePath(path));
+};
+var checkFinite2 = (fn, name, value) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${fn}: ${name} must be a finite number, got ${value}`);
+  }
+};
+var interpolatePath = (value, firstPath, secondPath) => {
+  checkFinite2("interpolatePath", "value", value);
+  const a = reducedOf("interpolatePath", firstPath);
+  const b = reducedOf("interpolatePath", secondPath);
+  if (value === 1) return secondPath;
+  if (value === 0) return firstPath;
+  let aCommands = a.slice();
+  let bCommands = b.slice();
+  const addZ = aCommands[aCommands.length - 1].type === "Z" && bCommands[bCommands.length - 1].type === "Z";
+  if (aCommands[aCommands.length - 1].type === "Z") aCommands.pop();
+  if (bCommands[bCommands.length - 1].type === "Z") bCommands.pop();
+  if (aCommands.length === 0) aCommands.push(bCommands[0]);
+  else if (bCommands.length === 0) bCommands.push(aCommands[0]);
+  if (bCommands.length > aCommands.length) aCommands = extendInstructions(aCommands, bCommands);
+  else if (aCommands.length > bCommands.length) bCommands = extendInstructions(bCommands, aCommands);
+  const aSameType = aCommands.map(
+    (command, i) => toSameType(command, bCommands[i], getEndPosition(aCommands.slice(0, i)))
+  );
+  if (addZ) {
+    aSameType.push({ type: "Z" });
+    bCommands.push({ type: "Z" });
+  }
+  return serializeInstructions(aSameType.map((command, i) => mix(value, command, bCommands[i])));
+};
+var tidyNumbers = (path) => path.replace(/-?\d*\.?\d+(?:e[+-]?\d+)?/gi, (value) => {
+  const number = Number(value);
+  return Number.isInteger(number) ? value : String(Number(number.toPrecision(15)));
+});
+var interpolatePaths = (input, inputRange, outputRange, options) => {
+  const fn = "interpolatePaths";
+  if (!Array.isArray(outputRange)) {
+    throw new Error(`${fn}: outputRange must be an array of SVG path strings, got ${JSON.stringify(outputRange)}`);
+  }
+  for (const path of outputRange) {
+    if (typeof path !== "string") {
+      throw new Error(`${fn}: outputRange must contain only SVG path strings, got ${JSON.stringify(path)}`);
+    }
+  }
+  for (const side of ["extrapolateLeft", "extrapolateRight"]) {
+    const extrapolation = options?.[side];
+    if (extrapolation !== void 0 && extrapolation !== "extend" && extrapolation !== "clamp" && extrapolation !== "wrap") {
+      throw new Error(`${fn}: ${side} must be "extend", "clamp" or "wrap", got ${JSON.stringify(extrapolation)}`);
+    }
+  }
+  const weights = outputRange.map(
+    (_, pathIndex) => interpolate(
+      input,
+      inputRange,
+      outputRange.map((__, index) => index === pathIndex ? 1 : 0),
+      options
+    )
+  );
+  const exact = weights.findIndex(
+    (weight, index) => weight === 1 && weights.every((other, otherIndex) => otherIndex === index || other === 0)
+  );
+  if (exact !== -1) return outputRange[exact];
+  const contributing = outputRange.map((path, index) => ({ path, weight: weights[index] })).filter(({ weight }) => weight !== 0);
+  const paths = contributing.map(({ path }) => reducedOf(fn, path));
+  const closed = paths.every((commands) => commands[commands.length - 1].type === "Z");
+  const open = paths.map((commands) => commands[commands.length - 1].type === "Z" ? commands.slice(0, -1) : commands);
+  const reference = open.reduce((longest, commands) => commands.length > longest.length ? commands : longest);
+  const extended = open.map(
+    (commands) => commands.length < reference.length ? extendInstructions(commands, reference) : commands
+  );
+  const result = reference.map((_, index) => {
+    const commands = extended.map((path) => path[index]);
+    if (commands.some((command) => command.type === "Z")) {
+      if (commands.every((command) => command.type === "Z")) return { type: "Z" };
+      return mismatch(fn);
+    }
+    const target = commands.find((command) => command.type === "C") ?? commands[0];
+    const coordinates = commands.map((command, pathIndex) => {
+      if (command.type === "M" !== (target.type === "M")) mismatch(fn);
+      const same = toSameType(command, target, getEndPosition(extended[pathIndex].slice(0, index)));
+      if (same.type === "Z") return [];
+      return same.type === "C" ? [same.x, same.y, same.cp1x, same.cp1y, same.cp2x, same.cp2y] : [same.x, same.y];
+    });
+    const values = coordinates[0].map((base, k) => {
+      const mixed = coordinates.reduce((sum, path, pathIndex) => sum + (path[k] - base) * contributing[pathIndex].weight, base);
+      if (Number.isFinite(mixed)) return mixed;
+      return coordinates.reduce((sum, path, pathIndex) => sum + path[k] * contributing[pathIndex].weight, 0);
+    });
+    if (target.type === "C") {
+      return { type: "C", x: values[0], y: values[1], cp1x: values[2], cp1y: values[3], cp2x: values[4], cp2y: values[5] };
+    }
+    return { type: target.type, x: values[0], y: values[1] };
+  });
+  if (closed) result.push({ type: "Z" });
+  return tidyNumbers(serializeInstructions(result));
+};
+
+// src/utils/path/from-points.ts
+var format = (n) => String(Math.abs(n) < 1e-12 ? 0 : n);
+var pair = (p) => `${format(p.x)} ${format(p.y)}`;
+var pathFromPoints = (points, options = {}) => {
+  const { cornerRadius = 0, closed = false } = options;
+  if (!Array.isArray(points) || points.length < 2) {
+    throw new Error(`pathFromPoints: needs at least 2 points, got ${Array.isArray(points) ? points.length : points}`);
+  }
+  points.forEach((p, k) => {
+    if (typeof p !== "object" || p === null || !Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+      throw new Error(`pathFromPoints: points[${k}] must be { x, y } with finite numbers, got ${JSON.stringify(p)}`);
+    }
+  });
+  if (typeof cornerRadius !== "number" || !Number.isFinite(cornerRadius) || cornerRadius < 0) {
+    throw new Error(`pathFromPoints: cornerRadius must be a finite number >= 0, got ${cornerRadius}`);
+  }
+  const n = points.length;
+  const corner = (k) => {
+    const prev = points[(k - 1 + n) % n];
+    const vertex = points[k];
+    const next = points[(k + 1) % n];
+    const inLength = Math.hypot(vertex.x - prev.x, vertex.y - prev.y);
+    const outLength = Math.hypot(next.x - vertex.x, next.y - vertex.y);
+    if (cornerRadius === 0 || inLength === 0 || outLength === 0) return null;
+    const u = { x: (prev.x - vertex.x) / inLength, y: (prev.y - vertex.y) / inLength };
+    const v = { x: (next.x - vertex.x) / outLength, y: (next.y - vertex.y) / outLength };
+    const cosine = Math.max(-1, Math.min(1, u.x * v.x + u.y * v.y));
+    const angle2 = Math.acos(cosine);
+    if (angle2 < 1e-9 || Math.PI - angle2 < 1e-9) return null;
+    const tanHalf = Math.tan(angle2 / 2);
+    const cut = Math.min(cornerRadius / tanHalf, inLength / 2, outLength / 2);
+    const cross = (vertex.x - prev.x) * (next.y - vertex.y) - (vertex.y - prev.y) * (next.x - vertex.x);
+    return {
+      enter: { x: vertex.x + u.x * cut, y: vertex.y + u.y * cut },
+      leave: { x: vertex.x + v.x * cut, y: vertex.y + v.y * cut },
+      radius: cut * tanHalf,
+      // With y pointing down, a positive cross product is a clockwise turn.
+      sweep: cross > 0 ? 1 : 0
+    };
+  };
+  const parts = [];
+  const visit = (k) => {
+    const c = corner(k);
+    if (!c) {
+      parts.push(`L ${pair(points[k])}`);
+      return;
+    }
+    parts.push(`L ${pair(c.enter)}`, `A ${format(c.radius)} ${format(c.radius)} 0 0 ${c.sweep} ${pair(c.leave)}`);
+  };
+  if (!closed) {
+    parts.push(`M ${pair(points[0])}`);
+    for (let k = 1; k < n - 1; k++) visit(k);
+    parts.push(`L ${pair(points[n - 1])}`);
+    return parts.join(" ");
+  }
+  const first = corner(0);
+  parts.push(`M ${pair(first ? first.leave : points[0])}`);
+  for (let k = 1; k < n; k++) visit(k);
+  if (first) {
+    parts.push(`L ${pair(first.enter)}`, `A ${format(first.radius)} ${format(first.radius)} 0 0 ${first.sweep} ${pair(first.leave)}`);
+  }
+  parts.push("Z");
+  return parts.join(" ");
 };
 
 // src/hooks/animation.ts
@@ -2601,10 +2950,11 @@ var useDelay = (delayInFrames) => {
   const frame = useCurrentFrame();
   return frame >= delayInFrames;
 };
+var progressOf = (frame, durationInFrames) => durationInFrames > 1 ? frame / (durationInFrames - 1) : frame >= 0 ? 1 : 0;
 var useProgress = () => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
-  return frame / (durationInFrames - 1);
+  return progressOf(frame, durationInFrames);
 };
 var useLoop = (loopDuration) => {
   const frame = useCurrentFrame();
@@ -2617,7 +2967,7 @@ var useTimeline = () => {
     frame,
     durationInFrames,
     fps,
-    progress: frame / (durationInFrames - 1),
+    progress: progressOf(frame, durationInFrames),
     timeInSeconds: frame / fps,
     durationInSeconds: durationInFrames / fps,
     remainingFrames: durationInFrames - frame - 1,
@@ -2690,13 +3040,13 @@ var useFade = (fadeInDuration, fadeOutDuration, options) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   const startFrame = options?.startFrame ?? 0;
-  const endFrame = options?.endFrame ?? durationInFrames;
+  const endFrame = options?.endFrame ?? durationInFrames - 1;
   if (frame < startFrame + fadeInDuration) {
     return interpolate(
       frame,
       [startFrame, startFrame + fadeInDuration],
       [0, 1],
-      { extrapolateRight: "clamp" }
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
   }
   if (frame > endFrame - fadeOutDuration) {
@@ -2704,7 +3054,7 @@ var useFade = (fadeInDuration, fadeOutDuration, options) => {
       frame,
       [endFrame - fadeOutDuration, endFrame],
       [1, 0],
-      { extrapolateLeft: "clamp" }
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
     );
   }
   return 1;
@@ -2756,212 +3106,9 @@ var usePulse = (minScale, maxScale, frequency) => {
   const scale2 = interpolate(progress, [0, 1], [minScale, maxScale]);
   return { transform: `scale(${scale2})` };
 };
-
-// src/renderer/cache.ts
-var FrameCache = class {
-  constructor(options = {}) {
-    this.cache = /* @__PURE__ */ new Map();
-    this.stats = { hits: 0, misses: 0 };
-    this.maxSize = options.maxSize ?? 100 * 1024 * 1024;
-    this.maxAge = options.maxAge ?? 5 * 60 * 1e3;
-  }
-  /**
-   * Generate cache key for a frame
-   */
-  static createKey(compositionId, frame, width, height) {
-    return `${compositionId}:${frame}:${width}x${height}`;
-  }
-  /**
-   * Get a cached frame
-   */
-  get(key) {
-    const entry = this.cache.get(key);
-    if (!entry) {
-      this.stats.misses++;
-      return null;
-    }
-    if (Date.now() - entry.timestamp > this.maxAge) {
-      this.cache.delete(key);
-      this.stats.misses++;
-      return null;
-    }
-    entry.accessCount++;
-    this.cache.delete(key);
-    this.cache.set(key, entry);
-    this.stats.hits++;
-    return entry.data;
-  }
-  /**
-   * Set a cached frame
-   */
-  set(key, data, size) {
-    const entrySize = size ?? this.estimateSize(data);
-    this.evictIfNeeded(entrySize);
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now(),
-      accessCount: 1,
-      size: entrySize
-    });
-  }
-  /**
-   * Check if key exists and is valid
-   */
-  has(key) {
-    const entry = this.cache.get(key);
-    if (!entry) return false;
-    if (Date.now() - entry.timestamp > this.maxAge) {
-      this.cache.delete(key);
-      return false;
-    }
-    return true;
-  }
-  /**
-   * Delete a cached frame
-   */
-  delete(key) {
-    return this.cache.delete(key);
-  }
-  /**
-   * Clear all cached frames
-   */
-  clear() {
-    this.cache.clear();
-    this.stats = { hits: 0, misses: 0 };
-  }
-  /**
-   * Get cache statistics
-   */
-  getStats() {
-    let totalSize = 0;
-    for (const entry of this.cache.values()) {
-      totalSize += entry.size;
-    }
-    const totalRequests = this.stats.hits + this.stats.misses;
-    return {
-      hits: this.stats.hits,
-      misses: this.stats.misses,
-      size: totalSize,
-      entries: this.cache.size,
-      hitRate: totalRequests > 0 ? this.stats.hits / totalRequests : 0
-    };
-  }
-  /**
-   * Get current cache size in bytes
-   */
-  getSize() {
-    let size = 0;
-    for (const entry of this.cache.values()) {
-      size += entry.size;
-    }
-    return size;
-  }
-  /**
-   * Evict entries until we have enough space
-   */
-  evictIfNeeded(neededSize) {
-    while (this.getSize() + neededSize > this.maxSize && this.cache.size > 0) {
-      const firstKey = this.cache.keys().next().value;
-      if (firstKey) {
-        this.cache.delete(firstKey);
-      } else {
-        break;
-      }
-    }
-  }
-  /**
-   * Estimate size of data
-   */
-  estimateSize(data) {
-    if (data instanceof ImageData) {
-      return data.data.length;
-    }
-    if (typeof data === "string") {
-      return data.length * 2;
-    }
-    if (data instanceof ArrayBuffer) {
-      return data.byteLength;
-    }
-    return 1024;
-  }
-};
-var frameCache = new FrameCache({
-  maxSize: 200 * 1024 * 1024,
-  // 200MB
-  maxAge: 10 * 60 * 1e3
-  // 10 minutes
-});
-var MemoCache = class _MemoCache {
-  constructor() {
-    this.cache = /* @__PURE__ */ new Map();
-  }
-  static getInstance() {
-    if (!_MemoCache.instance) {
-      _MemoCache.instance = new _MemoCache();
-    }
-    return _MemoCache.instance;
-  }
-  /**
-   * Get or compute a memoized value
-   */
-  getOrCompute(key, compute, deps = []) {
-    const cached = this.cache.get(key);
-    if (cached && this.depsEqual(cached.deps, deps)) {
-      return cached.value;
-    }
-    const value = compute();
-    this.cache.set(key, { value, deps });
-    return value;
-  }
-  /**
-   * Check if dependencies are equal
-   */
-  depsEqual(a, b) {
-    if (a.length !== b.length) return false;
-    return a.every((val, i) => Object.is(val, b[i]));
-  }
-  /**
-   * Clear all memoized values
-   */
-  clear() {
-    this.cache.clear();
-  }
-};
-function createDebouncedCache(fn, delay) {
-  let timeoutId = null;
-  let lastArgs = [];
-  return ((...args) => {
-    lastArgs = args;
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-    timeoutId = setTimeout(() => {
-      fn(...lastArgs);
-      timeoutId = null;
-    }, delay);
-  });
-}
-function createThrottledCache(fn, limit) {
-  let inThrottle = false;
-  return ((...args) => {
-    if (!inThrottle) {
-      fn(...args);
-      inThrottle = true;
-      setTimeout(() => {
-        inThrottle = false;
-      }, limit);
-    }
-  });
-}
-
-// src/hooks/performance.ts
 function useMemoizedFrame(compute, deps = []) {
   const frame = useCurrentFrame();
-  const memoCache = useMemo(() => MemoCache.getInstance(), []);
-  const key = useMemo(() => `frame:${frame}:${JSON.stringify(deps)}`, [frame, deps]);
-  return useMemo(() => {
-    return memoCache.getOrCompute(key, compute, [frame, ...deps]);
-  }, [key, compute, memoCache, frame, deps]);
+  return useMemo(() => compute(), [frame, ...deps]);
 }
 function useAnimationValue(compute, _frameDeps) {
   const frame = useCurrentFrame();
@@ -2973,14 +3120,6 @@ function useCachedFrame(compositionId, renderer) {
   return useMemo(() => {
     return renderer(frame);
   }, [compositionId, frame, width, height, renderer]);
-}
-function useThrottledFrame(_throttleMs) {
-  return useCurrentFrame();
-}
-function useBatchFrameProcessor(processor, _batchSize) {
-  return useCallback((items) => {
-    return processor(items);
-  }, [processor]);
 }
 function useFrameRange(startFrame, endFrame) {
   return useMemo(() => {
@@ -3014,1999 +3153,19 @@ function useOptimizedInterpolate(inputRange, outputRange, options) {
     return interpolate(frame, inputRange, outputRange, options);
   }, [inputRange, outputRange, options]);
 }
-function usePerformanceMonitor() {
-  return useMemo(() => ({
-    fps: 60,
-    frameTime: 16.67,
-    renderTime: 0
-  }), []);
-}
-function useRenderPriority() {
-  return useMemo(() => "high", []);
-}
-
-// src/renderer/index.ts
-init_export();
-var generateFrames = async (component, config, options) => {
-  const frames = [];
-  const startFrame = options?.startFrame ?? 0;
-  const endFrame = options?.endFrame ?? config.durationInFrames;
-  for (let frame = startFrame; frame < endFrame; frame++) {
-    if (options?.onProgress) {
-      options.onProgress(frame - startFrame, endFrame - startFrame);
-    }
-    frames.push(`frame-${frame}`);
-  }
-  return frames;
-};
-var renderVideo = async (options) => {
-  const startTime = Date.now();
-  try {
-    const frames = await generateFrames(
-      () => null,
-      options.config,
-      {
-        onProgress: (frame, total) => {
-          if (options.onProgress) {
-            options.onProgress(frame / total);
-          }
-        }
-      }
-    );
-    const duration = Date.now() - startTime;
-    return {
-      success: true,
-      frameCount: frames.length,
-      duration,
-      outputUrl: `${options.outputDir}/output.mp4`
-    };
-  } catch (error) {
-    return {
-      success: false,
-      frameCount: 0,
-      duration: Date.now() - startTime,
-      error: error instanceof Error ? error.message : "Unknown error"
-    };
-  }
-};
-var buildFFmpegCommand = (inputPattern, outputPath, config, rendererConfig) => {
-  const args = [];
-  args.push("-framerate", config.fps.toString());
-  args.push("-i", inputPattern);
-  switch (rendererConfig.format) {
-    case "mp4":
-      args.push("-c:v", rendererConfig.codec === "h265" ? "libx265" : "libx264");
-      if (rendererConfig.crf) {
-        args.push("-crf", rendererConfig.crf.toString());
-      }
-      args.push("-pix_fmt", rendererConfig.pixelFormat ?? "yuv420p");
-      break;
-    case "webm":
-      args.push("-c:v", rendererConfig.codec === "vp9" ? "libvpx-vp9" : "libvpx");
-      args.push("-crf", (rendererConfig.crf ?? 30).toString());
-      args.push("-b:v", "0");
-      break;
-    case "gif":
-      args.push("-filter_complex", `[0:v] fps=${Math.min(config.fps, 15)},split [a][b];[a] palettegen [p];[b][p] paletteuse`);
-      break;
-  }
-  switch (rendererConfig.quality) {
-    case "low":
-      args.push("-preset", "ultrafast");
-      break;
-    case "medium":
-      args.push("-preset", "medium");
-      break;
-    case "high":
-      args.push("-preset", "slow");
-      break;
-  }
-  args.push("-y", outputPath);
-  return args;
-};
-var frameToDataURL = (canvas) => {
-  return canvas.toDataURL("image/png");
-};
-var calculateVideoSize = (width, height, fps, durationInSeconds, bitrate = 5e6) => {
-  return Math.ceil(bitrate * durationInSeconds / 8);
-};
-var estimateRenderTime = (durationInFrames, complexity = "medium") => {
-  const baseTimePerFrame = {
-    low: 10,
-    medium: 50,
-    high: 200
-  };
-  return durationInFrames * baseTimePerFrame[complexity];
-};
-var validateRenderConfig = (config) => {
-  const errors = [];
-  if (config.width < 1 || config.width > 8192) {
-    errors.push("Width must be between 1 and 8192 pixels");
-  }
-  if (config.height < 1 || config.height > 8192) {
-    errors.push("Height must be between 1 and 8192 pixels");
-  }
-  if (config.fps < 1 || config.fps > 120) {
-    errors.push("FPS must be between 1 and 120");
-  }
-  if (config.durationInFrames < 1) {
-    errors.push("Duration must be at least 1 frame");
-  }
-  return errors;
-};
-var RenderJobManager = class {
-  constructor() {
-    this.jobs = /* @__PURE__ */ new Map();
-  }
-  createJob(id, config) {
-    this.jobs.set(id, {
-      id,
-      config,
-      status: "pending",
-      progress: 0,
-      startTime: null,
-      endTime: null
-    });
-  }
-  startJob(id) {
-    const job = this.jobs.get(id);
-    if (job) {
-      job.status = "processing";
-      job.startTime = Date.now();
-    }
-  }
-  updateProgress(id, progress) {
-    const job = this.jobs.get(id);
-    if (job) {
-      job.progress = progress;
-    }
-  }
-  completeJob(id, outputUrl) {
-    const job = this.jobs.get(id);
-    if (job) {
-      job.status = "completed";
-      job.progress = 100;
-      job.endTime = Date.now();
-      job.outputUrl = outputUrl;
-    }
-  }
-  failJob(id, error) {
-    const job = this.jobs.get(id);
-    if (job) {
-      job.status = "failed";
-      job.error = error;
-      job.endTime = Date.now();
-    }
-  }
-  getJob(id) {
-    return this.jobs.get(id);
-  }
-  getActiveJobs() {
-    return Array.from(this.jobs.values()).filter(
-      (job) => job.status === "processing"
-    );
-  }
-};
-var renderJobManager = new RenderJobManager();
-async function renderCompositionToVideo(setFrame, element, config, options) {
-  const { VideoExportManager: VideoExportManager2 } = await Promise.resolve().then(() => (init_export(), export_exports));
-  const manager = new VideoExportManager2();
-  const result = await manager.exportVideo(setFrame, element, {
-    config,
-    onProgress: options?.onProgress ? (p) => options.onProgress(p.percentage) : void 0
-  });
-  if (result.success && result.blob) {
-    options?.onComplete?.(result.blob);
-    return result.blob;
-  }
-  return null;
-}
-function downloadVideo(blob, filename = "video.webm") {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-function downloadFrame(imageData, filename = "frame.png") {
-  const canvas = document.createElement("canvas");
-  canvas.width = imageData.width;
-  canvas.height = imageData.height;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    ctx.putImageData(imageData, 0, 0);
-    canvas.toBlob((blob) => {
-      if (blob) {
-        downloadVideo(blob, filename);
-      }
-    }, "image/png");
-  }
-}
-var PlayIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx(
-      "path",
-      {
-        d: "M8 5.14v14l11-7-11-7z",
-        fill: color
-      }
-    )
-  }
-);
-var PauseIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsxs(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: [
-      /* @__PURE__ */ jsx("rect", { x: "6", y: "4", width: "4", height: "16", fill: color }),
-      /* @__PURE__ */ jsx("rect", { x: "14", y: "4", width: "4", height: "16", fill: color })
-    ]
-  }
-);
-var StopIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("rect", { x: "6", y: "6", width: "12", height: "12", fill: color })
-  }
-);
-var SkipBackIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M6 6h2v12H6V6zm3.5 6l8.5 6V6l-8.5 6z", fill: color })
-  }
-);
-var SkipForwardIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M6 18l8.5-6L6 6v12zm8.5 0V6h2v12h-2z", fill: color })
-  }
-);
-var RewindIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z", fill: color })
-  }
-);
-var FastForwardIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z", fill: color })
-  }
-);
-var ReplayIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx(
-      "path",
-      {
-        d: "M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z",
-        fill: color
-      }
-    )
-  }
-);
-var ShuffleIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z", fill: color })
-  }
-);
-var RepeatIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z", fill: color })
-  }
-);
-var VolumeHighIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z", fill: color })
-  }
-);
-var VolumeMediumIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M5 9v6h4l5 5V4L9 9H5zm11.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z", fill: color })
-  }
-);
-var VolumeLowIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z", fill: color })
-  }
-);
-var VolumeMuteIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z", fill: color })
-  }
-);
-var ArrowLeftIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z", fill: color })
-  }
-);
-var ArrowRightIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8-8-8z", fill: color })
-  }
-);
-var ArrowUpIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z", fill: color })
-  }
-);
-var ArrowDownIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M20 12l-1.41-1.41L13 16.17V4h-2v12.17l-5.58-5.59L4 12l8 8 8-8z", fill: color })
-  }
-);
-var ChevronLeftIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12l4.58-4.59z", fill: color })
-  }
-);
-var ChevronRightIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6-6-6z", fill: color })
-  }
-);
-var ChevronUpIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14l-6-6z", fill: color })
-  }
-);
-var ChevronDownIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6-1.41-1.41z", fill: color })
-  }
-);
-var CheckIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z", fill: color })
-  }
-);
-var CloseIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z", fill: color })
-  }
-);
-var PlusIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z", fill: color })
-  }
-);
-var MinusIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M19 13H5v-2h14v2z", fill: color })
-  }
-);
-var EditIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z", fill: color })
-  }
-);
-var DeleteIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z", fill: color })
-  }
-);
-var SaveIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z", fill: color })
-  }
-);
-var CopyIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z", fill: color })
-  }
-);
-var DownloadIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z", fill: color })
-  }
-);
-var UploadIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z", fill: color })
-  }
-);
-var RefreshIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z", fill: color })
-  }
-);
-var CameraIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 15.2c1.77 0 3.2-1.43 3.2-3.2s-1.43-3.2-3.2-3.2-3.2 1.43-3.2 3.2 1.43 3.2 3.2 3.2zM9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z", fill: color })
-  }
-);
-var VideoIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z", fill: color })
-  }
-);
-var ImageIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z", fill: color })
-  }
-);
-var MusicIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z", fill: color })
-  }
-);
-var MicIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z", fill: color })
-  }
-);
-var StarIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z", fill: color })
-  }
-);
-var StarOutlineIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z", fill: color })
-  }
-);
-var HeartIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z", fill: color })
-  }
-);
-var HeartOutlineIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z", fill: color })
-  }
-);
-var ThumbUpIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z", fill: color })
-  }
-);
-var ThumbDownIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M23 3h-4v12h4V3zm-2 10h-2V5h2v8zM15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2z", fill: color })
-  }
-);
-var ShareIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z", fill: color })
-  }
-);
-var CommentIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z", fill: color })
-  }
-);
-var SettingsIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z", fill: color })
-  }
-);
-var FullscreenIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z", fill: color })
-  }
-);
-var FullscreenExitIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z", fill: color })
-  }
-);
-var SearchIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z", fill: color })
-  }
-);
-var InfoIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z", fill: color })
-  }
-);
-var WarningIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z", fill: color })
-  }
-);
-var ErrorIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z", fill: color })
-  }
-);
-var SuccessIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z", fill: color })
-  }
-);
-var QuestionIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z", fill: color })
-  }
-);
-var ClockIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z", fill: color })
-  }
-);
-var TimerIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z", fill: color })
-  }
-);
-var CalendarIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm-8 4H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z", fill: color })
-  }
-);
-var FolderIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z", fill: color })
-  }
-);
-var FileIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M6 2c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6H6zm7 7V3.5L18.5 9H13z", fill: color })
-  }
-);
-var FilmIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z", fill: color })
-  }
-);
-var SparkleIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M12 2L9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2z", fill: color })
-  }
-);
-var MagicWandIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M7.5 5.6L10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zM19.5 15.4L17 14l1.4 2.5L17 19l2.5-1.4L22 19l-1.4-2.5L22 14zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zM14.37 7.29L12.56 5.5 2 16.06V18.88L5.12 22h2.82l10.55-10.56zM5.91 17.09L5 16.17l8.06-8.06.91.91-8.06 8.07z", fill: color })
-  }
-);
-var LightningIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M7 2v11h3v9l7-12h-4l4-8z", fill: color })
-  }
-);
-var LayersIcon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    className,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z", fill: color })
-  }
-);
-var Loader2Icon = ({
-  size = 24,
-  color = "currentColor",
-  className,
-  style
-}) => /* @__PURE__ */ jsx(
-  "svg",
-  {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: color,
-    strokeWidth: "2",
-    strokeLinecap: "round",
-    strokeLinejoin: "round",
-    xmlns: "http://www.w3.org/2000/svg",
-    className: `animate-spin ${className || ""}`,
-    style,
-    children: /* @__PURE__ */ jsx("path", { d: "M21 12a9 9 0 1 1-6.219-8.56" })
-  }
-);
-var Icons = {
-  // Playback
-  Play: PlayIcon,
-  Pause: PauseIcon,
-  Stop: StopIcon,
-  SkipBack: SkipBackIcon,
-  SkipForward: SkipForwardIcon,
-  Rewind: RewindIcon,
-  FastForward: FastForwardIcon,
-  Replay: ReplayIcon,
-  Shuffle: ShuffleIcon,
-  Repeat: RepeatIcon,
-  // Volume
-  VolumeHigh: VolumeHighIcon,
-  VolumeMedium: VolumeMediumIcon,
-  VolumeLow: VolumeLowIcon,
-  VolumeMute: VolumeMuteIcon,
-  // Navigation
-  ArrowLeft: ArrowLeftIcon,
-  ArrowRight: ArrowRightIcon,
-  ArrowUp: ArrowUpIcon,
-  ArrowDown: ArrowDownIcon,
-  ChevronLeft: ChevronLeftIcon,
-  ChevronRight: ChevronRightIcon,
-  ChevronUp: ChevronUpIcon,
-  ChevronDown: ChevronDownIcon,
-  // Actions
-  Check: CheckIcon,
-  Close: CloseIcon,
-  Plus: PlusIcon,
-  Minus: MinusIcon,
-  Edit: EditIcon,
-  Delete: DeleteIcon,
-  Save: SaveIcon,
-  Copy: CopyIcon,
-  Download: DownloadIcon,
-  Upload: UploadIcon,
-  Refresh: RefreshIcon,
-  // Media
-  Camera: CameraIcon,
-  Video: VideoIcon,
-  Image: ImageIcon,
-  Music: MusicIcon,
-  Mic: MicIcon,
-  // Social
-  Star: StarIcon,
-  StarOutline: StarOutlineIcon,
-  Heart: HeartIcon,
-  HeartOutline: HeartOutlineIcon,
-  ThumbUp: ThumbUpIcon,
-  ThumbDown: ThumbDownIcon,
-  Share: ShareIcon,
-  Comment: CommentIcon,
-  // UI
-  Settings: SettingsIcon,
-  Fullscreen: FullscreenIcon,
-  FullscreenExit: FullscreenExitIcon,
-  Search: SearchIcon,
-  Info: InfoIcon,
-  Warning: WarningIcon,
-  Error: ErrorIcon,
-  Success: SuccessIcon,
-  Question: QuestionIcon,
-  // Time
-  Clock: ClockIcon,
-  Timer: TimerIcon,
-  Calendar: CalendarIcon,
-  // Files
-  Folder: FolderIcon,
-  File: FileIcon,
-  Film: FilmIcon,
-  // Animation
-  Sparkle: SparkleIcon,
-  MagicWand: MagicWandIcon,
-  Lightning: LightningIcon,
-  Layers: LayersIcon,
-  Loader2: Loader2Icon
-};
-var icons_default = Icons;
-var Timeline = ({ durationInFrames, frame, onSeek, marks = [], fps }) => {
-  const timelineRef = useRef(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const handleClick = useCallback((e) => {
-    if (!timelineRef.current) return;
-    const rect = timelineRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percentage = x / rect.width;
-    onSeek(Math.floor(percentage * durationInFrames));
-  }, [durationInFrames, onSeek]);
-  const handleMouseDown = useCallback((e) => {
-    setIsDragging(true);
-    handleClick(e);
-  }, [handleClick]);
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (!isDragging || !timelineRef.current) return;
-      const rect = timelineRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const percentage = Math.max(0, Math.min(1, x / rect.width));
-      onSeek(Math.floor(percentage * durationInFrames));
-    };
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
-    if (isDragging) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
-    }
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isDragging, durationInFrames, onSeek]);
-  const progress = frame / (durationInFrames - 1) * 100;
-  const timeInSeconds = frame / fps;
-  const durationInSeconds = durationInFrames / fps;
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    const ms = Math.floor(seconds % 1 * 100);
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}.${ms.toString().padStart(2, "0")}`;
-  };
-  return /* @__PURE__ */ jsxs("div", { className: "w-full", children: [
-    /* @__PURE__ */ jsxs(
-      "div",
-      {
-        ref: timelineRef,
-        className: "relative h-2 bg-emerald-950 rounded-full cursor-pointer group border border-emerald-900/50",
-        onMouseDown: handleMouseDown,
-        children: [
-          /* @__PURE__ */ jsx(
-            "div",
-            {
-              className: "absolute h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-75",
-              style: { width: `${progress}%` }
-            }
-          ),
-          /* @__PURE__ */ jsx(
-            "div",
-            {
-              className: "absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-gradient-to-br from-emerald-400 to-teal-400 rounded-full shadow-lg shadow-emerald-500/50 cursor-grab opacity-0 group-hover:opacity-100 transition-opacity border-2 border-white",
-              style: { left: `calc(${progress}% - 8px)` }
-            }
-          ),
-          marks.map((mark, i) => /* @__PURE__ */ jsx(
-            "div",
-            {
-              className: "absolute top-0 w-0.5 h-full bg-emerald-400",
-              style: { left: `${mark / durationInFrames * 100}%` }
-            },
-            i
-          ))
-        ]
-      }
-    ),
-    /* @__PURE__ */ jsxs("div", { className: "flex justify-between mt-2 text-xs text-emerald-500 font-mono", children: [
-      /* @__PURE__ */ jsx("span", { children: formatTime(timeInSeconds) }),
-      /* @__PURE__ */ jsx("span", { children: formatTime(durationInSeconds) })
-    ] })
-  ] });
-};
-var Controls = ({
-  playing,
-  onPlayPause,
-  onRestart,
-  onStepBack,
-  onStepForward,
-  playbackRate,
-  onPlaybackRateChange,
-  frame,
-  totalFrames,
-  onExport,
-  isExporting
-}) => {
-  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
-  const speeds = [0.25, 0.5, 1, 1.5, 2];
-  return /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-center gap-2", children: [
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        onClick: onRestart,
-        className: "p-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950 rounded-lg transition-all duration-200 hover:scale-110",
-        title: "Restart",
-        children: /* @__PURE__ */ jsx("svg", { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 20 20", children: /* @__PURE__ */ jsx("path", { fillRule: "evenodd", d: "M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z", clipRule: "evenodd" }) })
-      }
-    ),
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        onClick: onStepBack,
-        className: "p-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950 rounded-lg transition-all duration-200 hover:scale-110",
-        title: "Previous frame (\u2190)",
-        children: /* @__PURE__ */ jsx("svg", { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 20 20", children: /* @__PURE__ */ jsx("path", { d: "M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" }) })
-      }
-    ),
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        onClick: onPlayPause,
-        className: "p-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white rounded-full transition-all duration-200 hover:scale-110 shadow-lg shadow-emerald-500/30",
-        title: playing ? "Pause (Space)" : "Play (Space)",
-        children: playing ? /* @__PURE__ */ jsx("svg", { className: "w-6 h-6", fill: "currentColor", viewBox: "0 0 20 20", children: /* @__PURE__ */ jsx("path", { fillRule: "evenodd", d: "M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z", clipRule: "evenodd" }) }) : /* @__PURE__ */ jsx("svg", { className: "w-6 h-6", fill: "currentColor", viewBox: "0 0 20 20", children: /* @__PURE__ */ jsx("path", { fillRule: "evenodd", d: "M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z", clipRule: "evenodd" }) })
-      }
-    ),
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        onClick: onStepForward,
-        className: "p-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950 rounded-lg transition-all duration-200 hover:scale-110",
-        title: "Next frame (\u2192)",
-        children: /* @__PURE__ */ jsx("svg", { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 20 20", children: /* @__PURE__ */ jsx("path", { d: "M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" }) })
-      }
-    ),
-    /* @__PURE__ */ jsxs("div", { className: "relative", children: [
-      /* @__PURE__ */ jsxs(
-        "button",
-        {
-          onClick: () => setShowSpeedMenu(!showSpeedMenu),
-          className: "px-3 py-2 text-sm text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950 rounded-lg transition-all duration-200 min-w-[55px] font-mono border border-emerald-900/50",
-          title: "Playback speed",
-          children: [
-            playbackRate,
-            "x"
-          ]
-        }
-      ),
-      showSpeedMenu && /* @__PURE__ */ jsx("div", { className: "absolute bottom-full left-0 mb-2 bg-[#0a0a0a] rounded-lg shadow-xl border border-emerald-900/50 py-1 min-w-[65px] overflow-hidden", children: speeds.map((speed) => /* @__PURE__ */ jsxs(
-        "button",
-        {
-          onClick: () => {
-            onPlaybackRateChange(speed);
-            setShowSpeedMenu(false);
-          },
-          className: `w-full px-3 py-2 text-sm text-left transition-colors ${playbackRate === speed ? "text-emerald-400 bg-emerald-950/50" : "text-emerald-500 hover:text-emerald-300 hover:bg-emerald-950/30"}`,
-          children: [
-            speed,
-            "x"
-          ]
-        },
-        speed
-      )) })
-    ] }),
-    /* @__PURE__ */ jsx("div", { className: "ml-2 px-3 py-1 bg-emerald-950/50 rounded-lg border border-emerald-900/50", children: /* @__PURE__ */ jsxs("span", { className: "text-sm text-emerald-400 font-mono", children: [
-      /* @__PURE__ */ jsx("span", { className: "text-emerald-300", children: frame + 1 }),
-      /* @__PURE__ */ jsx("span", { className: "text-emerald-600 mx-1", children: "/" }),
-      /* @__PURE__ */ jsx("span", { className: "text-emerald-500", children: totalFrames })
-    ] }) }),
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        onClick: onExport,
-        disabled: isExporting,
-        className: `ml-auto flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-900/50 text-white rounded-lg transition-all duration-200 shadow-lg shadow-emerald-500/20 font-medium ${isExporting ? "cursor-not-allowed" : "hover:scale-105 active:scale-95"}`,
-        title: "Export Video",
-        children: isExporting ? /* @__PURE__ */ jsxs(Fragment, { children: [
-          /* @__PURE__ */ jsx(Loader2Icon, { size: 18 }),
-          /* @__PURE__ */ jsx("span", { children: "Exporting..." })
-        ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-          /* @__PURE__ */ jsx(DownloadIcon, { size: 18 }),
-          /* @__PURE__ */ jsx("span", { children: "Export" })
-        ] })
-      }
-    )
-  ] });
-};
-var Canvas = ({
-  canvasRef,
-  component: Component,
-  width,
-  height,
-  frame,
-  fps,
-  durationInFrames,
-  playing,
-  playbackRate,
-  defaultProps = {}
-}) => {
-  const scale2 = Math.min(1, 800 / width);
-  return /* @__PURE__ */ jsxs(
-    "div",
-    {
-      ref: canvasRef,
-      className: "relative rounded-xl overflow-hidden shadow-2xl shadow-emerald-900/30 border border-emerald-900/30",
-      style: {
-        width: width * scale2,
-        height: height * scale2,
-        backgroundColor: "#0a0a0a"
-      },
-      children: [
-        /* @__PURE__ */ jsx(
-          "div",
-          {
-            className: "absolute -inset-px rounded-xl",
-            style: {
-              background: "linear-gradient(135deg, rgba(16, 185, 129, 0.2), transparent, rgba(20, 184, 166, 0.2))",
-              zIndex: -1
-            }
-          }
-        ),
-        /* @__PURE__ */ jsx(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width,
-              height,
-              transform: `scale(${scale2})`,
-              transformOrigin: "top left"
-            },
-            children: /* @__PURE__ */ jsx(
-              FrameContext.Provider,
-              {
-                value: {
-                  frame,
-                  fps,
-                  durationInFrames,
-                  width,
-                  height,
-                  playing,
-                  playbackRate,
-                  setFrame: () => {
-                  },
-                  setPlaying: () => {
-                  },
-                  setPlaybackRate: () => {
-                  }
-                },
-                children: /* @__PURE__ */ jsx(Component, { ...defaultProps })
-              }
-            )
-          }
-        )
-      ]
-    }
-  );
-};
-var Player = ({
-  component,
-  durationInFrames,
-  fps = 30,
-  width = 1920,
-  height = 1080,
-  defaultProps = {},
-  controls = true,
-  loop = true,
-  autoPlay = false,
-  style,
-  className
-}) => {
-  const [frame, setFrame] = useState(0);
-  const [playing, setPlaying] = useState(autoPlay);
-  const [playbackRate, setPlaybackRate] = useState(1);
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportProgress, setExportProgress] = useState(0);
-  const animationRef = useRef(null);
-  const lastTimeRef = useRef(0);
-  const canvasRef = useRef(null);
-  useEffect(() => {
-    if (playing) {
-      const frameDuration = 1e3 / (fps * playbackRate);
-      const animate = (currentTime) => {
-        if (currentTime - lastTimeRef.current >= frameDuration) {
-          setFrame((prevFrame) => {
-            const nextFrame = prevFrame + 1;
-            if (nextFrame >= durationInFrames) {
-              if (loop) {
-                return 0;
-              }
-              setPlaying(false);
-              return prevFrame;
-            }
-            return nextFrame;
-          });
-          lastTimeRef.current = currentTime;
-        }
-        animationRef.current = requestAnimationFrame(animate);
-      };
-      lastTimeRef.current = performance.now();
-      animationRef.current = requestAnimationFrame(animate);
-      return () => {
-        if (animationRef.current) {
-          cancelAnimationFrame(animationRef.current);
-        }
-      };
-    }
-  }, [playing, fps, playbackRate, durationInFrames, loop]);
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      switch (e.key) {
-        case " ":
-          e.preventDefault();
-          setPlaying((p) => !p);
-          break;
-        case "ArrowLeft":
-          e.preventDefault();
-          setFrame((f) => Math.max(0, f - 1));
-          break;
-        case "ArrowRight":
-          e.preventDefault();
-          setFrame((f) => Math.min(durationInFrames - 1, f + 1));
-          break;
-        case "Home":
-          setFrame(0);
-          break;
-        case "End":
-          setFrame(durationInFrames - 1);
-          break;
-        case "j":
-        case "J":
-          setFrame((f) => Math.max(0, f - 10));
-          break;
-        case "l":
-        case "L":
-          setFrame((f) => Math.min(durationInFrames - 1, f + 10));
-          break;
-        case "k":
-        case "K":
-          setPlaying((p) => !p);
-          break;
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [durationInFrames]);
-  const handleSeek = useCallback((targetFrame) => {
-    setFrame(Math.max(0, Math.min(targetFrame, durationInFrames - 1)));
-  }, [durationInFrames]);
-  const handlePlayPause = useCallback(() => {
-    setPlaying((p) => !p);
-  }, []);
-  const handleRestart = useCallback(() => {
-    setFrame(0);
-    setPlaying(true);
-  }, []);
-  const handleStepBack = useCallback(() => {
-    setFrame((f) => Math.max(0, f - 1));
-  }, []);
-  const handleStepForward = useCallback(() => {
-    setFrame((f) => Math.min(durationInFrames - 1, f + 1));
-  }, [durationInFrames]);
-  const handleExport = async () => {
-    if (isExporting || !canvasRef.current) return;
-    setIsExporting(true);
-    setExportProgress(0);
-    setPlaying(false);
-    try {
-      const elementToCapture = canvasRef.current.querySelector("div");
-      const blob = await renderCompositionToVideo(
-        (f) => setFrame(f),
-        elementToCapture,
-        { width, height, fps, durationInFrames },
-        {
-          onProgress: (progress) => setExportProgress(progress)
-        }
-      );
-      if (blob) {
-        downloadVideo(blob, `motionforge-export-${Date.now()}.webm`);
-      }
-    } catch (error) {
-      console.error("Export failed:", error);
-      alert("Export failed. Check console for details.");
-    } finally {
-      setIsExporting(false);
-      setExportProgress(0);
-    }
-  };
-  return /* @__PURE__ */ jsxs(
-    "div",
-    {
-      className: `flex flex-col bg-[#0a0a0a] rounded-2xl p-5 border border-emerald-900/30 ${className || ""}`,
-      style,
-      children: [
-        isExporting && /* @__PURE__ */ jsx("div", { className: "fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-6", children: /* @__PURE__ */ jsxs("div", { className: "bg-[#0f0f0f] border border-emerald-900/50 rounded-2xl p-8 max-w-md w-full shadow-2xl", children: [
-          /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between mb-6", children: [
-            /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-3", children: [
-              /* @__PURE__ */ jsx("div", { className: "w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center", children: /* @__PURE__ */ jsx(VideoIcon, { size: 24, className: "text-emerald-500" }) }),
-              /* @__PURE__ */ jsxs("div", { children: [
-                /* @__PURE__ */ jsx("h3", { className: "text-xl font-bold text-emerald-400", children: "Exporting Video" }),
-                /* @__PURE__ */ jsx("p", { className: "text-sm text-emerald-700", children: "High Quality Render" })
-              ] })
-            ] }),
-            /* @__PURE__ */ jsx(Loader2Icon, { size: 24, className: "text-emerald-500" })
-          ] }),
-          /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
-            /* @__PURE__ */ jsx("div", { className: "h-4 bg-emerald-950 rounded-full overflow-hidden border border-emerald-900/30", children: /* @__PURE__ */ jsx(
-              "div",
-              {
-                className: "h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-300",
-                style: { width: `${exportProgress}%` }
-              }
-            ) }),
-            /* @__PURE__ */ jsxs("div", { className: "flex justify-between text-sm font-mono", children: [
-              /* @__PURE__ */ jsx("span", { className: "text-emerald-500", children: "Progress" }),
-              /* @__PURE__ */ jsxs("span", { className: "text-emerald-400", children: [
-                Math.round(exportProgress),
-                "%"
-              ] })
-            ] }),
-            /* @__PURE__ */ jsxs("div", { className: "pt-4 border-t border-emerald-900/20 grid grid-cols-2 gap-4", children: [
-              /* @__PURE__ */ jsxs("div", { className: "bg-emerald-950/20 p-3 rounded-xl border border-emerald-900/10 text-center", children: [
-                /* @__PURE__ */ jsx("div", { className: "text-xs text-emerald-700 uppercase mb-1", children: "Resolution" }),
-                /* @__PURE__ */ jsxs("div", { className: "text-sm text-emerald-400", children: [
-                  width,
-                  "x",
-                  height
-                ] })
-              ] }),
-              /* @__PURE__ */ jsxs("div", { className: "bg-emerald-950/20 p-3 rounded-xl border border-emerald-900/10 text-center", children: [
-                /* @__PURE__ */ jsx("div", { className: "text-xs text-emerald-700 uppercase mb-1", children: "Frames" }),
-                /* @__PURE__ */ jsx("div", { className: "text-sm text-emerald-400", children: durationInFrames })
-              ] })
-            ] }),
-            /* @__PURE__ */ jsx("p", { className: "text-xs text-center text-emerald-800 italic pt-2", children: "Please keep this tab active for faster rendering." })
-          ] })
-        ] }) }),
-        /* @__PURE__ */ jsx("div", { className: "flex justify-center mb-5", children: /* @__PURE__ */ jsx(
-          Canvas,
-          {
-            canvasRef,
-            component,
-            width,
-            height,
-            frame,
-            fps,
-            durationInFrames,
-            playing,
-            playbackRate,
-            defaultProps
-          }
-        ) }),
-        controls && /* @__PURE__ */ jsxs("div", { className: "space-y-4", children: [
-          /* @__PURE__ */ jsx(
-            Controls,
-            {
-              playing,
-              onPlayPause: handlePlayPause,
-              onRestart: handleRestart,
-              onStepBack: handleStepBack,
-              onStepForward: handleStepForward,
-              playbackRate,
-              onPlaybackRateChange: setPlaybackRate,
-              frame,
-              totalFrames: durationInFrames,
-              onExport: handleExport,
-              isExporting
-            }
-          ),
-          /* @__PURE__ */ jsx(
-            Timeline,
-            {
-              durationInFrames,
-              frame,
-              onSeek: handleSeek,
-              fps
-            }
-          )
-        ] })
-      ]
-    }
-  );
-};
 /**
- * MotionForge - A React-based framework for creating videos programmatically
+ * MotionForge - headless React SDK for frame-based motion: scenes are a pure
+ * function of the frame; the host app owns time, rendering and playback.
  *
  * Build stunning videos with React components, spring animations,
  * and frame-perfect control. Perfect for data visualization,
  * marketing videos, and automated video generation.
  *
  * @package MotionForge
- * @version 1.2.0
+ * @version 4.0.1
  * @license MIT
  */
 
-export { AbsoluteFill, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, Audio, Blur, Bounce, CalendarIcon, CameraIcon, CanvasRenderer, CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, Circle, ClockIcon, CloseIcon, CommentIcon, Composition, CompositionManagerProvider, Confetti, CopyIcon, Counter, Cube3D, DeleteIcon, AbsoluteFill as Div, DownloadIcon, Easing, EditIcon, ErrorIcon, Fade, FastForwardIcon, FileIcon, FilmIcon, Flip3D, FolderIcon, FrameCache, FrameProvider, FrameSequenceEncoder, Freeze, FullscreenExitIcon, FullscreenIcon, G, Glitch, GradientText, HeartIcon, HeartOutlineIcon, Highlight, icons_default as Icons, ImageIcon, Img, InfoIcon, LayersIcon, LetterByLetter, LightningIcon, Loader2Icon, Loop, MagicWandIcon, MaskReveal, MemoCache, MicIcon, MinusIcon, MusicIcon, NeonGlow, ParticleSystem, Path, PauseIcon, Perspective3D, PlayIcon, Player, PlayerComposition, PlayerProvider, PlusIcon, ProgressBar, Pulse, QuestionIcon, RainbowText, Rect, RefreshIcon, RenderJobManager, RepeatIcon, ReplayIcon, Retiming, Reverse, RewindIcon, Rotate, Rotate3D, SVG, SaveIcon, Scale, SearchIcon, Sequence, Series, SettingsIcon, ShakeEffect, ShareIcon, ShuffleIcon, SkipBackIcon, SkipForwardIcon, Slide, SparkleIcon, StarIcon, StarOutlineIcon, StopIcon, SuccessIcon, Swing, Text, ThumbDownIcon, ThumbUpIcon, TimerIcon, Trail, Typewriter, UploadIcon, Video, VideoExportManager, VideoIcon, VolumeHighIcon, VolumeLowIcon, VolumeMediumIcon, VolumeMuteIcon, WarningIcon, WaveText, WebMEncoder, WordByWord, blur, bounce, buildFFmpegCommand, calculateProgress, calculateVideoSize, checkEncodingSupport, combine, createDebouncedCache, createThrottledCache, downloadFrame, downloadVideo, Easing as easing, estimateFileSize, estimateRenderTime, fade, flash, flip, frameCache, frameToDataURL, generateFrames, getFramesFromSeconds, getSecondsFromFrames, glitch, interpolate, interpolateColors, measureSpring, noise2D, pulse as pulseTransition, random, range, renderCompositionToVideo, renderJobManager, renderVideo, rotate as rotateTransition, scale as scaleTransition, shake as shakeTransition, slide, slideWithFade, spring, staticFile, transitions, useAnimation, useAnimationValue, useBatchFrameProcessor, useCachedFrame, useComposition, useVideoConfig2 as useConfig, useCurrentFrame, useCycle, useDelay, useDurationInFrames, useFade, useFrameRange, useInterpolate, useKeyframeState, useKeyframes, useLoop, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePerformanceMonitor, usePrecomputeFrames, useProgress, usePulse, useRelativeCurrentFrame, useRenderPriority, useSequence, useShake, useSlide, useSpring, useThrottledFrame, useTimeline, useTimelineState, useTransform, useVideoConfig, useWindowedFrame, validateRenderConfig, videoExportManager, wipe, zoom };
+export { AnimatedImage, Blur, Bounce, CardExpansionMask, Composition, Confetti, Counter, Cube3D, Fade, Flip3D, FlipImageReveal, Glitch, GradientText, Highlight, HyperFrame, KineticTypography, LetterByLetter, LiquidText, MaskReveal, NeonGlow, ParticleSystem, Particles, Perspective3D, ProgressBar, Pulse, RainbowText, Rotate, Rotate3D, Scale, ShakeEffect, Slide, StickyGridScroll, Swing, TextStack3D, Typewriter, WaveText, WordByWord, collectAudioTracks, fitRect, getParticles, interpolatePath, interpolatePaths, interpolateStyles, loadFont, makeTransform, matrix, matrix3d, noise2D, noise3D, noise4D, pathFromPoints, perspective, rotate, rotate3d, rotateX, rotateY, rotateZ, scale, scale3d, scaleX, scaleY, scaleZ, skew, skewX, skewY, translate, translate3d, translateX, translateY, translateZ, useAnimation, useAnimationValue, useCachedFrame, useComposition, useCycle, useDelay, useDurationInFrames, useEmitInput, useFade, useFrameRange, useInputEvents, useInterpolate, useKeyframeState, useLastEvent, useLoop, useMemoizedFrame, useOptimizedInterpolate, useOptimizedSpring, usePrecomputeFrames, usePreloadAssets, useProgress, usePulse, useReducedState, useShake, useSlide, useSpring, useStaticFile, useTimeline, useTransform, useWindowedFrame };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

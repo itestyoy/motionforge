@@ -3,6 +3,7 @@
 import React from 'react';
 import { useCurrentFrame, useVideoConfig } from '../../core/context';
 import { interpolate, spring, Easing } from '../../utils/animation';
+import { splitGraphemes } from '../../utils/text';
 
 interface KineticTypographyProps {
   text: string;
@@ -33,7 +34,7 @@ export const KineticTypography: React.FC<KineticTypographyProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const characters = text.split('');
+  const characters = splitGraphemes(text);
 
   return (
     <div

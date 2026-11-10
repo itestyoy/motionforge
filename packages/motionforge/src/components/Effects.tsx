@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { useCurrentFrame, useVideoConfig } from '../core/context';
-import { interpolate, Easing } from '../utils/animation';
+import { interpolate, Easing, random } from '../utils/animation';
+import { splitGraphemes } from '../utils/text';
 
 // Fade component
 interface FadeProps {
@@ -179,15 +180,16 @@ export const Typewriter: React.FC<TypewriterProps> = ({
   cursorChar = '|',
 }) => {
   const frame = useCurrentFrame();
+  const characters = splitGraphemes(text);
 
   const progress = interpolate(
     frame,
     [startFrame, startFrame + durationInFrames],
-    [0, text.length],
+    [0, characters.length],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
   );
 
-  const displayText = text.slice(0, Math.floor(progress));
+  const displayText = characters.slice(0, Math.floor(progress)).join('');
   const showCursor = cursor && (frame % 30 < 15);
 
   return (
@@ -206,6 +208,9 @@ interface CounterProps {
   startFrame?: number;
   easing?: (t: number) => number;
   style?: React.CSSProperties;
+  /** Locale for the default number format (rounded, with grouping). Default 'en-US', whatever the host's locale. */
+  locale?: string;
+  /** Custom formatter; replaces the default format and `locale`. */
   format?: (value: number) => string;
 }
 
@@ -216,9 +221,14 @@ export const Counter: React.FC<CounterProps> = ({
   startFrame = 0,
   easing = Easing.easeOutCubic,
   style,
-  format = (v) => Math.round(v).toLocaleString(),
+  locale = 'en-US',
+  format,
 }) => {
   const frame = useCurrentFrame();
+  const numberFormat = React.useMemo(
+    () => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }),
+    [locale],
+  );
 
   const value = interpolate(
     frame,
@@ -229,7 +239,7 @@ export const Counter: React.FC<CounterProps> = ({
 
   return (
     <span style={style}>
-      {format(value)}
+      {format ? format(value) : numberFormat.format(Math.round(value) + 0)}
     </span>
   );
 };
@@ -270,7 +280,6 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
           width: `${progress * 100}%`,
           height: '100%',
           backgroundColor: fillColor,
-          transition: 'width 0.1s ease',
         }}
       />
     </div>
@@ -292,8 +301,7 @@ export const Glitch: React.FC<GlitchProps> = ({
   const frame = useCurrentFrame();
 
   const shouldGlitch = frame % 10 < 3;
-  const offset = shouldGlitch ? Math.random() * intensity : 0;
-  const colorOffset = shouldGlitch ? Math.random() * 2 - 1 : 0;
+  const offset = shouldGlitch ? random(`glitch-${frame}-offset`) * intensity : 0;
 
   return (
     <div style={{ position: 'relative', ...style }}>
@@ -324,50 +332,6 @@ export const Glitch: React.FC<GlitchProps> = ({
         {children}
       </div>
       {/* Main content */}
-      <div style={{ position: 'relative' }}>
-        {children}
-      </div>
-    </div>
-  );
-};
-
-// Trail effect component
-interface TrailProps {
-  children: React.ReactNode;
-  trailLength?: number;
-  opacityDecay?: number;
-  style?: React.CSSProperties;
-}
-
-export const Trail: React.FC<TrailProps> = ({
-  children,
-  trailLength = 5,
-  opacityDecay = 0.2,
-  style,
-}) => {
-  const frame = useCurrentFrame();
-
-  return (
-    <div style={{ position: 'relative', ...style }}>
-      {Array.from({ length: trailLength }, (_, i) => {
-        const trailFrame = frame - i * 2;
-        if (trailFrame < 0) return null;
-
-        return (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              opacity: 1 - i * opacityDecay,
-              pointerEvents: 'none',
-            }}
-          >
-            {children}
-          </div>
-        );
-      })}
       <div style={{ position: 'relative' }}>
         {children}
       </div>
@@ -561,7 +525,6 @@ export const Rotate3D: React.FC<Rotate3DProps> = ({
 
 // Flip3D - 3D flip card effect
 interface Flip3DProps {
-  children: React.ReactNode;
   front: React.ReactNode;
   back: React.ReactNode;
   durationInFrames?: number;
@@ -572,7 +535,6 @@ interface Flip3DProps {
 }
 
 export const Flip3D: React.FC<Flip3DProps> = ({
-  children,
   front,
   back,
   durationInFrames = 60,
@@ -769,11 +731,13 @@ interface ParticleSystemProps {
   minSize?: number;
   maxSize?: number;
   speed?: number;
-  direction?: 'random' | 'up' | 'down' | 'left' | 'right' | 'explode';
+  direction?: 'random' | 'up' | 'down' | 'left' | 'right';
   fadeOut?: boolean;
   style?: React.CSSProperties;
   particleShape?: 'circle' | 'square' | 'star' | 'triangle';
 }
+
+const PARTICLE_DIRECTIONS = ['random', 'up', 'down', 'left', 'right'];
 
 export const ParticleSystem: React.FC<ParticleSystemProps> = ({
   count = 50,
@@ -788,6 +752,11 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
+  if (!PARTICLE_DIRECTIONS.includes(direction)) {
+    throw new Error(
+      `ParticleSystem: direction must be one of ${PARTICLE_DIRECTIONS.join(', ')}, got ${JSON.stringify(direction)} (for bursts use <Particles>)`,
+    );
+  }
 
   // Generate deterministic particles based on index
   const particles: ParticleConfig[] = React.useMemo(() => {
@@ -822,12 +791,6 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({
         case 'right':
           vx = rand2 * speed * 2 + speed;
           vy = (rand3 - 0.5) * speed;
-          break;
-        case 'explode':
-          const angle = rand2 * Math.PI * 2;
-          const mag = rand3 * speed * 3 + speed;
-          vx = Math.cos(angle) * mag;
-          vy = Math.sin(angle) * mag;
           break;
         default: // random
           vx = (rand2 - 0.5) * speed * 2;
@@ -930,14 +893,15 @@ export const LetterByLetter: React.FC<LetterByLetterProps> = ({
   letterStyle,
 }) => {
   const frame = useCurrentFrame();
+  const letters = splitGraphemes(text);
 
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', ...style }}>
-      {text.split('').map((char, index) => {
+      {letters.map((char, index) => {
         const letterStart = startFrame + index * delayPerLetter;
         const progress = interpolate(
           frame,
-          [letterStart, letterStart + durationInFrames / text.length],
+          [letterStart, letterStart + durationInFrames / letters.length],
           [0, 1],
           { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing }
         );
@@ -982,6 +946,7 @@ export const LetterByLetter: React.FC<LetterByLetterProps> = ({
 // WordByWord - Animate text word by word
 interface WordByWordProps {
   text: string;
+  /** Frames of the animation, shared by the words: each word animates for durationInFrames / words. */
   durationInFrames?: number;
   startFrame?: number;
   delayPerWord?: number;
@@ -1008,7 +973,7 @@ export const WordByWord: React.FC<WordByWordProps> = ({
         const wordStart = startFrame + index * delayPerWord;
         const progress = interpolate(
           frame,
-          [wordStart, wordStart + 15],
+          [wordStart, wordStart + durationInFrames / words.length],
           [0, 1],
           { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.easeOutBack }
         );
@@ -1068,7 +1033,7 @@ export const WaveText: React.FC<WaveTextProps> = ({
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', ...style }}>
-      {text.split('').map((char, index) => {
+      {splitGraphemes(text).map((char, index) => {
         const offset = Math.sin(frame * speed + index * frequency) * amplitude;
 
         return (
@@ -1110,7 +1075,7 @@ export const RainbowText: React.FC<RainbowTextProps> = ({
 
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', ...style }}>
-      {text.split('').map((char, index) => {
+      {splitGraphemes(text).map((char, index) => {
         const hue = (frame * speed + index * 20) % 360;
         const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 
@@ -1148,20 +1113,25 @@ export const GradientText: React.FC<GradientTextProps> = ({
   style,
 }) => {
   const frame = useCurrentFrame();
-  const offset = (frame * speed) % 100;
+  if (colors.length === 0) {
+    throw new Error('GradientText: colors must contain at least one color');
+  }
 
-  const gradientStops = colors
-    .map((color, i) => {
-      const position = (i * 100 / (colors.length - 1) + offset) % 100;
-      return `${color} ${position}%`;
-    })
+  // A fixed gradient twice as wide as the text holding the color cycle twice
+  // (c0 → … → cN → c0 → … → cN → c0), so shifting it by one cycle is seamless.
+  // The animation moves backgroundPosition, `speed` percent per frame.
+  const cycle = [...colors, ...colors, colors[0]];
+  const gradientStops = cycle
+    .map((color, i) => `${color} ${(i * 100) / (cycle.length - 1)}%`)
     .join(', ');
+  const position = (((frame * speed) % 100) + 100) % 100;
 
   return (
     <span
       style={{
         background: `linear-gradient(${angle}deg, ${gradientStops})`,
-        backgroundSize: '200% 200%',
+        backgroundSize: '200% 100%',
+        backgroundPosition: `${position}% 50%`,
         WebkitBackgroundClip: 'text',
         WebkitTextFillColor: 'transparent',
         backgroundClip: 'text',

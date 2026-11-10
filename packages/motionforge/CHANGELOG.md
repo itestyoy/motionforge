@@ -5,6 +5,170 @@ All notable changes to MotionForge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1] - 2026-11-10
+
+### Fixed
+- `<Sfx>`, `<ToneAudio>` and the sounds of `usePrepareAudio()` throw on a prop (key) they do not take, naming the one most likely meant (`params`, `sound`, `preset`, `parameters` → `zzfx`; `start`, `from`, `frame`, `delay` → `at`; `duration` → `durationInFrames`; `code`, `fn`, `synth` → `render`; case and typos) or what to use instead (`durationInFrames` on `<Sfx>`, `at` on `<ToneAudio>`, `src`, where-it-plays keys on a prepared sound), and listing the accepted ones with an example. `<Sfx>` ignored an unknown prop, so a wrong name for `zzfx` failed with "the ZzFX parameters must be an array of numbers, got undefined".
+- A missing `zzfx`, `durationInFrames` or `render` is named with an example of how to pass it: ``<Sfx>: pass the ZzFX parameters as `zzfx={[1, 0, 900, 0, 0.02, 0.04]}` (got no `zzfx`)``. A sound of `usePrepareAudio()` without a valid `type` says which one its keys suggest.
+- `<ToneAudio>` renders offline without yielding to the event loop (`context.render(false)`): Tone yielded with a timer once per second of audio, which a hidden tab runs about once a second, so 20 s of sound took about 20 s to render there. `Math.random` is still seeded per clock tick and restored after each.
+
+## [4.0.0] - 2026-11-10
+
+### Added
+- `AbsoluteFill` takes `ref` (a prop, React 19) and passes every other `<div>` attribute through (`id`, `data-*`, `aria-*`, event handlers, ...), as Remotion's does; its props type is exported as `AbsoluteFillProps`.
+- `gate.waitUntilReady({ frame, input })`: also waits until React has committed the given input log (or one that extends it), so an event appended from a `pointermove` handler, which React renders later than the handler returns, is on the frame the wait resolves for.
+- `collectAudioTracks(scene, { fps, durationInFrames, width, height, input?, staticFiles? })`: the whole audio manifest up front, without the DOM. It renders every frame to a string (`react-dom/server`, imported on first call) with components reporting their tracks during render, and resolves with exactly the tracks (and ids) a live collector lists after every frame was rendered; nothing is loaded, played or rendered (300 frames of a realistic creative: about a second under Node). `useIsCollectingAudio()` tells components it is running.
+- `GeneratedAudio` (`AudioTrack.generated`): `{ kind: 'tone' | 'zzfx', key, buffer, render() }` describes the samples of a generated track; `render()` renders them on demand, once per page and key.
+- `usePrepareAudio(sounds)` in `motionforge/audio`: renders `{ type: 'sfx', zzfx, seed?, sampleRate? }` and `{ type: 'tone', durationInFrames, render, deps?, seed?, sampleRate?, channels? }` sounds ahead of use, holding the render gate until they are cached, so a `<Sfx>` / `<ToneAudio>` mounted on a live tap plays at once. The README documents the cache keys (Sfx: parameters, sample rate, seed; ToneAudio: source of `render`, `deps`, length, fps, sample rate, channels, seed; not `at`, `volume`, `muted`, `name`) and its sound-on-tap recipe uses it.
+
+### Changed (breaking)
+- `AudioTrack.buffer` is replaced by `AudioTrack.generated` (see Added): the samples are `track.generated.buffer` once rendered, or `await track.generated.render()`. `ToneAudio` registers its track at once (it registered it only after the render) and still holds the gate until the samples are rendered.
+- `ThreeCanvas` renders nothing inside `collectAudioTracks()`, and `Audio`, `Video`, `Sfx` and `ToneAudio` inside a `ThreeCanvas` throw: its scene renders in a React root of its own, which a dry pass cannot render, so the sound would be missing from the manifest.
+- `gate.waitUntilReady()` without `input` rejects when its `FrameProvider` renders an input log: it could resolve on the frame from before an appended event. Pass the log: `waitUntilReady({ frame, input })`.
+
+### Fixed
+- Sound inside a `Loop` registers the tracks of all its iterations when it first mounts, instead of each iteration's when that iteration starts, so a live host can start the next iteration exactly at the loop boundary instead of up to a frame late. The manifest after rendering every frame is unchanged (one track per iteration).
+- `loadFont()` adds the face to `document.fonts` at once, while it loads (it added it only once loaded), so `usePreloadAssets([{ type: 'font', family }])` for a font that is still loading (`loadFont()` at the top of a module, or in an effect of the same commit) waits for that load instead of cancelling the render with "no font face matches". A face that fails to load is removed again.
+
+## [3.0.0] - 2026-11-10
+
+### Added
+- `interpolate()`: `posterize` option; a one-element `inputRange` returns `outputRange[0]`.
+- `Easing.step0`, `Easing.step1`, `Easing.spring({ damping, mass, stiffness, overshootClamping, allowTail, durationRestThreshold })`; a spring easing with `allowTail` continues past its segment, also when clamped.
+- `interpolateColors()`: CSS named colors and `transparent`, `hsl()`/`hsla()`, `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()` (comma and space/slash syntax); options `{ easing, posterize }`.
+- `noise3D(seed, x, y, z)` and `noise4D(seed, x, y, z, w)` (simplex; dependency `simplex-noise` 4.0.1).
+- `makeTransform()` with `translate*`, `scale*`, `rotate*`, `skew*`, `perspective`, `matrix`, `matrix3d`, and `interpolateStyles()` (as in `@remotion/animation-utils`).
+- `Sequence`: `style`, `className`, `width`, `height`, `postmountFor`, `styleWhilePremounted`, `styleWhilePostmounted`; `useSequence().isPostmounted`. `Series.Sequence` passes the layout props through. `Loop`: `layout`, `style`, `className`, `name`, and `Loop.useLoop()`.
+- `Video`/`Audio`: `durationInFrames`, `loop`; `Video`: `objectFit`.
+- `Lottie`: `direction`, `renderer`, `preserveAspectRatio`, `assetsPath`, `onAnimationLoaded`; `getLottieMetadata()` in `motionforge/lottie`.
+- `delayRender(label, { timeoutInMilliseconds })`.
+- `prefetch(src, options) → { free, waitUntilDone }`; `Img` and `Video` use the prefetched copy.
+- `loadFont({ family, url, ... })`: holds every gate until the font is loaded and fails them if it cannot load.
+- `ThreeCanvas` in `motionforge/three` (as `@remotion/three`): an R3F `<Canvas>` drawn once per frame (`frameloop: 'never'`, `advance(frame / fps)`); frame, config, gate and sequence contexts work inside; holds the render gate until the renderer exists, suspended content has loaded and the frame is drawn; canvas errors go to `cancelRender()`.
+- `motionforge/layout-utils` (as `@remotion/layout-utils`): `measureText`, `fitText`, `fitTextOnNLines`, `fillTextBox`.
+- `motionforge/motion-blur` (as `@remotion/motion-blur`): `Trail { layers, lagInFrames, trailOpacity }` and `CameraMotionBlur { shutterAngle = 180, samples = 10 }`.
+- `AnimatedImage`: animated GIF/APNG/AVIF/WebP via WebCodecs `ImageDecoder`, frame-exact by time; holds the render gate.
+- `motionforge/gif` (as `@remotion/gif`): `Gif` and `getGifDurationInSeconds`, decoded in JavaScript (dependency `omggif` 1.0.10).
+- `motionforge/media-utils` (as `@remotion/media-utils`): `getVideoMetadata`, `getImageDimensions`, `getAudioDurationInSeconds`, `getAudioData`, `useAudioData`, `useWindowedAudioData`, `visualizeAudio`, `visualizeAudioWaveform`, `createSmoothSvgPath`; the hooks hold the render gate.
+- `bun run typecheck` also type-checks `tests/`.
+- `motionforge/transitions` (as `@remotion/transitions`): `TransitionSeries` with `.Sequence`, `.Transition` and `.Overlay`, `linearTiming()`, `springTiming()`, `useTransitionProgress()`, and the presentations `fade`, `slide`, `wipe`, `flip`, `clockWipe`, `iris`, `cube`, `none`, `pushCut`, each from its own entry (`motionforge/transitions/fade`, …); they render the same markup as Remotion's. Scenes keep their own frames and length while they overlap and work with `premountFor` and the render gate.
+- SVG path functions of `@remotion/paths` in the main entry: `parsePath`, `serializeInstructions`, `normalizePath`, `reduceInstructions`, `getInstructionIndexAtLength`, `getBoundingBox`, `translatePath`, `scalePath`, `resetPath`, `centerPath`, `reversePath`, `getSubpaths`, `cutPath`, `warpPath`, `interpolatePath`, `interpolatePaths`, `extendViewBox`, and the types `Instruction`, `AbsoluteInstruction`, `ReducedInstruction`, `BoundingBox`, `WarpPathFn`, `CenterPathTarget`, `InterpolatePathsOptions`.
+- `motionforge/shapes` (as `@remotion/shapes`): `makeRect`, `makeCircle`, `makeEllipse`, `makeTriangle`, `makeStar`, `makePolygon`, `makePie`, `makeHeart`, `makeArrow`, `makeSpark`, `makeCallout` and the components `Rect`, `Circle`, `Ellipse`, `Triangle`, `Star`, `Polygon`, `Pie`, `Heart`, `Arrow`, `Spark`, `Callout`, with the same paths as Remotion's.
+- Audio track manifest: `createAudioCollector()` → `{ getTracks(), subscribe(listener) }` and `FrameProvider audio` (also on `Composition`). `<Audio>`, the sound of `<Video>` and the generated sounds register `AudioTrack`s `{ id, name, src, buffer, from, startFrame, endFrame, trimBefore, trimAfter, playbackRate, loop, muted, volume }` at their absolute frames (all enclosing `Sequence`, `Series`, `Loop` and `TransitionSeries` offsets added up), with a volume function sampled per frame; ids are derived from the description, so the manifest does not depend on the order frames are rendered in. Tracks register on mount (`premountFor` registers them early) and stay listed. `Audio` / `Video` `name`.
+- `motionforge/audio`: `<ToneAudio durationInFrames render={(Tone, { context, fps, durationInSeconds, framesToSeconds }) => …} deps seed sampleRate channels>` renders Tone.js code offline into an `AudioBuffer` (held gate, cache by source and `deps`, one render at a time) and registers it as a track; `<Sfx at zzfx={[…]} seed sampleRate>` and the pure `renderZzfx(params, sampleRate, seed) → Float32Array` (ZzFX 1.4.0 vendored, MIT). Generated audio is reproducible: seeded ZzFX randomness, and `Math.random` seeded while Tone code runs (the render call and each clock tick), restored in between. `tone` is an optional peer dependency (`>=15`, dev 15.1.22).
+- `FrameProvider staticFiles` (also on `Composition`): a base URL or a function `(path) => url`; `useStaticFile()` returns the provider's `staticFile(path)`. Nested providers without it use the outer one's.
+- `fitRect(container, content, fit, anchor?) → { x, y, width, height, scaleX, scaleY }`: CSS `object-fit` (`contain`, `cover`, `fill`, `none`, `scale-down`) and `object-position` arithmetic without the DOM.
+- Playable mode: `FrameProvider input` (an append-only log of events `{ frame, type, ... }` in frame order, checked incrementally) and `onInput` (also on `Composition`); `useEmitInput()` stamps scene events with the frame shown and hands them to `onInput`; `useInputEvents()`, `useReducedState(reducer, initialState)` (each event folded once; seeking back reads kept states; a log that does not extend the previous one is folded again) and `useLastEvent(predicate?) → { event, framesSince }`. Inside a `Sequence` event frames are in the sequence's frames, as `useCurrentFrame()` counts them, and events from before it started are not seen. A scripted log and the same events recorded live render identical frames.
+
+### Changed (breaking)
+- `interpolate()` and `useInterpolate()`: `extrapolateLeft`/`extrapolateRight` default to `'extend'` (was `'clamp'`); ranges must contain finite numbers.
+- `interpolateColors()` always returns `rgba(r, g, b, a)` (was hex for opaque colors).
+- `noise2D(x, y)` is now `noise2D(seed, x, y)`: simplex noise in [-1, 1] (was value noise in [0, 1)).
+- `Video`/`Audio`: `trimBefore`/`trimAfter` replace `startFrom`/`endAt`; the element unmounts at the end unless `loop`; `muted` defaults to `false`; `Video` has no default size and `object-fit` defaults to `contain`; `playbackRate` must be > 0 and `volume` ≥ 0.
+- `Lottie`: `animationData` (an object) replaces `src`; URLs are no longer accepted.
+- `Loop` renders each iteration in an absolute-fill wrapper (use `layout="none"` for none); `times` may be 0.
+- `Sequence` with `layout="none"` throws on `style`, `className` and the mounting props.
+- `usePreloadAssets()` font assets are `{ type: 'font', family, weight?, style? }`.
+- `ImageProps` is now `ImgProps`; `CompositionProps`, `SequenceProps`, `VideoProps`, `AudioProps` and `TextProps` are the components' real props.
+- `delayRender()` throws on unknown options; calling it during render throws an error that shows the effect-based code to write instead.
+- `Freeze` accepts sub-frames (any finite `frame`), as Remotion does.
+- `getPointAtLength()` and `getTangentAtLength()` return `null` past the end of the path (they clamped the length) and throw for a negative length, as Remotion's; `getTangentAtLength()` returns `{ x: 0, y: 0 }` for a path without length (it threw).
+- `evolvePath(0, d)` returns a dash of 1.5 times the length, as Remotion's, so no dot of the stroke shows.
+- Path parse errors start with `parsePath:` and say "the path" instead of "d".
+- `Audio` renders no element and no longer seeks an `<audio>` (which never sounded): it describes an audio track for the host to play. It takes no `<audio>` attributes (they throw) and does not use `prefetch()`ed copies.
+- `Video`'s `<video>` element is always muted; its sound is an audio track (`volume`, `muted`, `name` describe it).
+- `volume` is a gain: above 1 amplifies (it was capped at 1); a `volume` function must return a finite number ≥ 0 (it was clamped to 0..1). The frame it sees restarts per `loop` iteration only when `trimAfter` / `durationInFrames` gives the iteration length (the length of the media is not known any more).
+- `Audio` and `Video` inside `Freeze`, `Retiming` or `Reverse` (so also inside `Trail` and `CameraMotionBlur`) throw: a track plays in real time.
+- `spring()`, `measureSpring()` and everything built on them (`Easing.spring`, `springTiming()`, `useSpring()`, `useOptimizedSpring()`) give Remotion's values (checked bit for bit against remotion 4.0.542): the spring is Remotion's simulation stepped once per frame (steps capped at 64 ms) instead of the closed-form solution. A damping ratio of 1 or more is critically damped, no longer overdamped (`springTiming({ config: { damping: 200 } })` lasts 23 frames at 30 fps, was 318). With `durationInFrames` the spring is within `durationRestThreshold` of `to` at the last frame (≈ 0.9968 by default) and exactly `to` only after it; reversed, it starts there instead of exactly at `to`. `measureSpring()` uses Remotion's settle rule (inside the threshold, re-checked for 20 frames), returns `Infinity` for `threshold: 0` and `0` for a threshold of 1 or more. `overshootClamping` only clamps past `to`. `damping` must be > 0 (`damping: 0` threw only in `measureSpring()`), and `frame` must be finite.
+
+### Fixed
+- Fonts split by `unicode-range` (Google Fonts, @fontsource) load all their subsets in `usePreloadAssets()`, so Cyrillic is ready when the frame is captured.
+- `useFade()` clamps explicitly instead of relying on `interpolate()`'s default.
+
+### Removed
+- `preloadImage`, `preloadVideo`, `preloadAudio`, `preloadFont` (use `prefetch()`, `usePreloadAssets()` or `loadFont()`).
+- `useLoopInfo()` (use `Loop.useLoop()`), the `useConfig` alias and `Composition`'s duplicate `useVideoConfig`.
+- `Video`'s `pauseOnFrame`, `Sequence`'s unused `showInTimeline`, the `LayerProps` type.
+- `Trail` from the main entry (it rendered identical copies); use `Trail` from `motionforge/motion-blur`.
+- The transition helpers `fade`, `slide`, `scaleTransition`, `rotateTransition`, `zoom`, `wipe`, `blur`, `glitch`, `shakeTransition`, `pulseTransition`, `bounce`, `flash`, `slideWithFade`, `flip`, `combine`, `transitions` and the types `TransitionConfig`, `TransitionName` from the main entry: their names clash with Remotion's presentations. Use `TransitionSeries` and the presentations from `motionforge/transitions`.
+- `staticFile()`, hard-coded to `/static/`: use `useStaticFile()` with `FrameProvider staticFiles`.
+- The SVG element wrappers `Rect` and `Circle` from the main entry: their names clash with Remotion's shapes. Use `<rect>` / `<circle>`, or the shapes from `motionforge/shapes`.
+
+## [2.0.0] - 2026-11-10
+
+MotionForge is now a headless SDK: scenes are pure functions of the frame, and the host app renders them, owns time and provides playback, seeking and export.
+
+### Added
+- Render readiness: `createRenderGate()` and `FrameProvider gate` (also on `Composition`); `gate.waitUntilReady({ frame, timeoutMs })` resolves when the frame is committed and nothing holds it, and rejects on timeout (listing the pending labels) or with the `cancelRender()` error. Scenes use `useDelayRender()` → `{ delayRender, continueRender, cancelRender }`; handles are per gate, released on unmount, and `delayRender()` throws during render. Without a gate, `cancelRender()` errors are thrown to the nearest error boundary.
+- `Img`, `Video` and `Lottie` hold the frame until the image is decoded, the video has seeked to the frame, or the Lottie data is loaded and the frame set; their load errors go to `cancelRender()`.
+- `preloadImage`, `preloadVideo`, `preloadAudio`, `preloadFont` and `usePreloadAssets(assets)`.
+- SVG path helpers that need no DOM: `getLength`, `getPointAtLength`, `getTangentAtLength`, `evolvePath`, and `pathFromPoints(points, { cornerRadius, closed })` (corners rounded with circular arcs). They read `M L H V C S Q T A Z`, absolute and relative.
+- Remotion's easing composition: `Easing.in(f)`, `Easing.out(f)`, `Easing.inOut(f)` and the bases `ease`, `quad`, `cubic`, `poly(n)`, `sin`, `circle`, `exp`, `elastic(bounciness)`, `back(s)`, `bounce` (next to `linear` and `bezier`).
+- Particle emitter: `<Particles>` and the pure `getParticles()`; time in seconds, motion in px per second, randomness from the seed; per-particle birth, lifetime and fade; gravity and drag in closed form; moving origins for trails.
+- `spring({ delay, reverse })`: `delay` in frames; `reverse` plays the motion backwards in time over `durationInFrames` or the natural settle time, holding `to` before it starts (Remotion semantics, not a swap of `from` and `to`).
+- `interpolate()`: `extrapolateLeft` / `extrapolateRight: 'wrap'`, and `easing` as an array with one easing per segment.
+- `Sequence premountFor`: children mount that many frames early, invisible and at their frame 0; their handles hold the frame only once the sequence has started. `useSequence().isPremounted` tells them.
+
+### Removed (breaking)
+- `Player`, `PlayerProvider`, `usePlayer`, `PlayerComposition`, `useTimelineState`, `CompositionManagerProvider`, and the playback state of the frame context (`playing`, `playbackRate`, `setFrame`, `setPlaying`, `setPlaybackRate`).
+- The renderer and export API (`renderVideo`, `VideoExportManager`, `CanvasRenderer`, `WebMEncoder`, `FrameCache`, ffmpeg helpers, …), icons, and the `motionforge/renderer`, `motionforge/player`, `motionforge/icons` and `motionforge/styles.css` entries.
+- `usePerformanceMonitor`, `useThrottledFrame`, `useBatchFrameProcessor` and `useRenderPriority`: they returned constants or ignored their arguments.
+
+### Changed (breaking)
+- `Loop` throws unless `durationInFrames` is a positive integer and `times` a positive integer or `Infinity`, and on a negative current frame; `Reverse` likewise for `durationInFrames` and the frame. `Sequence` throws on a non-integer `from` or `offset` and on a `durationInFrames` that is not a positive integer.
+- `Retiming` has no `name` prop (it was never used).
+- `Freeze` follows Remotion: `<Freeze frame active?>` shows `frame` while `active` (a boolean or a function of the frame, default `true`) for its whole lifetime. `durationInFrames` (hold, then resume) and the unused `name` prop are removed; `frame` must be an integer.
+- `interpolate()` throws on an unknown `extrapolateLeft` / `extrapolateRight` and on an `easing` that is not a function (or an array of them, one per segment).
+- `ParticleSystem` has no `direction="explode"` any more (use `<Particles>`), and it throws on an unknown `direction`.
+- `Series` takes only `<Series.Sequence durationInFrames offset? name? layout? premountFor?>` children and throws on anything else; children with a `durationInFrames` prop are no longer read. All sequences render in their range, so overlapping ones (negative `offset`) play together; positive `offset` leaves a gap.
+- `Lottie` with `frameEnd` not after `frameStart` (or `frameStart` past the end of the animation) cancels the render with an error instead of showing nothing.
+- `FrameProvider` and `Composition` are controlled: they take a required `frame` prop and have no clock.
+- 3D components (`DepthGallery3D`, `ShaderImageReveal`, `DitheringEffect`) moved to `motionforge/three`, `Lottie` to `motionforge/lottie`; the main entry no longer imports three.js or lottie-web. `three` and the `@react-three/*` peers are optional; `framer-motion` is no longer a peer dependency (nothing used it).
+- `Sequence`, `Loop`, `Freeze`, `Retiming`, `Reverse` and `Series` shift `useCurrentFrame()` for their children; nested sequences compose. Code inside a `Sequence` that subtracted the sequence start itself must use the local frame now.
+- `interpolateColors()` throws on colors it cannot parse instead of returning black, including malformed hex (`#abcde`, `#zzzzzz`).
+- `interpolate()` and `interpolateColors()` throw on a descending `inputRange` or NaN input/ranges; a zero-length segment is a step at its end instead of NaN.
+- `spring()` and `measureSpring()` throw on a missing or non-positive `fps`, a NaN `frame`, or a config without `mass > 0`, `stiffness > 0`, `damping >= 0`; `measureSpring()` throws for `damping: 0` (it never settles).
+- `spring()` with `durationInFrames` stretches the natural motion (settled to `durationRestThreshold`) over `durationInFrames` and is exactly `to` from that frame on; without it, it follows the physics with no time cutoff (it used to stop at 2 s).
+- `noise2D()` is 2D value noise in [0, 1): it depends on both coordinates and is continuous; its values differ from before.
+- `Easing.bezier()` throws when `x1` or `x2` is outside [0, 1].
+- `Flip3D` no longer takes `children` (it never rendered them; the content is `front` and `back`).
+- `FlipImageReveal` shows no built-in copy: the overlay text comes from the new `title` / `description` props and the image alt text from `alt` (default empty). `DepthGallery3D` captions come from the new `captions` prop instead of "Art Piece N".
+- `Counter` formats with a fixed locale (`locale`, default `'en-US'`) instead of the host's locale; `format` still overrides it.
+- `WordByWord` uses `durationInFrames`: each word animates for `durationInFrames / words` frames (it was always 15).
+- `GradientText` animates `backgroundPosition` over a fixed, seamlessly repeating gradient; it throws when `colors` is empty.
+- `Lottie` maps composition frames to Lottie frames by time (`frame / fps × Lottie frame rate × playbackRate`), not one to one. Its root is now a wrapper element around the lottie-web container.
+- `FrameProvider` and `Composition` throw when `frame` is not an integer from 0 to `durationInFrames - 1`, or when `fps`, `width`, `height` or `durationInFrames` is not positive.
+- Inside `Sequence`, `Loop`, `Reverse` and `Series.Sequence`, `useVideoConfig().durationInFrames` is the length of the sequence (`Sequence`: its `durationInFrames`, or the rest of the parent when it has none; `Loop`: one iteration; `Reverse` and `Series.Sequence`: their own).
+- The `Loop` context hook is exported as `useLoopInfo()` (it was unreachable: `useLoop` is the frame-modulo hook from `hooks/animation`).
+- `Retiming` with a function `playbackRate` advances by the rate on each frame: the content frame is `floor(Σ playbackRate(i) for i < frame)`, so speed ramps no longer jump or run backwards.
+- `useFade()` without `endFrame` fades out to 0 on the last frame (`durationInFrames - 1`).
+
+### Fixed
+- `Lottie` does not reload when `src` is a new object with the same data (it is compared by its JSON); it throws on a `src` that is neither a URL nor an object.
+- README Quick Start imports `useVideoConfig`.
+- Every easing returns exactly 0 at 0 and 1 at 1 (e.g. `easeInSine(1)` was 0.9999999999999999).
+- All entries are built together and share one frame context.
+- Every built file starts with `'use client'` (the source directives were lost in bundling).
+- `require()` consumers get the CommonJS type declarations (`.d.cts`): each `exports` entry has its own `types` under `import` and `require`.
+- `spring()` returns `from` for frames before the start instead of diverging.
+- `interpolate()` with `extrapolateRight: 'extend'` continues the last segment, not the first.
+- `interpolateColors()` holds the end colors outside the input range and keeps alpha of `rgba()` / `#rrggbbaa`.
+- `random()` gives unrelated values for neighbouring seeds.
+- `useMemoizedFrame()` keeps the value per component (it used a process-wide cache keyed only by frame and deps, so components read each other's values and the cache never shrank).
+- `Sequence layout="none"` renders no wrapper element.
+- Overdamped springs start at rest (the coefficients of the closed form did not sum to 1).
+- `measureSpring()` returns the frame from which the spring stays within the threshold, not the first zero crossing.
+- `interpolateColors()` reads `#rgba` and the space/slash syntax `rgb(255 0 0 / 50%)` with percentage alpha and channels.
+- `Easing.bezier()` is accurate for steep curves (Newton with a bisection fallback; it was off by up to 0.06).
+- `StickyGridScroll` shows its items (its descending input range made every item transparent) and has no CSS transition; `ProgressBar` has no CSS transition either.
+- `Glitch` is deterministic (`random()` seeded by the frame instead of `Math.random()`).
+- `transitions.scale.exit` goes from full size to 0 (it was inverted).
+- `LetterByLetter`, `WaveText`, `RainbowText`, `KineticTypography` and `Typewriter` split text into graphemes, so emoji and combined characters stay whole.
+- `GradientText` stops stay in order and work with one color (no `NaN%`).
+- `Video` / `Audio`: a caller's `onLoadedData` no longer replaces the internal handler (it is called after it); they seek when more than half a frame off (was 0.05 s) and map time as `(startFrom + frame × playbackRate) / fps`.
+- `Lottie` resets its loaded state when `src` changes and shows an error when the data fails to load (`data_failed`) instead of rendering nothing.
+- `useProgress()` and `useTimeline().progress` return 1 instead of NaN for a one-frame composition.
+
 ## [1.3.0] - 2024-03-20
 
 ### Added
