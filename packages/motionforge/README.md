@@ -234,14 +234,20 @@ const progress = interpolate(frame, [0, 60], [0, 100], {
   extrapolateRight: 'clamp'
 });
 
-// Available easing functions
-Easing.linear
+// Remotion-style easings: a base curve, composed with in / out / inOut
+Easing.in(Easing.cubic)        // as is
+Easing.out(Easing.cubic)       // mirrored: 1 - f(1 - t)
+Easing.inOut(Easing.back(2))   // in for the first half, out for the second
+// bases: linear, ease, quad, cubic, poly(n), sin, circle, exp,
+//        elastic(bounciness = 1), back(s = 1.70158), bounce, bezier(x1, y1, x2, y2)
+
+// Named curves
 Easing.easeInQuad, Easing.easeOutQuad, Easing.easeInOutQuad
 Easing.easeInCubic, Easing.easeOutCubic, Easing.easeInOutCubic
-Easing.easeInElastic, Easing.easeOutElastic
-Easing.easeInBounce, Easing.easeOutBounce
-// ... and more!
+// ... Quart, Quint, Sine, Expo, Circ, Back, Elastic, Bounce
 ```
+
+The base curves and `in` / `out` / `inOut` follow Remotion's definitions. Every easing returns exactly 0 at 0 and 1 at 1 (Remotion's `exp` starts at 2⁻¹⁰ and some curves miss 1 by a rounding error; here the end points are exact).
 
 ## 🎯 Performance Optimization
 

@@ -2,10 +2,89 @@
 
 import { SpringConfig, InterpolateOptions, EasingFunction, Keyframe } from '../core/types';
 
-// Easing functions
-export const Easing = {
-  linear: (t: number): number => t,
-  
+// Easing functions. Every easing returns exactly 0 at 0 and 1 at 1.
+const pinned = (fn: EasingFunction): EasingFunction => (t: number) => (t === 0 ? 0 : t === 1 ? 1 : fn(t));
+
+// Some curves are only defined on [0, 1]; interpolate() with 'extend' can
+// pass values outside it (as in Remotion).
+const clampUnit = (t: number) => Math.min(1, Math.max(0, t));
+
+const easeOutBounce = (t: number): number => {
+  const n1 = 7.5625;
+  const d1 = 2.75;
+  if (t < 1 / d1) {
+    return n1 * t * t;
+  } else if (t < 2 / d1) {
+    return n1 * (t -= 1.5 / d1) * t + 0.75;
+  } else if (t < 2.5 / d1) {
+    return n1 * (t -= 2.25 / d1) * t + 0.9375;
+  } else {
+    return n1 * (t -= 2.625 / d1) * t + 0.984375;
+  }
+};
+
+// Cubic bezier easing, like CSS cubic-bezier(x1, y1, x2, y2). The curve's x
+// is solved for t with Newton's method from a sampled guess, falling back to
+// bisection where Newton does not converge (steep or flat parts).
+const cubicBezier = (x1: number, y1: number, x2: number, y2: number): EasingFunction => {
+  if (![x1, y1, x2, y2].every(Number.isFinite) || x1 < 0 || x1 > 1 || x2 < 0 || x2 > 1) {
+    throw new Error(
+      `Easing.bezier: control points must be finite and x1, x2 must be in [0, 1], got (${x1}, ${y1}, ${x2}, ${y2})`
+    );
+  }
+  if (x1 === y1 && x2 === y2) return (t: number) => t;
+
+  // Polynomial coefficients of one coordinate: ((a*t + b)*t + c)*t.
+  const coefficients = (p1: number, p2: number) => [1 - 3 * p2 + 3 * p1, 3 * p2 - 6 * p1, 3 * p1];
+  const [ax, bx, cx] = coefficients(x1, x2);
+  const [ay, by, cy] = coefficients(y1, y2);
+  const curveX = (t: number) => ((ax * t + bx) * t + cx) * t;
+  const curveY = (t: number) => ((ay * t + by) * t + cy) * t;
+  const slopeX = (t: number) => (3 * ax * t + 2 * bx) * t + cx;
+
+  const samples = 11;
+  const step = 1 / (samples - 1);
+  const table = Array.from({ length: samples }, (_, i) => curveX(i * step));
+
+  const solveT = (x: number): number => {
+    let i = 0;
+    while (i < samples - 2 && table[i + 1] <= x) i++;
+    const lo = i * step;
+    const hi = lo + step;
+    const span = table[i + 1] - table[i];
+    let t = span > 0 ? lo + ((x - table[i]) / span) * step : lo;
+
+    for (let k = 0; k < 8; k++) {
+      const error = curveX(t) - x;
+      if (Math.abs(error) < 1e-12) return t;
+      const slope = slopeX(t);
+      if (Math.abs(slope) < 1e-9) break;
+      t -= error / slope;
+    }
+    // Outside [0, 1] (extrapolated input) only Newton applies.
+    if (x < 0 || x > 1) return t;
+    if (t >= lo && t <= hi && Math.abs(curveX(t) - x) < 1e-12) return t;
+
+    // x(t) is monotonic on [0, 1] when x1, x2 are in [0, 1].
+    let a = lo;
+    let b = hi;
+    for (let k = 0; k < 60; k++) {
+      t = (a + b) / 2;
+      if (curveX(t) < x) a = t;
+      else b = t;
+      if (b - a < 1e-12) break;
+    }
+    return (a + b) / 2;
+  };
+
+  return (x: number): number => (x === 0 ? 0 : x === 1 ? 1 : curveY(solveT(x)));
+};
+
+const pinAll = <T extends Record<string, EasingFunction>>(fns: T): T =>
+  Object.fromEntries(Object.entries(fns).map(([name, fn]) => [name, pinned(fn)])) as T;
+
+// The named curves (easeInQuad, easeOutCubic, ...).
+const namedEasings = pinAll({
   easeInQuad: (t: number): number => t * t,
   easeOutQuad: (t: number): number => t * (2 - t),
   easeInOutQuad: (t: number): number => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t),
@@ -79,80 +158,84 @@ export const Easing = {
     return (Math.pow(2, -20 * t + 10) * Math.sin((20 * t - 11.125) * c5)) / 2 + 1;
   },
   
-  easeInBounce: (t: number): number => 1 - Easing.easeOutBounce(1 - t),
-  easeOutBounce: (t: number): number => {
-    const n1 = 7.5625;
-    const d1 = 2.75;
-    if (t < 1 / d1) {
-      return n1 * t * t;
-    } else if (t < 2 / d1) {
-      return n1 * (t -= 1.5 / d1) * t + 0.75;
-    } else if (t < 2.5 / d1) {
-      return n1 * (t -= 2.25 / d1) * t + 0.9375;
-    } else {
-      return n1 * (t -= 2.625 / d1) * t + 0.984375;
-    }
-  },
+  easeInBounce: (t: number): number => 1 - easeOutBounce(1 - t),
+  easeOutBounce,
   easeInOutBounce: (t: number): number => 
     t < 0.5
-      ? (1 - Easing.easeOutBounce(1 - 2 * t)) / 2
-      : (1 + Easing.easeOutBounce(2 * t - 1)) / 2,
-  
-  // Cubic bezier easing, like CSS cubic-bezier(x1, y1, x2, y2). The curve's x
-  // is solved for t with Newton's method from a sampled guess, falling back to
-  // bisection where Newton does not converge (steep or flat parts).
-  bezier: (x1: number, y1: number, x2: number, y2: number): EasingFunction => {
-    if (![x1, y1, x2, y2].every(Number.isFinite) || x1 < 0 || x1 > 1 || x2 < 0 || x2 > 1) {
-      throw new Error(
-        `Easing.bezier: control points must be finite and x1, x2 must be in [0, 1], got (${x1}, ${y1}, ${x2}, ${y2})`
-      );
-    }
-    if (x1 === y1 && x2 === y2) return (t: number) => t;
+      ? (1 - easeOutBounce(1 - 2 * t)) / 2
+      : (1 + easeOutBounce(2 * t - 1)) / 2,
+});
 
-    // Polynomial coefficients of one coordinate: ((a*t + b)*t + c)*t.
-    const coefficients = (p1: number, p2: number) => [1 - 3 * p2 + 3 * p1, 3 * p2 - 6 * p1, 3 * p1];
-    const [ax, bx, cx] = coefficients(x1, x2);
-    const [ay, by, cy] = coefficients(y1, y2);
-    const curveX = (t: number) => ((ax * t + bx) * t + cx) * t;
-    const curveY = (t: number) => ((ay * t + by) * t + cy) * t;
-    const slopeX = (t: number) => (3 * ax * t + 2 * bx) * t + cx;
+const checkEasing = (name: string, easing: unknown): EasingFunction => {
+  if (typeof easing !== 'function') {
+    throw new Error(`Easing.${name}: expects an easing function, got ${easing}`);
+  }
+  return easing as EasingFunction;
+};
 
-    const samples = 11;
-    const step = 1 / (samples - 1);
-    const table = Array.from({ length: samples }, (_, i) => curveX(i * step));
+const checkNumber = (name: string, value: unknown, min = -Infinity): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < min) {
+    throw new Error(`Easing.${name}: expects a finite number${min > -Infinity ? ` >= ${min}` : ''}, got ${value}`);
+  }
+  return value;
+};
 
-    const solveT = (x: number): number => {
-      let i = 0;
-      while (i < samples - 2 && table[i + 1] <= x) i++;
-      const lo = i * step;
-      const hi = lo + step;
-      const span = table[i + 1] - table[i];
-      let t = span > 0 ? lo + ((x - table[i]) / span) * step : lo;
+const easeCurve = cubicBezier(0.42, 0, 1, 1);
 
-      for (let k = 0; k < 8; k++) {
-        const error = curveX(t) - x;
-        if (Math.abs(error) < 1e-12) return t;
-        const slope = slopeX(t);
-        if (Math.abs(slope) < 1e-9) break;
-        t -= error / slope;
-      }
-      // Outside [0, 1] (extrapolated input) only Newton applies.
-      if (x < 0 || x > 1) return t;
-      if (t >= lo && t <= hi && Math.abs(curveX(t) - x) < 1e-12) return t;
-
-      // x(t) is monotonic on [0, 1] when x1, x2 are in [0, 1].
-      let a = lo;
-      let b = hi;
-      for (let k = 0; k < 60; k++) {
-        t = (a + b) / 2;
-        if (curveX(t) < x) a = t;
-        else b = t;
-        if (b - a < 1e-12) break;
-      }
-      return (a + b) / 2;
-    };
-
-    return (x: number): number => (x === 0 ? 0 : x === 1 ? 1 : curveY(solveT(x)));
+/**
+ * Easing functions for interpolate(). Two families:
+ *
+ * - Remotion's (from React Native): base curves `linear`, `ease`, `quad`,
+ *   `cubic`, `poly(n)`, `sin`, `circle`, `exp`, `elastic(bounciness)`,
+ *   `back(s)`, `bounce`, `bezier(x1, y1, x2, y2)`, composed with
+ *   `Easing.in(f)` (as is), `Easing.out(f)` (mirrored) and `Easing.inOut(f)`
+ *   (in for the first half, out for the second): `Easing.out(Easing.cubic)`.
+ * - Named curves: `easeInQuad`, `easeOutCubic`, `easeInOutBack`, ...
+ *
+ * Every easing returns exactly 0 at 0 and 1 at 1.
+ */
+export const Easing = {
+  ...namedEasings,
+  linear: (t: number): number => t,
+  /** Remotion's `ease`: bezier(0.42, 0, 1, 1). */
+  ease: easeCurve,
+  quad: pinned((t) => t * t),
+  cubic: pinned((t) => t * t * t),
+  /** t to the power n (n > 0). */
+  poly: (n: number): EasingFunction => {
+    const power = checkNumber('poly', n);
+    if (power <= 0) throw new Error(`Easing.poly: expects n > 0, got ${n}`);
+    return pinned((t) => t ** power);
+  },
+  sin: pinned((t) => 1 - Math.cos((t * Math.PI) / 2)),
+  circle: pinned((t) => {
+    const u = clampUnit(t);
+    return 1 - Math.sqrt(1 - u * u);
+  }),
+  exp: pinned((t) => 2 ** (10 * (t - 1))),
+  /** Springy overshoot; `bounciness` (default 1) sets how many times it goes back and forth. */
+  elastic: (bounciness: number = 1): EasingFunction => {
+    const p = checkNumber('elastic', bounciness, 0) * Math.PI;
+    return pinned((t) => 1 - Math.cos((t * Math.PI) / 2) ** 3 * Math.cos(t * p));
+  },
+  /** Pulls back before moving; `s` (default 1.70158) sets how far. */
+  back: (s: number = 1.70158): EasingFunction => {
+    const overshoot = checkNumber('back', s);
+    return pinned((t) => t * t * ((overshoot + 1) * t - overshoot));
+  },
+  bounce: pinned((t) => easeOutBounce(clampUnit(t))),
+  bezier: cubicBezier,
+  /** Runs the easing forwards (returns it as is). */
+  in: (easing: EasingFunction): EasingFunction => pinned(checkEasing('in', easing)),
+  /** Runs the easing backwards: out(f)(t) = 1 - f(1 - t). */
+  out: (easing: EasingFunction): EasingFunction => {
+    const fn = checkEasing('out', easing);
+    return pinned((t) => 1 - fn(1 - t));
+  },
+  /** Symmetric: the easing for the first half, mirrored for the second. */
+  inOut: (easing: EasingFunction): EasingFunction => {
+    const fn = checkEasing('inOut', easing);
+    return pinned((t) => (t < 0.5 ? fn(t * 2) / 2 : 1 - fn((1 - t) * 2) / 2));
   },
 };
 

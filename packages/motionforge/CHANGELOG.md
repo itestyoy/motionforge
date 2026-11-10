@@ -14,6 +14,7 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - `Img`, `Video` and `Lottie` hold the frame until the image is decoded, the video has seeked to the frame, or the Lottie data is loaded and the frame set; their load errors go to `cancelRender()`.
 - `preloadImage`, `preloadVideo`, `preloadAudio`, `preloadFont` and `usePreloadAssets(assets)`.
 - SVG path helpers that need no DOM: `getLength`, `getPointAtLength`, `getTangentAtLength`, `evolvePath`, and `pathFromPoints(points, { cornerRadius, closed })` (corners rounded with circular arcs). They read `M L H V C S Q T A Z`, absolute and relative.
+- Remotion's easing composition: `Easing.in(f)`, `Easing.out(f)`, `Easing.inOut(f)` and the bases `ease`, `quad`, `cubic`, `poly(n)`, `sin`, `circle`, `exp`, `elastic(bounciness)`, `back(s)`, `bounce` (next to `linear` and `bezier`).
 - `Sequence premountFor`: children mount that many frames early, invisible and at their frame 0; their handles hold the frame only once the sequence has started. `useSequence().isPremounted` tells them.
 
 ### Removed (breaking)
@@ -46,6 +47,7 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - `useFade()` without `endFrame` fades out to 0 on the last frame (`durationInFrames - 1`).
 
 ### Fixed
+- Every easing returns exactly 0 at 0 and 1 at 1 (e.g. `easeInSine(1)` was 0.9999999999999999).
 - All entries are built together and share one frame context.
 - Every built file starts with `'use client'` (the source directives were lost in bundling).
 - `require()` consumers get the CommonJS type declarations (`.d.cts`): each `exports` entry has its own `types` under `import` and `require`.

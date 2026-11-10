@@ -267,3 +267,73 @@ describe('Easing.bezier', () => {
     expect(() => Easing.bezier(1.5, 0, 0.5, 1)).toThrow(/x1, x2 must be in \[0, 1\]/);
   });
 });
+
+describe('Easing composition (Remotion)', () => {
+  const bases = {
+    linear: Easing.linear,
+    ease: Easing.ease,
+    quad: Easing.quad,
+    cubic: Easing.cubic,
+    'poly(4)': Easing.poly(4),
+    'poly(0.5)': Easing.poly(0.5),
+    sin: Easing.sin,
+    circle: Easing.circle,
+    exp: Easing.exp,
+    'elastic()': Easing.elastic(),
+    'elastic(3)': Easing.elastic(3),
+    'back()': Easing.back(),
+    'back(3)': Easing.back(3),
+    bounce: Easing.bounce,
+    'bezier(0.25, 0.1, 0.25, 1)': Easing.bezier(0.25, 0.1, 0.25, 1),
+    'bezier(0.68, -0.6, 0.32, 1.6)': Easing.bezier(0.68, -0.6, 0.32, 1.6),
+  };
+  const named = Object.fromEntries(
+    Object.entries(Easing).filter(([name]) => name.startsWith('ease') && name !== 'ease'),
+  ) as Record<string, (t: number) => number>;
+
+  it('returns exactly 0 at 0 and 1 at 1 for every easing', () => {
+    const all: Record<string, (t: number) => number> = { ...named };
+    for (const [name, fn] of Object.entries(bases)) {
+      all[name] = fn;
+      all[`in(${name})`] = Easing.in(fn);
+      all[`out(${name})`] = Easing.out(fn);
+      all[`inOut(${name})`] = Easing.inOut(fn);
+    }
+    expect(Object.keys(named)).toHaveLength(30);
+    const wrong = Object.entries(all)
+      .filter(([, fn]) => !Object.is(fn(0), 0) || !Object.is(fn(1), 1))
+      .map(([name, fn]) => `${name}: ${fn(0)}, ${fn(1)}`);
+    expect(wrong).toEqual([]);
+  });
+
+  it('matches Remotion inside the range', () => {
+    const t = 0.3;
+    expect(Easing.quad(t)).toBeCloseTo(t * t, 15);
+    expect(Easing.cubic(t)).toBeCloseTo(t ** 3, 15);
+    expect(Easing.poly(4)(t)).toBeCloseTo(t ** 4, 15);
+    expect(Easing.sin(t)).toBeCloseTo(1 - Math.cos((t * Math.PI) / 2), 15);
+    expect(Easing.circle(t)).toBeCloseTo(1 - Math.sqrt(1 - t * t), 15);
+    expect(Easing.exp(t)).toBeCloseTo(2 ** (10 * (t - 1)), 15);
+    expect(Easing.elastic(2)(t)).toBeCloseTo(1 - Math.cos((t * Math.PI) / 2) ** 3 * Math.cos(t * 2 * Math.PI), 15);
+    expect(Easing.back()(t)).toBeCloseTo(t * t * (2.70158 * t - 1.70158), 15);
+    expect(Easing.bounce(0.5)).toBeCloseTo(7.5625 * (0.5 - 1.5 / 2.75) ** 2 + 0.75, 15);
+    expect(Easing.ease(0.5)).toBe(Easing.bezier(0.42, 0, 1, 1)(0.5));
+    expect(Easing.in(Easing.quad)(t)).toBe(Easing.quad(t));
+    expect(Easing.out(Easing.quad)(0.5)).toBe(0.75);
+    expect(Easing.inOut(Easing.cubic)(0.25)).toBe(0.0625);
+    expect(Easing.inOut(Easing.cubic)(0.75)).toBe(0.9375);
+  });
+
+  it('works with interpolate', () => {
+    expect(interpolate(5, [0, 10], [0, 100], { easing: Easing.out(Easing.quad) })).toBe(75);
+  });
+
+  it('throws on wrong arguments', () => {
+    // @ts-expect-error not a function
+    expect(() => Easing.out(2)).toThrow(/Easing.out: expects an easing function/);
+    expect(() => Easing.poly(0)).toThrow(/Easing.poly: expects n > 0/);
+    expect(() => Easing.poly(Number.NaN)).toThrow(/Easing.poly: expects a finite number/);
+    expect(() => Easing.elastic(-1)).toThrow(/Easing.elastic: expects a finite number >= 0/);
+    expect(() => Easing.back(Infinity)).toThrow(/Easing.back: expects a finite number/);
+  });
+});
