@@ -5,6 +5,11 @@ All notable changes to MotionForge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- `loadFont()` adds the face to `document.fonts` at once, while it loads (it added it only once loaded), so `usePreloadAssets([{ type: 'font', family }])` for a font that is still loading (`loadFont()` at the top of a module, or in an effect of the same commit) waits for that load instead of cancelling the render with "no font face matches". A face that fails to load is removed again.
+
 ## [3.0.0] - 2026-11-10
 
 ### Added

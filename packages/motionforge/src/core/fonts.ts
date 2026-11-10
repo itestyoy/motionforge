@@ -40,10 +40,12 @@ const handled = (promise: Promise<void>): Promise<void> => {
 
 /**
  * Loads a font file and adds it to `document.fonts` under `family`, like
- * @remotion/fonts' loadFont(). Until the font is loaded every render gate on
- * the page waits for it (fonts belong to the document, not to one
- * FrameProvider); if it fails, every gate fails with the error. Call it
- * anywhere, e.g. at the top of a module:
+ * @remotion/fonts' loadFont(). The face is added at once, while it loads, so
+ * `usePreloadAssets([{ type: 'font', family }])` in the same commit (or any
+ * later one) finds it and waits for the load. Until the font is loaded every
+ * render gate on the page waits for it (fonts belong to the document, not to
+ * one FrameProvider); if it fails, the face is removed again and every gate
+ * fails with the error. Call it anywhere, e.g. at the top of a module:
  *
  *   loadFont({ family: 'Bangers', url: '/fonts/bangers.woff2' });
  *
@@ -84,22 +86,30 @@ export const loadFont = (options: LoadFontOptions): Promise<void> => {
   }
   const source = `url(${JSON.stringify(url)})${format ? ` format(${JSON.stringify(format)})` : ''}`;
   const hold = holdAllGates(`loadFont() ${family} from ${url}`);
+  const failure = (cause: unknown) =>
+    new Error(`loadFont: could not load ${family} from ${url}${cause instanceof Error && cause.message ? `: ${cause.message}` : ''}`);
 
-  const load = Promise.resolve()
-    .then(() => new FontFace(family, source, descriptors).load())
-    .then(
-      (face) => {
-        document.fonts.add(face);
-        hold.release();
-      },
+  let load: Promise<void>;
+  try {
+    const face = new FontFace(family, source, descriptors);
+    // In document.fonts while it loads: usePreloadAssets() finds the family
+    // and waits for this load (FontFace.load() returns the same promise).
+    document.fonts.add(face);
+    load = face.load().then(
+      () => hold.release(),
       (cause) => {
-        const error = new Error(
-          `loadFont: could not load ${family} from ${url}${cause instanceof Error && cause.message ? `: ${cause.message}` : ''}`,
-        );
+        document.fonts.delete(face);
+        const error = failure(cause);
         hold.fail(error);
         throw error;
       },
     );
+  } catch (cause) {
+    // The FontFace constructor rejects invalid descriptors synchronously.
+    const error = failure(cause);
+    hold.fail(error);
+    load = Promise.reject(error);
+  }
   loads.set(key, load);
   return handled(load);
 };
