@@ -8,6 +8,8 @@ import { useCurrentFrame, useVideoConfig } from '../../core/context';
 
 interface DepthGallery3DProps {
   images: string[];
+  /** Caption under each image (by index); images without one have no caption. */
+  captions?: string[];
   durationInFrames?: number;
   startFrame?: number;
   className?: string;
@@ -15,7 +17,7 @@ interface DepthGallery3DProps {
 }
 
 // Deterministic rendering driven by progress prop
-const DeterministicScene = ({ images, progress }: { images: string[], progress: number }) => {
+const DeterministicScene = ({ images, captions, progress }: { images: string[], captions?: string[], progress: number }) => {
   return (
     <>
       <ambientLight intensity={0.5} />
@@ -34,15 +36,17 @@ const DeterministicScene = ({ images, progress }: { images: string[], progress: 
               transparent
               opacity={opacity}
             />
-            <Text
-              position={[0, -2.5, 0.1]}
-              fontSize={0.5}
-              color="white"
-              anchorX="center"
-              anchorY="middle"
-            >
-              Art Piece {i + 1}
-            </Text>
+            {captions?.[i] && (
+              <Text
+                position={[0, -2.5, 0.1]}
+                fontSize={0.5}
+                color="white"
+                anchorX="center"
+                anchorY="middle"
+              >
+                {captions[i]}
+              </Text>
+            )}
           </group>
         );
       })}
@@ -53,6 +57,7 @@ const DeterministicScene = ({ images, progress }: { images: string[], progress: 
 
 export const DepthGallery3D: React.FC<DepthGallery3DProps> = ({
   images,
+  captions,
   durationInFrames = 300,
   startFrame = 0,
   className = '',
@@ -64,7 +69,7 @@ export const DepthGallery3D: React.FC<DepthGallery3DProps> = ({
   return (
     <div className={className} style={{ width: '100%', height: '100%', backgroundColor: '#000', ...style }}>
       <Canvas camera={{ position: [0, 0, 5], fov: 75 }}>
-        <DeterministicScene images={images} progress={progress} />
+        <DeterministicScene images={images} captions={captions} progress={progress} />
       </Canvas>
     </div>
   );

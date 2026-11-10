@@ -251,9 +251,9 @@ The `Lottie` component supports several props to control playback and appearance
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `src` | `string \| object` | - | URL to JSON or imported JSON object |
-| `frameStart` | `number` | `0` | The frame at which the Lottie starts |
-| `frameEnd` | `number` | - | The frame at which the Lottie ends |
-| `playbackRate` | `number` | `1` | Speed of the animation |
+| `frameStart` | `number` | `0` | Lottie frame (on the animation's own timeline) to start from |
+| `frameEnd` | `number` | - | Lottie frame to stop at (default: its last frame) |
+| `playbackRate` | `number` | `1` | Speed of the animation; composition frame `f` shows the Lottie at time `f / fps × playbackRate` |
 | `loop` | `boolean` | `false` | Whether to loop the animation |
 | `width` | `number \| string` | `100%` | Width of the container |
 | `height` | `number \| string` | `100%` | Height of the container |

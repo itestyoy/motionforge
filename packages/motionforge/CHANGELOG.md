@@ -24,6 +24,12 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - `spring()` with `durationInFrames` stretches the natural motion (settled to `durationRestThreshold`) over `durationInFrames` and is exactly `to` from that frame on; without it, it follows the physics with no time cutoff (it used to stop at 2 s).
 - `noise2D()` is 2D value noise in [0, 1): it depends on both coordinates and is continuous; its values differ from before.
 - `Easing.bezier()` throws when `x1` or `x2` is outside [0, 1].
+- `Flip3D` no longer takes `children` (it never rendered them; the content is `front` and `back`).
+- `FlipImageReveal` shows no built-in copy: the overlay text comes from the new `title` / `description` props and the image alt text from `alt` (default empty). `DepthGallery3D` captions come from the new `captions` prop instead of "Art Piece N".
+- `Counter` formats with a fixed locale (`locale`, default `'en-US'`) instead of the host's locale; `format` still overrides it.
+- `WordByWord` uses `durationInFrames`: each word animates for `durationInFrames / words` frames (it was always 15).
+- `GradientText` animates `backgroundPosition` over a fixed, seamlessly repeating gradient; it throws when `colors` is empty.
+- `Lottie` maps composition frames to Lottie frames by time (`frame / fps × Lottie frame rate × playbackRate`), not one to one. Its root is now a wrapper element around the lottie-web container.
 - `FrameProvider` and `Composition` throw when `frame` is not an integer from 0 to `durationInFrames - 1`, or when `fps`, `width`, `height` or `durationInFrames` is not positive.
 - Inside `Sequence`, `Loop` and `Series`, `useVideoConfig().durationInFrames` is the length of the sequence (`Sequence`: its `durationInFrames`, or the rest of the parent when it has none; `Loop`: one iteration; `Series`: the active child).
 - The `Loop` context hook is exported as `useLoopInfo()` (it was unreachable: `useLoop` is the frame-modulo hook from `hooks/animation`).
@@ -42,6 +48,13 @@ MotionForge is now a headless SDK: scenes are pure functions of the frame, and t
 - `measureSpring()` returns the frame from which the spring stays within the threshold, not the first zero crossing.
 - `interpolateColors()` reads `#rgba` and the space/slash syntax `rgb(255 0 0 / 50%)` with percentage alpha and channels.
 - `Easing.bezier()` is accurate for steep curves (Newton with a bisection fallback; it was off by up to 0.06).
+- `StickyGridScroll` shows its items (its descending input range made every item transparent) and has no CSS transition; `ProgressBar` has no CSS transition either.
+- `Glitch` is deterministic (`random()` seeded by the frame instead of `Math.random()`).
+- `transitions.scale.exit` goes from full size to 0 (it was inverted).
+- `LetterByLetter`, `WaveText`, `RainbowText`, `KineticTypography` and `Typewriter` split text into graphemes, so emoji and combined characters stay whole.
+- `GradientText` stops stay in order and work with one color (no `NaN%`).
+- `Video` / `Audio`: a caller's `onLoadedData` no longer replaces the internal handler (it is called after it); they seek when more than half a frame off (was 0.05 s) and map time as `(startFrom + frame × playbackRate) / fps`.
+- `Lottie` resets its loaded state when `src` changes and shows an error when the data fails to load (`data_failed`) instead of rendering nothing.
 - `Freeze` holds the frame for exactly `durationInFrames` frames, then continues from the frame after it.
 - `useProgress()` and `useTimeline().progress` return 1 instead of NaN for a one-frame composition.
 

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import lottie, { AnimationItem } from 'lottie-web';
-import { useCurrentFrame } from '../core/context';
+import { useCurrentFrame, useVideoConfig } from '../core/context';
 
 export interface LottieProps {
   /**
@@ -10,12 +10,12 @@ export interface LottieProps {
    */
   src: string | object;
   /**
-   * The frame at which the Lottie animation should start playing.
+   * The Lottie frame (on the animation's own timeline) to start from.
    * Default is 0.
    */
   frameStart?: number;
   /**
-   * The frame at which the Lottie animation should end playing.
+   * The Lottie frame (on the animation's own timeline) to stop at.
    * Default is the last frame of the Lottie animation.
    */
   frameEnd?: number;
@@ -51,7 +51,10 @@ export interface LottieProps {
  * Lottie Component for MotionForge.
  *
  * Provides production-grade Lottie support with deterministic frame synchronization.
- * Synchronizes with the MotionForge frame system instead of using time-based playback.
+ * Synchronizes with the MotionForge frame system instead of using time-based playback:
+ * composition frame `f` shows the Lottie at time f / fps (times `playbackRate`),
+ * whatever the Lottie's own frame rate. If the animation data cannot be loaded,
+ * the component shows the error instead of rendering nothing.
  */
 export const Lottie: React.FC<LottieProps> = ({
   src,
@@ -71,9 +74,13 @@ export const Lottie: React.FC<LottieProps> = ({
 
   // Inside a Sequence this is already the frame relative to the sequence start.
   const currentFrame = useCurrentFrame();
+  const { fps } = useVideoConfig();
 
   // Handle initialization
   useEffect(() => {
+    // A new source starts unloaded, without the previous source's error.
+    setIsLoaded(false);
+    setError(null);
     if (typeof window === 'undefined' || !containerRef.current) return;
 
     let isCancelled = false;
@@ -108,6 +115,15 @@ export const Lottie: React.FC<LottieProps> = ({
       // Both events can be useful depending on how Lottie is loaded
       anim.addEventListener('DOMLoaded', onLoaded);
       anim.addEventListener('data_ready', onLoaded);
+      anim.addEventListener('data_failed', () => {
+        if (!isCancelled) {
+          setError(
+            typeof src === 'string'
+              ? `failed to load animation data from ${src}`
+              : 'failed to load animation data'
+          );
+        }
+      });
 
       return () => {
         isCancelled = true;
@@ -136,14 +152,14 @@ export const Lottie: React.FC<LottieProps> = ({
 
     if (duration <= 0) return;
 
-    // Map MotionForge currentFrame to Lottie frame
-    // playbackRate affects how fast we move through the Lottie timeline
-    let targetFrame = currentFrame * playbackRate;
+    // Map the composition frame to the Lottie timeline by time: the Lottie
+    // has its own frame rate, and playbackRate speeds it up or slows it down.
+    let targetFrame = (currentFrame / fps) * anim.frameRate * playbackRate;
 
     if (loop) {
-      targetFrame = targetFrame % duration;
+      targetFrame = ((targetFrame % duration) + duration) % duration;
     } else {
-      targetFrame = Math.min(targetFrame, duration - 0.01);
+      targetFrame = Math.max(0, Math.min(targetFrame, duration - 0.01));
     }
 
     // finalFrame is relative to the Lottie's original timeline
@@ -151,7 +167,7 @@ export const Lottie: React.FC<LottieProps> = ({
 
     // goToAndStop(value, isFrame) - second arg true means it's a frame number, not time
     anim.goToAndStop(finalFrame, true);
-  }, [currentFrame, isLoaded, frameStart, frameEnd, playbackRate, loop]);
+  }, [currentFrame, fps, isLoaded, frameStart, frameEnd, playbackRate, loop]);
 
   const containerStyle: React.CSSProperties = useMemo(() => ({
     width: width ?? '100%',
@@ -159,20 +175,19 @@ export const Lottie: React.FC<LottieProps> = ({
     ...style,
   }), [width, height, style]);
 
-  if (error) {
-    return (
-      <div style={{ color: 'red', border: '1px solid red', padding: '10px' }}>
-        <strong>Lottie Error:</strong> {error}
-      </div>
-    );
-  }
-
+  // lottie-web owns the inner container; it stays mounted while an error is
+  // shown, so a new `src` can load into it.
   return (
-    <div
-      ref={containerRef}
-      style={containerStyle}
-      className={className}
-      data-lottie-loaded={isLoaded}
-    />
+    <div style={containerStyle} className={className} data-lottie-loaded={isLoaded}>
+      <div
+        ref={containerRef}
+        style={{ width: '100%', height: '100%', display: error ? 'none' : undefined }}
+      />
+      {error && (
+        <div role="alert" style={{ color: 'red', border: '1px solid red', padding: '10px' }}>
+          <strong>Lottie Error:</strong> {error}
+        </div>
+      )}
+    </div>
   );
 };

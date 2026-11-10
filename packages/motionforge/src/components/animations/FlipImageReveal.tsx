@@ -7,6 +7,12 @@ import { interpolate, Easing } from '../../utils/animation';
 interface FlipImageRevealProps {
   src: string;
   thumbnailRect: { x: number; y: number; width: number; height: number };
+  /** Alt text of the image. */
+  alt?: string;
+  /** Heading shown over the image at the end of the reveal; nothing is shown without it. */
+  title?: React.ReactNode;
+  /** Text under the title. */
+  description?: React.ReactNode;
   durationInFrames?: number;
   startFrame?: number;
   className?: string;
@@ -16,6 +22,9 @@ interface FlipImageRevealProps {
 export const FlipImageReveal: React.FC<FlipImageRevealProps> = ({
   src,
   thumbnailRect,
+  alt = '',
+  title,
+  description,
   durationInFrames = 60,
   startFrame = 0,
   className = '',
@@ -58,7 +67,7 @@ export const FlipImageReveal: React.FC<FlipImageRevealProps> = ({
     >
       <img
         src={src}
-        alt="Reveal"
+        alt={alt}
         style={{
           width: '100%',
           height: '100%',
@@ -67,21 +76,23 @@ export const FlipImageReveal: React.FC<FlipImageRevealProps> = ({
       />
 
       {/* Overlay content appearing at the end */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: '40px',
-          background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
-          opacity: interpolate(progress, [0.8, 1], [0, 1]),
-          transform: `translateY(${interpolate(progress, [0.8, 1], [20, 0])}px)`,
-        }}
-      >
-        <h2 style={{ color: 'white', fontSize: '48px', fontWeight: 'bold' }}>Cinematic Reveal</h2>
-        <p style={{ color: '#ccc', fontSize: '18px' }}>Smooth FLIP transition between states.</p>
-      </div>
+      {(title || description) && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: '40px',
+            background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
+            opacity: interpolate(progress, [0.8, 1], [0, 1]),
+            transform: `translateY(${interpolate(progress, [0.8, 1], [20, 0])}px)`,
+          }}
+        >
+          {title && <h2 style={{ color: 'white', fontSize: '48px', fontWeight: 'bold' }}>{title}</h2>}
+          {description && <p style={{ color: '#ccc', fontSize: '18px' }}>{description}</p>}
+        </div>
+      )}
     </div>
   );
 };

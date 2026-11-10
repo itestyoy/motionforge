@@ -193,7 +193,7 @@ export const transitions = {
   },
   scale: {
     enter: (p: number) => ({ transform: `scale(${scale(p, 0, 1)})` }),
-    exit: (p: number) => ({ transform: `scale(${scale(1 - p, 1, 0)})` }),
+    exit: (p: number) => ({ transform: `scale(${scale(p, 1, 0)})` }),
   },
   zoom: {
     enter: (p: number) => {

@@ -37,6 +37,21 @@ export const AbsoluteFill: React.FC<AbsoluteFillProps> = ({
   );
 };
 
+/**
+ * Media time in seconds for a composition frame. `startFrom` is in frames of
+ * the media; each composition frame advances `playbackRate` media frames.
+ */
+const getMediaTime = (
+  frame: number,
+  fps: number,
+  startFrom: number,
+  playbackRate: number
+): number => (startFrom + frame * playbackRate) / fps;
+
+// Seek when the element is more than half a frame away from the frame's time.
+const needsSeek = (currentTime: number, targetTime: number, fps: number): boolean =>
+  Math.abs(currentTime - targetTime) > 0.5 / fps;
+
 // Video Component
 interface VideoProps extends Omit<VideoHTMLAttributes<HTMLVideoElement>, 'src'> {
   src: string;
@@ -58,6 +73,7 @@ export const Video: React.FC<VideoProps> = ({
   muted = true,
   style,
   pauseOnFrame = true,
+  onLoadedData,
   ...props
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -68,12 +84,12 @@ export const Video: React.FC<VideoProps> = ({
   // Calculate video time based on frame
   useEffect(() => {
     if (videoRef.current && loaded) {
-      const time = (startFrom + currentFrame) / fps;
-      if (Math.abs(videoRef.current.currentTime - time) > 0.05) {
+      const time = getMediaTime(currentFrame, fps, startFrom, playbackRate);
+      if (needsSeek(videoRef.current.currentTime, time, fps)) {
         videoRef.current.currentTime = time;
       }
     }
-  }, [currentFrame, fps, startFrom, loaded]);
+  }, [currentFrame, fps, startFrom, playbackRate, loaded]);
 
   // Handle volume
   useEffect(() => {
@@ -90,11 +106,10 @@ export const Video: React.FC<VideoProps> = ({
     }
   }, [playbackRate]);
 
-  const handleLoadedData = () => {
+  // The caller's onLoadedData runs after ours; it must not replace it.
+  const handleLoadedData = (event: React.SyntheticEvent<HTMLVideoElement>) => {
     setLoaded(true);
-    if (props.onLoadedData) {
-      props.onLoadedData({} as React.SyntheticEvent<HTMLVideoElement>);
-    }
+    onLoadedData?.(event);
   };
 
   return (
@@ -109,8 +124,8 @@ export const Video: React.FC<VideoProps> = ({
         objectFit: 'cover',
         ...style,
       }}
-      onLoadedData={handleLoadedData}
       {...props}
+      onLoadedData={handleLoadedData}
     />
   );
 };
@@ -132,6 +147,7 @@ export const Audio: React.FC<AudioProps> = ({
   volume = 1,
   playbackRate = 1,
   muted = false,
+  onLoadedData,
   ...props
 }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -142,12 +158,12 @@ export const Audio: React.FC<AudioProps> = ({
   // Calculate audio time based on frame
   useEffect(() => {
     if (audioRef.current && loaded) {
-      const time = (startFrom + currentFrame) / fps;
-      if (Math.abs(audioRef.current.currentTime - time) > 0.05) {
+      const time = getMediaTime(currentFrame, fps, startFrom, playbackRate);
+      if (needsSeek(audioRef.current.currentTime, time, fps)) {
         audioRef.current.currentTime = time;
       }
     }
-  }, [currentFrame, fps, startFrom, loaded]);
+  }, [currentFrame, fps, startFrom, playbackRate, loaded]);
 
   // Handle volume
   useEffect(() => {
@@ -164,11 +180,10 @@ export const Audio: React.FC<AudioProps> = ({
     }
   }, [playbackRate]);
 
-  const handleLoadedData = () => {
+  // The caller's onLoadedData runs after ours; it must not replace it.
+  const handleLoadedData = (event: React.SyntheticEvent<HTMLAudioElement>) => {
     setLoaded(true);
-    if (props.onLoadedData) {
-      props.onLoadedData({} as React.SyntheticEvent<HTMLAudioElement>);
-    }
+    onLoadedData?.(event);
   };
 
   return (
@@ -176,8 +191,8 @@ export const Audio: React.FC<AudioProps> = ({
       ref={audioRef}
       src={src}
       muted={muted}
-      onLoadedData={handleLoadedData}
       {...props}
+      onLoadedData={handleLoadedData}
     />
   );
 };

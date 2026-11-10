@@ -67,7 +67,7 @@ export const StickyGridScroll: React.FC<StickyGridScrollProps> = ({
           // Animate items based on their visibility in the viewport
           const viewportProgress = interpolate(
             relativeY,
-            [height, height * 0.8, height * 0.2, 0],
+            [0, height * 0.2, height * 0.8, height],
             [0, 1, 1, 0],
             { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
           );
@@ -79,7 +79,6 @@ export const StickyGridScroll: React.FC<StickyGridScrollProps> = ({
                 height: height / 2.5,
                 opacity: viewportProgress,
                 transform: `scale(${0.8 + 0.2 * viewportProgress}) translateY(${(1 - viewportProgress) * 50}px)`,
-                transition: 'transform 0.1s linear',
               }}
             >
               {item}
