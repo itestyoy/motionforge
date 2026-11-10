@@ -5,6 +5,7 @@ import { VideoConfig } from '../core/types';
 import { FrameProvider } from '../core/context';
 import { RenderGate } from '../core/render-gate';
 import { AudioCollector } from '../core/audio-collector';
+import { StaticFiles } from '../core/static-files';
 
 // Composition Context
 const CompositionContext = createContext<{
@@ -34,6 +35,8 @@ export interface CompositionProps {
   gate?: RenderGate;
   /** Audio collector for this composition's FrameProvider (see createAudioCollector). */
   audio?: AudioCollector;
+  /** Where static files come from (FrameProvider's staticFiles). */
+  staticFiles?: StaticFiles;
 }
 
 // A composition rendered at `frame`, with its config available to useComposition().
@@ -48,6 +51,7 @@ export const Composition: React.FC<CompositionProps> = ({
   defaultProps = {},
   gate,
   audio,
+  staticFiles,
 }) => {
   return (
     <CompositionContext.Provider
@@ -64,6 +68,7 @@ export const Composition: React.FC<CompositionProps> = ({
         height={height}
         gate={gate}
         audio={audio}
+        staticFiles={staticFiles}
       >
         <Component {...defaultProps} />
       </FrameProvider>

@@ -37,6 +37,12 @@ export type { Prefetch, PrefetchOptions, PrefetchOnProgress } from './core/prefe
 export { loadFont } from './core/fonts';
 export type { LoadFontOptions } from './core/fonts';
 
+// Assets: where static files come from is the host's choice
+export { useStaticFile } from './core/use-static-file';
+export type { StaticFiles } from './core/static-files';
+export { fitRect } from './utils/fit-rect';
+export type { ObjectFit, FitRectContainer, FitRectSize, FitRectAnchor, FittedRect } from './utils/fit-rect';
+
 // Components
 export { Composition, useComposition } from './components/Composition';
 export type { CompositionProps } from './components/Composition';
@@ -67,7 +73,6 @@ export {
   SVG,
   Path,
   G,
-  staticFile,
 } from './components/Media';
 export type { VideoProps, AudioProps, ImgProps } from './components/Media';
 export { AnimatedImage } from './components/animated-image/AnimatedImage';

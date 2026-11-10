@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import { FrameContextValue } from './types';
 import { GateScope, RenderGate, createRenderGate, getGateInternals, isRenderGate } from './render-gate';
 import { AudioCollector, getAudioCollectorInternals, isAudioCollector } from './audio-collector';
+import { StaticFiles, makeStaticFileResolver } from './static-files';
 
 // Frame Context - provides the frame being rendered to all children
 const FrameContext = createContext<FrameContextValue | null>(null);
@@ -62,6 +63,8 @@ export const TimelineContext = createContext<TimelineContextValue | null>(null);
 export interface HostContextValue {
   /** The collector audio tracks register with, or null (the host does not want audio). */
   audio: AudioCollector | null;
+  /** Resolves a static file path to its URL (useStaticFile()), or null when the host set none. */
+  staticFiles: ((path: string) => string) | null;
 }
 
 export const HostContext = createContext<HostContextValue | null>(null);
@@ -84,6 +87,13 @@ export interface FrameProviderProps {
    * inside another one does not use the outer collector: its frames are its own.
    */
   audio?: AudioCollector;
+  /**
+   * Where the static files of useStaticFile() come from: a base URL
+   * ("https://cdn.example.com/creative-42/", "/static/") or a function
+   * (path) => url (signed URLs, blob: URLs). A FrameProvider without it
+   * inside another one uses the outer one's.
+   */
+  staticFiles?: StaticFiles;
   fps?: number;
   durationInFrames: number;
   width: number;
@@ -132,6 +142,7 @@ export const FrameProvider: React.FC<FrameProviderProps> = ({
   height,
   gate,
   audio,
+  staticFiles,
   children,
 }) => {
   validateFrameProps({ frame, fps, durationInFrames, width, height });
@@ -159,7 +170,15 @@ export const FrameProvider: React.FC<FrameProviderProps> = ({
     () => ({ offset: 0, start: 0, end: durationInFrames, remappedBy: null }),
     [durationInFrames],
   );
-  const host = useMemo<HostContextValue>(() => ({ audio: audio ?? null }), [audio]);
+  const outerHost = useContext(HostContext);
+  const resolveStaticFile = useMemo(
+    () => (staticFiles === undefined ? outerHost?.staticFiles ?? null : makeStaticFileResolver(staticFiles)),
+    [staticFiles, outerHost],
+  );
+  const host = useMemo<HostContextValue>(
+    () => ({ audio: audio ?? null, staticFiles: resolveStaticFile }),
+    [audio, resolveStaticFile],
+  );
 
   useEffect(() => (owned ? getGateInternals(owned).attach() : undefined), [owned]);
   useEffect(() => (audio ? getAudioCollectorInternals(audio).attach() : undefined), [audio]);

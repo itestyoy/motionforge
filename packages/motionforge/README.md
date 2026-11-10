@@ -151,7 +151,13 @@ const Chart = () => {
 **Fonts:** `loadFont({ family, url, format?, weight?, style?, display?, unicodeRange?, stretch?, variant?, featureSettings?, ascentOverride?, descentOverride?, lineGapOverride? })` loads a font file into `document.fonts`, like `@remotion/fonts`. Descriptors are CSS strings (`weight: '700'`). Call it anywhere, e.g. at the top of a module; the same options load once. Fonts belong to the document, so until the font is loaded **every** gate on the page waits for it (it is listed in `getPending()` with a negative handle), and if it fails every gate fails with the error (the returned promise rejects too). Without a DOM (server rendering) the promise rejects.
 
 ```tsx
-loadFont({ family: 'Bangers', url: staticFile('bangers.woff2') });
+loadFont({ family: 'Bangers', url: 'https://cdn.example.com/fonts/bangers.woff2' });
+
+// or with a static file of the FrameProvider (see Assets), from the scene:
+const staticFile = useStaticFile();
+useEffect(() => {
+  loadFont({ family: 'Bangers', url: staticFile('fonts/bangers.woff2') });
+}, [staticFile]);
 ```
 
 **Preloading:** `usePreloadAssets(assets)` holds the frame until all assets are loaded, returns whether they are, and reports a failure through `cancelRender()`. A font asset waits for every face declared for the family (`@font-face` in a stylesheet, e.g. Google Fonts, or `loadFont()`), narrowed by `weight` / `style` if given. Families split by `unicode-range` (Google Fonts, @fontsource: latin, cyrillic, greek, ...) load all their subsets, so Cyrillic text is ready too; no declared face is an error.
@@ -168,6 +174,43 @@ const ready = usePreloadAssets([
 There are no `preloadImage` / `preloadVideo` / `preloadAudio` / `preloadFont`: `@remotion/preload`'s functions only add a browser hint (`<link rel="preload">`) and return a cleanup function, and MotionForge's old ones returned promises; under one name either meaning would mislead. Use `prefetch()`, `usePreloadAssets()` or `loadFont()`.
 
 **Premounting:** `<Sequence from={60} premountFor={30}>` mounts its children 30 frames early, invisible (`opacity: 0`, `pointer-events: none`, then `styleWhilePremounted`) and at their frame 0, so their assets load before the sequence starts. While premounted, their `delayRender()` handles do not hold the frame; from the start on, the ones still pending do. `postmountFor` keeps them mounted after the end, invisible (then `styleWhilePostmounted`) and at their last frame; it needs `durationInFrames`. Both need `layout="absolute-fill"` (the default).
+
+## 🗂️ Assets
+
+**Static files.** Where the files of a creative come from is the host's choice: it passes `staticFiles` to `FrameProvider` (or `Composition`), and scenes get URLs from `useStaticFile()`.
+
+```tsx
+// host: a base URL ...
+<FrameProvider staticFiles="https://cdn.example.com/creative-42/" ...>
+// ... or a function, for signed or blob: URLs
+<FrameProvider staticFiles={(path) => signedUrls[path]} ...>
+
+// scene
+import { Img, useStaticFile } from 'motionforge';
+
+const Hero = () => {
+  const staticFile = useStaticFile();
+  return <Img src={staticFile('images/hero.png')} />;
+};
+```
+
+- A base URL gets the path appended, each segment URL-encoded as Remotion does (`'my image#1.png'` → `my%20image%231.png`); a function gets the raw path and must return a non-empty string.
+- The returned URLs are plain strings: use them with `Img`, `Video`, `Audio`, `prefetch()`, `loadFont()`, CSS or anything else. Each `FrameProvider` has its own; one without `staticFiles` inside another uses the outer one's.
+- A path is relative to the static files: a leading `/`, a URL, empty, `.` or `..` segments throw, and so does `staticFile()` under a `FrameProvider` without `staticFiles` (the error names the path).
+- **Differs from Remotion:** `staticFile()` is a plain function there, because one Remotion project has one public folder. Here several `FrameProvider`s on a page (a grid of previews, a player and an exporter) may take their files from different places, which a plain function cannot know; the hook reads the `FrameProvider` the component is in. The old `staticFile()`, hard-coded to `/static/`, is gone.
+
+**Fitting pictures.** `fitRect(container, content, fit, anchor?)` is CSS `object-fit` arithmetic without the DOM: it returns `{ x, y, width, height, scaleX, scaleY }`, where the content of natural size `content` lands in `container` (`{ x?, y?, width, height }`) for `fit` `'contain'`, `'cover'`, `'fill'`, `'none'` or `'scale-down'`, placed by `anchor` (`{ x, y }`, `object-position` / 100: 0 left/top, 0.5 centred (default), 1 right/bottom). Use it to cut a picture into pieces and to align things with a part of it:
+
+```tsx
+const photo = fitRect({ width, height }, { width: 2000, height: 1500 }, 'cover');
+// the tile at (500, 300), 250 px wide in the photo, on screen:
+const tile = { left: photo.x + 500 * photo.scaleX, top: photo.y + 300 * photo.scaleY, size: 250 * photo.scaleX };
+<div style={{ position: 'absolute', left: tile.left, top: tile.top, width: tile.size, height: tile.size, overflow: 'hidden' }}>
+  <Img src={src} style={{ position: 'absolute', left: photo.x - tile.left, top: photo.y - tile.top, width: photo.width, height: photo.height }} />
+</div>
+```
+
+`scaleX` and `scaleY` are equal except for `'fill'`, which stretches (hence two scales rather than one). The side that fits the box is exactly the box's side. Sizes must be positive and positions finite; anything else throws.
 
 ## 📦 Entry points
 
