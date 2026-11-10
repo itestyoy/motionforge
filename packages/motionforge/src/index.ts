@@ -76,7 +76,6 @@ export {
   Counter,
   ProgressBar,
   Glitch,
-  Trail,
   ShakeEffect,
   Highlight,
   MaskReveal,

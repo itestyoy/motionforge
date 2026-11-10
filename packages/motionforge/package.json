@@ -38,6 +38,16 @@
         "types": "./dist/lottie/index.d.cts",
         "default": "./dist/lottie/index.cjs"
       }
+    },
+    "./motion-blur": {
+      "import": {
+        "types": "./dist/motion-blur/index.d.ts",
+        "default": "./dist/motion-blur/index.js"
+      },
+      "require": {
+        "types": "./dist/motion-blur/index.d.cts",
+        "default": "./dist/motion-blur/index.cjs"
+      }
     }
   },
   "files": [
