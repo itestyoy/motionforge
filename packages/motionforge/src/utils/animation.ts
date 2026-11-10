@@ -145,6 +145,10 @@ export const spring = ({
   const omega = Math.sqrt(stiffness / mass);
   const zeta = damping / (2 * Math.sqrt(stiffness * mass));
   
+  // Before the spring starts it rests at `from` (the closed form below grows
+  // without bound for negative time).
+  if (frame <= 0) return from;
+
   // Calculate duration if not provided
   const actualDuration = durationInFrames ?? Math.ceil(fps * 2);
   
@@ -178,6 +182,16 @@ export const spring = ({
   }
   
   return from + (to - from) * value;
+};
+
+// Index of the segment [inputRange[i], inputRange[i + 1]] that `input` falls in;
+// inputs past either end belong to the first or last segment (so extrapolation
+// continues the outermost segment).
+const findSegment = (input: number, inputRange: number[]): number => {
+  for (let i = 1; i < inputRange.length - 1; i++) {
+    if (input <= inputRange[i]) return i - 1;
+  }
+  return inputRange.length - 2;
 };
 
 // Interpolate function
@@ -220,14 +234,7 @@ export const interpolate = (
     // extend - continue the linear extrapolation
   }
 
-  // Find the segment
-  let segmentIndex = 0;
-  for (let i = 1; i < inputRange.length; i++) {
-    if (input <= inputRange[i]) {
-      segmentIndex = i - 1;
-      break;
-    }
-  }
+  const segmentIndex = findSegment(input, inputRange);
 
   const inputStart = inputRange[segmentIndex];
   const inputEnd = inputRange[segmentIndex + 1];
@@ -246,72 +253,74 @@ export const interpolate = (
 };
 
 // Interpolate colors
+// Parses #rgb, #rrggbb, #rrggbbaa, rgb() and rgba(); channels are 0–255, alpha 0–1.
+const parseColor = (color: string): [number, number, number, number] => {
+  const value = color.trim();
+  if (value.startsWith('#')) {
+    const hex = value.slice(1);
+    if (hex.length === 3) {
+      return [
+        parseInt(hex[0] + hex[0], 16),
+        parseInt(hex[1] + hex[1], 16),
+        parseInt(hex[2] + hex[2], 16),
+        1,
+      ];
+    }
+    return [
+      parseInt(hex.slice(0, 2), 16),
+      parseInt(hex.slice(2, 4), 16),
+      parseInt(hex.slice(4, 6), 16),
+      hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1,
+    ];
+  }
+  if (value.startsWith('rgb')) {
+    const match = value.match(/-?\d*\.?\d+/g);
+    if (match && match.length >= 3) {
+      return [
+        parseFloat(match[0]),
+        parseFloat(match[1]),
+        parseFloat(match[2]),
+        match[3] !== undefined ? parseFloat(match[3]) : 1,
+      ];
+    }
+  }
+  throw new Error(`interpolateColors: unsupported color "${color}"`);
+};
+
+const formatColor = ([r, g, b, a]: [number, number, number, number]): string => {
+  const channel = (x: number) => Math.round(Math.max(0, Math.min(255, x)));
+  if (a >= 1) {
+    return '#' + [r, g, b].map((x) => channel(x).toString(16).padStart(2, '0')).join('');
+  }
+  const alpha = Math.round(Math.max(0, a) * 1000) / 1000;
+  return `rgba(${channel(r)}, ${channel(g)}, ${channel(b)}, ${alpha})`;
+};
+
 export const interpolateColors = (
   input: number,
   inputRange: number[],
   outputRange: string[]
 ): string => {
-  // Parse color to RGB
-  const parseColor = (color: string): [number, number, number, number] => {
-    if (color.startsWith('#')) {
-      const hex = color.slice(1);
-      if (hex.length === 3) {
-        return [
-          parseInt(hex[0] + hex[0], 16),
-          parseInt(hex[1] + hex[1], 16),
-          parseInt(hex[2] + hex[2], 16),
-          255,
-        ];
-      }
-      return [
-        parseInt(hex.slice(0, 2), 16),
-        parseInt(hex.slice(2, 4), 16),
-        parseInt(hex.slice(4, 6), 16),
-        hex.length === 8 ? parseInt(hex.slice(6, 8), 16) : 255,
-      ];
-    }
-    if (color.startsWith('rgb')) {
-      const match = color.match(/\d+/g);
-      if (match) {
-        return [
-          parseInt(match[0]),
-          parseInt(match[1]),
-          parseInt(match[2]),
-          match[3] ? parseInt(match[3]) : 255,
-        ];
-      }
-    }
-    return [0, 0, 0, 255];
-  };
-
-  const rgbToHex = (r: number, g: number, b: number): string => {
-    return '#' + [r, g, b].map(x => {
-      const hex = Math.round(x).toString(16);
-      return hex.length === 1 ? '0' + hex : hex;
-    }).join('');
-  };
-
-  // Find segment
-  let segmentIndex = 0;
-  for (let i = 1; i < inputRange.length; i++) {
-    if (input <= inputRange[i]) {
-      segmentIndex = i - 1;
-      break;
-    }
+  if (inputRange.length !== outputRange.length) {
+    throw new Error('inputRange and outputRange must have the same length');
   }
+  if (inputRange.length < 2) {
+    throw new Error('inputRange must have at least 2 elements');
+  }
+
+  // Colors do not extrapolate: outside the range the end color holds.
+  const clamped = Math.max(inputRange[0], Math.min(inputRange[inputRange.length - 1], input));
+  const segmentIndex = findSegment(clamped, inputRange);
 
   const inputStart = inputRange[segmentIndex];
   const inputEnd = inputRange[segmentIndex + 1];
   const colorStart = parseColor(outputRange[segmentIndex]);
   const colorEnd = parseColor(outputRange[segmentIndex + 1]);
 
-  const progress = (input - inputStart) / (inputEnd - inputStart);
+  const progress = inputEnd === inputStart ? 1 : (clamped - inputStart) / (inputEnd - inputStart);
+  const mix = (i: number) => colorStart[i] + progress * (colorEnd[i] - colorStart[i]);
 
-  const r = colorStart[0] + progress * (colorEnd[0] - colorStart[0]);
-  const g = colorStart[1] + progress * (colorEnd[1] - colorStart[1]);
-  const b = colorStart[2] + progress * (colorEnd[2] - colorStart[2]);
-
-  return rgbToHex(r, g, b);
+  return formatColor([mix(0), mix(1), mix(2), mix(3)]);
 };
 
 // Keyframe animation
@@ -425,16 +434,22 @@ export const range = (start: number, end: number, step: number = 1): number[] =>
   return result;
 };
 
-// Random with seed (for reproducibility)
+// Random with seed (for reproducibility).
+// FNV-1a over the seed string, then an avalanche finalizer so that neighbouring
+// seeds (1, 2, 3 or "a1", "a2") give unrelated values.
 export const random = (seed: string | number, min: number = 0, max: number = 1): number => {
   const str = typeof seed === 'number' ? seed.toString() : seed;
-  let hash = 0;
+  let hash = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
   }
-  const normalized = (Math.abs(hash) % 10000) / 10000;
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x85ebca6b);
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 0xc2b2ae35);
+  hash ^= hash >>> 16;
+  const normalized = (hash >>> 0) / 4294967296;
   return min + normalized * (max - min);
 };
 
