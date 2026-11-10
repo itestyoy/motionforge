@@ -387,7 +387,7 @@ const Ad = () => {
 | `linearTiming({ durationInFrames, easing? })` | `durationInFrames` (a positive integer) | 0 → 1 linearly or along `easing`, clamped |
 | `springTiming({ config?, durationInFrames?, durationRestThreshold?, reverse? })` | `durationInFrames`, or until the spring settles (`measureSpring({ config, threshold: durationRestThreshold })`) | `spring()` from 0 to 1; `reverse` plays the spring backwards in time |
 
-A custom timing is `{ getDurationInFrames({ fps }) → non-negative integer, getProgress({ frame, fps }) → number }`. Note: with a damping ratio above 1 (`damping > 2·√(stiffness·mass)`, e.g. `damping: 200`) MotionForge's `spring()` is overdamped and settles much later than Remotion's, which treats such springs as critically damped; `damping: 20` gives the same 23 frames at 30 fps in both.
+A custom timing is `{ getDurationInFrames({ fps }) → non-negative integer, getProgress({ frame, fps }) → number }`.
 
 **Presentations** (each from its own entry, options as in Remotion)
 
@@ -512,7 +512,7 @@ Easing.easeInCubic, Easing.easeOutCubic, Easing.easeInOutCubic
 
 The base curves and `in` / `out` / `inOut` follow Remotion's definitions. Every easing returns exactly 0 at 0 and 1 at 1 (Remotion's `exp` starts at 2⁻¹⁰ and some curves miss 1 by a rounding error; here the end points are exact).
 
-`Easing.spring(config)` is the `spring()` motion from 0 to 1 on a 30 fps clock, stretched to settle exactly at t = 1. With `allowTail: true`, t = 1 is the natural settle time (`durationRestThreshold`, default 0.005) and the motion goes on after it: `interpolate()` lets it run past the end of its segment even with `extrapolateRight: 'clamp'`, and adds the tail of an earlier segment on top of the following ones, as in Remotion.
+`Easing.spring(config)` is the `spring()` motion from 0 to 1 on a 30 fps clock, stretched so that it settles (to within `durationRestThreshold`) at t = 1; from t = 1 on it is exactly 1. With `allowTail: true`, t = 1 is the natural settle time (`durationRestThreshold`, default 0.005) and the motion goes on after it: `interpolate()` lets it run past the end of its segment even with `extrapolateRight: 'clamp'`, and adds the tail of an earlier segment on top of the following ones, as in Remotion.
 
 ## 🎯 Performance Optimization
 
@@ -552,8 +552,8 @@ const scale = useOptimizedSpring({ damping: 10 }, 0, 1);
 
 | Function | Description |
 |----------|-------------|
-| `spring({ frame, fps, config, delay?, reverse? })` | Calculate spring animation value; with `durationInFrames` the motion is stretched to settle at that frame and is exactly `to` from then on. `delay` (frames) releases it later. `reverse` plays the motion backwards in time (Remotion semantics): it starts at `to` and comes to rest at `from` after `durationInFrames`, or after its natural settle time (`measureSpring` with `durationRestThreshold`) |
-| `measureSpring({ fps, config, threshold })` | Frames until a spring stays within `threshold` of its target |
+| `spring({ frame, fps, config?, from?, to?, durationInFrames?, durationRestThreshold?, delay?, reverse? })` | Remotion's `spring()`, with the same values (the same stepped simulation, frame by frame). `config`: `damping` (default 10), `mass` (1), `stiffness` (100), `overshootClamping`; a damping ratio `damping / (2·√(stiffness·mass))` of 1 or more is critically damped, so `damping: 200` is a fast spring without bounce. With `durationInFrames` the motion is stretched so that its natural settle time (`measureSpring` with `durationRestThreshold`) becomes `durationInFrames`: at that frame it is within the threshold of `to`, after it exactly `to`. `delay` (frames) releases it later. `reverse` plays the motion backwards in time: it starts near `to` and comes to rest at `from` after `durationInFrames`, or after its natural settle time |
+| `measureSpring({ fps, config?, threshold? })` | Remotion's `measureSpring()`: frames until a spring has settled to within `threshold` (default 0.005) of its target and stays there for the next 20 frames |
 | `interpolate(input, inputRange, outputRange, options)` | Map values between ranges, as in Remotion. `inputRange` is ascending (a zero-length segment is a step at its end) with finite numbers; with one element the result is `outputRange[0]`. `extrapolateLeft` / `extrapolateRight`: `'extend'` (default, as in Remotion), `'clamp'`, `'identity'` or `'wrap'` (repeats the whole range). `easing`: one function, or an array with one per segment (`inputRange.length - 1`). `posterize`: the input is first rounded down to a multiple of it (e.g. `posterize: 5` steps every 5 frames) |
 | `interpolateColors(input, inputRange, outputRange, options?)` | Colors between the colors of `outputRange`, as in Remotion: the end colors hold outside the range; result `rgba(r, g, b, a)` (integer channels, alpha to 3 decimals), mixed in sRGB. Reads `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, CSS named colors (and `transparent`), `rgb()` / `rgba()`, `hsl()` / `hsla()` (comma or space syntax with `/ alpha`), `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()`. `options`: `easing`, `posterize`. Anything else throws |
 | `random(seed)` | Deterministic random number generator |

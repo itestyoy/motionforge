@@ -285,6 +285,10 @@ describe('timings', () => {
     expect(timing.getProgress({ frame: 8, fps: 30 })).toBe(spring({ frame: 8, fps: 30, config }));
     expect(timing.getProgress({ frame: 8, fps: 30 })).toBeCloseTo(0.74523, 5);
     expect(springTiming({ durationInFrames: 20 }).getDurationInFrames({ fps: 30 })).toBe(20);
+    // Remotion's doc example: a damping ratio above 1 is critically damped (as @remotion/transitions 4.0.542).
+    expect(springTiming({ config: { damping: 200 } }).getDurationInFrames({ fps: 30 })).toBe(23);
+    expect(springTiming({ config: { damping: 200 } }).getDurationInFrames({ fps: 60 })).toBe(45);
+    expect(springTiming().getDurationInFrames({ fps: 30 })).toBe(28);
     expect(springTiming({ durationRestThreshold: 0.1 }).getDurationInFrames({ fps: 30 })).toBe(
       measureSpring({ fps: 30, threshold: 0.1 }),
     );
