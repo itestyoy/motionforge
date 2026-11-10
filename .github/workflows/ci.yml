@@ -32,7 +32,9 @@ jobs:
         working-directory: packages/motionforge
         run: |
           bun install
-          bun x tsup
+          bun run typecheck
+          bun run build
+          bun run test
 
       - name: Build CLI
         working-directory: packages/create-motionforge
