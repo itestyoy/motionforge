@@ -1,6 +1,6 @@
 {
   "name": "motionforge",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "Headless React SDK for frame-based motion graphics: scenes are pure functions of the frame, the host app renders them and owns playback.",
   "author": "MotionForge Team",
   "license": "MIT",
